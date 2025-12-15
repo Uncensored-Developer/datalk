@@ -1,0 +1,35 @@
+no_tests: true
+no_back_referencing: true
+
+sqlite:
+  dsn: "datalk.db"
+  except:
+    schema_migrations:
+
+plugins:
+  dbinfo:
+    disabled: false
+    pkgname: "info"
+    destination: "db/info"
+  enums:
+    disabled: false
+    pkgname: "enums"
+    destination: "db/enums"
+  models:
+    disabled: false
+    pkgname: "models"
+    destination: "db/models"
+  factory:
+    disabled: false
+    pkgname: "factory"
+    destination: "db/factory"
+  dberrors:
+    disabled: false
+    pkgname: "errors"
+    destination: "db/errors"
+  where:
+    disabled: false
+  loaders:
+    disabled: false
+  joins:
+    disabled: false
