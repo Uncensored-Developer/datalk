@@ -40,8 +40,8 @@ func (f *Factory) NewConnectionAccessWithContext(ctx context.Context, mods ...Co
 func (f *Factory) FromExistingConnectionAccess(m *models.ConnectionAccess) *ConnectionAccessTemplate {
 	o := &ConnectionAccessTemplate{f: f, alreadyPersisted: true}
 
-	o.UserID = func() string { return m.UserID }
-	o.ConnectionID = func() string { return m.ConnectionID }
+	o.UserID = func() int64 { return m.UserID }
+	o.ConnectionID = func() int64 { return m.ConnectionID }
 	o.CanQuery = func() int64 { return m.CanQuery }
 	o.AllowWrites = func() int64 { return m.AllowWrites }
 	o.CanManage = func() int64 { return m.CanManage }
@@ -82,15 +82,15 @@ func (f *Factory) FromExistingConnection(m *models.Connection) *ConnectionTempla
 	o.Kind = func() string { return m.Kind }
 	o.DSN = func() null.Val[string] { return m.DSN }
 	o.IsEnabled = func() int64 { return m.IsEnabled }
-	o.CreatedBy = func() null.Val[string] { return m.CreatedBy }
+	o.UserID = func() null.Val[int64] { return m.UserID }
 	o.CreatedAt = func() string { return m.CreatedAt }
 
 	ctx := context.Background()
 	if len(m.R.ConnectionAccesses) > 0 {
 		ConnectionMods.AddExistingConnectionAccesses(m.R.ConnectionAccesses...).Apply(ctx, o)
 	}
-	if m.R.CreatedByUser != nil {
-		ConnectionMods.WithExistingCreatedByUser(m.R.CreatedByUser).Apply(ctx, o)
+	if m.R.User != nil {
+		ConnectionMods.WithExistingUser(m.R.User).Apply(ctx, o)
 	}
 
 	return o
@@ -145,7 +145,7 @@ func (f *Factory) FromExistingUser(m *models.User) *UserTemplate {
 	o.ID = func() int64 { return m.ID }
 	o.Email = func() string { return m.Email }
 	o.Name = func() string { return m.Name }
-	o.PasswordHash = func() null.Val[string] { return m.PasswordHash }
+	o.PasswordHash = func() string { return m.PasswordHash }
 	o.Role = func() string { return m.Role }
 	o.IsActive = func() int64 { return m.IsActive }
 	o.LastLoginAt = func() null.Val[string] { return m.LastLoginAt }
@@ -155,8 +155,8 @@ func (f *Factory) FromExistingUser(m *models.User) *UserTemplate {
 	if len(m.R.ConnectionAccesses) > 0 {
 		UserMods.AddExistingConnectionAccesses(m.R.ConnectionAccesses...).Apply(ctx, o)
 	}
-	if len(m.R.CreatedByConnections) > 0 {
-		UserMods.AddExistingCreatedByConnections(m.R.CreatedByConnections...).Apply(ctx, o)
+	if len(m.R.Connections) > 0 {
+		UserMods.AddExistingConnections(m.R.Connections...).Apply(ctx, o)
 	}
 
 	return o

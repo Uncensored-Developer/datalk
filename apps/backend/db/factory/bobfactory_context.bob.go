@@ -16,15 +16,15 @@ var (
 	// Relationship Contexts for connections
 	connectionWithParentsCascadingCtx  = newContextual[bool]("connectionWithParentsCascading")
 	connectionRelConnectionAccessesCtx = newContextual[bool]("connection_access.connections.fk_connection_access_0")
-	connectionRelCreatedByUserCtx      = newContextual[bool]("connections.users.fk_connections_0")
+	connectionRelUserCtx               = newContextual[bool]("connections.users.fk_connections_0")
 
 	// Relationship Contexts for organization
 	organizationWithParentsCascadingCtx = newContextual[bool]("organizationWithParentsCascading")
 
 	// Relationship Contexts for users
-	userWithParentsCascadingCtx    = newContextual[bool]("userWithParentsCascading")
-	userRelConnectionAccessesCtx   = newContextual[bool]("connection_access.users.fk_connection_access_1")
-	userRelCreatedByConnectionsCtx = newContextual[bool]("connections.users.fk_connections_0")
+	userWithParentsCascadingCtx  = newContextual[bool]("userWithParentsCascading")
+	userRelConnectionAccessesCtx = newContextual[bool]("connection_access.users.fk_connection_access_1")
+	userRelConnectionsCtx        = newContextual[bool]("connections.users.fk_connections_0")
 )
 
 // Contextual is a convienience wrapper around context.WithValue and context.Value

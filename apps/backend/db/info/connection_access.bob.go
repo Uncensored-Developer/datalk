@@ -17,7 +17,7 @@ var ConnectionAccesses = Table[
 	Columns: connectionAccessColumns{
 		UserID: column{
 			Name:      "user_id",
-			DBType:    "TEXT",
+			DBType:    "INTEGER",
 			Default:   "",
 			Comment:   "",
 			Nullable:  false,
@@ -26,7 +26,7 @@ var ConnectionAccesses = Table[
 		},
 		ConnectionID: column{
 			Name:      "connection_id",
-			DBType:    "TEXT",
+			DBType:    "INTEGER",
 			Default:   "",
 			Comment:   "",
 			Nullable:  false,

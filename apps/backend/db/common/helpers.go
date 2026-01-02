@@ -22,12 +22,12 @@ var (
 	ErrNoDBConfiguration  = xerrors.New("no DB configuration found")
 )
 
-func DropTestSchema(conn *sql.DB, schema string) error {
-	_, err := conn.Exec(fmt.Sprintf("DROP SCHEMA IF EXISTS test%s CASCADE;", schema))
-	return err
+func DropTestDB(conn *sql.DB, dbPath string) error {
+	conn.Close()
+	return os.RemoveAll(dbPath)
 }
 
-func DBFromConfig(cfg config.Config, migrateUp bool, log *slog.Logger) (*sql.DB, error) {
+func DBFromConfig(cfg config.Config, schema string, migrateUp bool, log *slog.Logger) (*sql.DB, error) {
 	if cfg.DbDSN == "" {
 		return nil, ErrNoDBConfiguration
 	}
@@ -35,7 +35,7 @@ func DBFromConfig(cfg config.Config, migrateUp bool, log *slog.Logger) (*sql.DB,
 	var conn *sql.DB
 	var err error
 
-	conn, err = sql.Open("sqlite3", cfg.DbDSN)
+	conn, err = sql.Open("sqlite3", schema+cfg.DbDSN)
 	if err != nil {
 		return nil, err
 	}
@@ -45,6 +45,23 @@ func DBFromConfig(cfg config.Config, migrateUp bool, log *slog.Logger) (*sql.DB,
 		if err := MigrateUp(conn, log); err != nil {
 			return conn, err
 		}
+	}
+
+	return conn, nil
+}
+
+func TestDB(dsn string, log *slog.Logger) (*sql.DB, error) {
+	var conn *sql.DB
+	var err error
+
+	conn, err = sql.Open("sqlite3", dsn)
+	if err != nil {
+		return nil, err
+	}
+	conn.SetConnMaxLifetime(5 * time.Minute)
+
+	if err := MigrateUp(conn, log); err != nil {
+		return conn, err
 	}
 
 	return conn, nil

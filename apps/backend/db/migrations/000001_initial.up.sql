@@ -9,7 +9,7 @@ CREATE TABLE users (
     id INTEGER PRIMARY KEY,
     email TEXT NOT NULL,
     name TEXT NOT NULL,
-    password_hash TEXT,
+    password_hash TEXT NOT NULL,
     role TEXT NOT NULL CHECK (role IN ('owner','admin','member')) DEFAULT 'member',
     is_active INTEGER NOT NULL DEFAULT 1,
     last_login_at TEXT,
@@ -23,13 +23,13 @@ CREATE TABLE connections (
     kind TEXT NOT NULL CHECK (kind IN ('postgres', 'mysql','cql')),
     dsn TEXT,
     is_enabled INTEGER NOT NULL DEFAULT 1,
-    created_by TEXT REFERENCES users(id),
+    user_id INTEGER REFERENCES users(id),
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now'))
 );
 
 CREATE TABLE connection_access (
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    connection_id TEXT NOT NULL REFERENCES connections(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    connection_id INTEGER NOT NULL REFERENCES connections(id) ON DELETE CASCADE,
     can_query INTEGER NOT NULL DEFAULT 1,
     allow_writes INTEGER NOT NULL DEFAULT 0,
     can_manage INTEGER NOT NULL DEFAULT 0,

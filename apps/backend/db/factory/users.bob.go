@@ -39,7 +39,7 @@ type UserTemplate struct {
 	ID           func() int64
 	Email        func() string
 	Name         func() string
-	PasswordHash func() null.Val[string]
+	PasswordHash func() string
 	Role         func() string
 	IsActive     func() int64
 	LastLoginAt  func() null.Val[string]
@@ -52,15 +52,15 @@ type UserTemplate struct {
 }
 
 type userR struct {
-	ConnectionAccesses   []*userRConnectionAccessesR
-	CreatedByConnections []*userRCreatedByConnectionsR
+	ConnectionAccesses []*userRConnectionAccessesR
+	Connections        []*userRConnectionsR
 }
 
 type userRConnectionAccessesR struct {
 	number int
 	o      *ConnectionAccessTemplate
 }
-type userRCreatedByConnectionsR struct {
+type userRConnectionsR struct {
 	number int
 	o      *ConnectionTemplate
 }
@@ -87,16 +87,16 @@ func (t UserTemplate) setModelRels(o *models.User) {
 		o.R.ConnectionAccesses = rel
 	}
 
-	if t.r.CreatedByConnections != nil {
+	if t.r.Connections != nil {
 		rel := models.ConnectionSlice{}
-		for _, r := range t.r.CreatedByConnections {
+		for _, r := range t.r.Connections {
 			related := r.o.BuildMany(r.number)
 			for _, rel := range related {
-				rel.CreatedBy = null.From(o.ID) // h2
+				rel.UserID = null.From(o.ID) // h2
 			}
 			rel = append(rel, related...)
 		}
-		o.R.CreatedByConnections = rel
+		o.R.Connections = rel
 	}
 }
 
@@ -119,7 +119,7 @@ func (o UserTemplate) BuildSetter() *models.UserSetter {
 	}
 	if o.PasswordHash != nil {
 		val := o.PasswordHash()
-		m.PasswordHash = omitnull.FromNull(val)
+		m.PasswordHash = omit.From(val)
 	}
 	if o.Role != nil {
 		val := o.Role()
@@ -211,6 +211,10 @@ func ensureCreatableUser(m *models.UserSetter) {
 		val := random_string(nil)
 		m.Name = omit.From(val)
 	}
+	if !(m.PasswordHash.IsValue()) {
+		val := random_string(nil)
+		m.PasswordHash = omit.From(val)
+	}
 }
 
 // insertOptRels creates and inserts any optional the relationships on *models.User
@@ -239,19 +243,19 @@ func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 		}
 	}
 
-	isCreatedByConnectionsDone, _ := userRelCreatedByConnectionsCtx.Value(ctx)
-	if !isCreatedByConnectionsDone && o.r.CreatedByConnections != nil {
-		ctx = userRelCreatedByConnectionsCtx.WithValue(ctx, true)
-		for _, r := range o.r.CreatedByConnections {
+	isConnectionsDone, _ := userRelConnectionsCtx.Value(ctx)
+	if !isConnectionsDone && o.r.Connections != nil {
+		ctx = userRelConnectionsCtx.WithValue(ctx, true)
+		for _, r := range o.r.Connections {
 			if r.o.alreadyPersisted {
-				m.R.CreatedByConnections = append(m.R.CreatedByConnections, r.o.Build())
+				m.R.Connections = append(m.R.Connections, r.o.Build())
 			} else {
 				rel1, err := r.o.CreateMany(ctx, exec, r.number)
 				if err != nil {
 					return err
 				}
 
-				err = m.AttachCreatedByConnections(ctx, exec, rel1...)
+				err = m.AttachConnections(ctx, exec, rel1...)
 				if err != nil {
 					return err
 				}
@@ -456,14 +460,14 @@ func (m userMods) RandomName(f *faker.Faker) UserMod {
 }
 
 // Set the model columns to this value
-func (m userMods) PasswordHash(val null.Val[string]) UserMod {
+func (m userMods) PasswordHash(val string) UserMod {
 	return UserModFunc(func(_ context.Context, o *UserTemplate) {
-		o.PasswordHash = func() null.Val[string] { return val }
+		o.PasswordHash = func() string { return val }
 	})
 }
 
 // Set the Column from the function
-func (m userMods) PasswordHashFunc(f func() null.Val[string]) UserMod {
+func (m userMods) PasswordHashFunc(f func() string) UserMod {
 	return UserModFunc(func(_ context.Context, o *UserTemplate) {
 		o.PasswordHash = f
 	})
@@ -478,32 +482,10 @@ func (m userMods) UnsetPasswordHash() UserMod {
 
 // Generates a random value for the column using the given faker
 // if faker is nil, a default faker is used
-// The generated value is sometimes null
 func (m userMods) RandomPasswordHash(f *faker.Faker) UserMod {
 	return UserModFunc(func(_ context.Context, o *UserTemplate) {
-		o.PasswordHash = func() null.Val[string] {
-			if f == nil {
-				f = &defaultFaker
-			}
-
-			val := random_string(f)
-			return null.From(val)
-		}
-	})
-}
-
-// Generates a random value for the column using the given faker
-// if faker is nil, a default faker is used
-// The generated value is never null
-func (m userMods) RandomPasswordHashNotNull(f *faker.Faker) UserMod {
-	return UserModFunc(func(_ context.Context, o *UserTemplate) {
-		o.PasswordHash = func() null.Val[string] {
-			if f == nil {
-				f = &defaultFaker
-			}
-
-			val := random_string(f)
-			return null.From(val)
+		o.PasswordHash = func() string {
+			return random_string(f)
 		}
 	})
 }
@@ -711,50 +693,50 @@ func (m userMods) WithoutConnectionAccesses() UserMod {
 	})
 }
 
-func (m userMods) WithCreatedByConnections(number int, related *ConnectionTemplate) UserMod {
+func (m userMods) WithConnections(number int, related *ConnectionTemplate) UserMod {
 	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
-		o.r.CreatedByConnections = []*userRCreatedByConnectionsR{{
+		o.r.Connections = []*userRConnectionsR{{
 			number: number,
 			o:      related,
 		}}
 	})
 }
 
-func (m userMods) WithNewCreatedByConnections(number int, mods ...ConnectionMod) UserMod {
+func (m userMods) WithNewConnections(number int, mods ...ConnectionMod) UserMod {
 	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
 		related := o.f.NewConnectionWithContext(ctx, mods...)
-		m.WithCreatedByConnections(number, related).Apply(ctx, o)
+		m.WithConnections(number, related).Apply(ctx, o)
 	})
 }
 
-func (m userMods) AddCreatedByConnections(number int, related *ConnectionTemplate) UserMod {
+func (m userMods) AddConnections(number int, related *ConnectionTemplate) UserMod {
 	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
-		o.r.CreatedByConnections = append(o.r.CreatedByConnections, &userRCreatedByConnectionsR{
+		o.r.Connections = append(o.r.Connections, &userRConnectionsR{
 			number: number,
 			o:      related,
 		})
 	})
 }
 
-func (m userMods) AddNewCreatedByConnections(number int, mods ...ConnectionMod) UserMod {
+func (m userMods) AddNewConnections(number int, mods ...ConnectionMod) UserMod {
 	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
 		related := o.f.NewConnectionWithContext(ctx, mods...)
-		m.AddCreatedByConnections(number, related).Apply(ctx, o)
+		m.AddConnections(number, related).Apply(ctx, o)
 	})
 }
 
-func (m userMods) AddExistingCreatedByConnections(existingModels ...*models.Connection) UserMod {
+func (m userMods) AddExistingConnections(existingModels ...*models.Connection) UserMod {
 	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
 		for _, em := range existingModels {
-			o.r.CreatedByConnections = append(o.r.CreatedByConnections, &userRCreatedByConnectionsR{
+			o.r.Connections = append(o.r.Connections, &userRConnectionsR{
 				o: o.f.FromExistingConnection(em),
 			})
 		}
 	})
 }
 
-func (m userMods) WithoutCreatedByConnections() UserMod {
+func (m userMods) WithoutConnections() UserMod {
 	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
-		o.r.CreatedByConnections = nil
+		o.r.Connections = nil
 	})
 }

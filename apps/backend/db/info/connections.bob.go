@@ -60,9 +60,9 @@ var Connections = Table[
 			Generated: false,
 			AutoIncr:  false,
 		},
-		CreatedBy: column{
-			Name:      "created_by",
-			DBType:    "TEXT",
+		UserID: column{
+			Name:      "user_id",
+			DBType:    "INTEGER",
 			Default:   "NULL",
 			Comment:   "",
 			Nullable:  true,
@@ -118,7 +118,7 @@ var Connections = Table[
 		FKConnections0: foreignKey{
 			constraint: constraint{
 				Name:    "fk_connections_0",
-				Columns: []string{"created_by"},
+				Columns: []string{"user_id"},
 				Comment: "",
 			},
 			ForeignTable:   "users",
@@ -142,13 +142,13 @@ type connectionColumns struct {
 	Kind      column
 	DSN       column
 	IsEnabled column
-	CreatedBy column
+	UserID    column
 	CreatedAt column
 }
 
 func (c connectionColumns) AsSlice() []column {
 	return []column{
-		c.ID, c.Name, c.Kind, c.DSN, c.IsEnabled, c.CreatedBy, c.CreatedAt,
+		c.ID, c.Name, c.Kind, c.DSN, c.IsEnabled, c.UserID, c.CreatedAt,
 	}
 }
 

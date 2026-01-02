@@ -45,9 +45,9 @@ var Users = Table[
 		PasswordHash: column{
 			Name:      "password_hash",
 			DBType:    "TEXT",
-			Default:   "NULL",
+			Default:   "",
 			Comment:   "",
-			Nullable:  true,
+			Nullable:  false,
 			Generated: false,
 			AutoIncr:  false,
 		},

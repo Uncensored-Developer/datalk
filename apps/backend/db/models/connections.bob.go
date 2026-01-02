@@ -29,7 +29,7 @@ type Connection struct {
 	Kind      string           `db:"kind" `
 	DSN       null.Val[string] `db:"dsn" `
 	IsEnabled int64            `db:"is_enabled" `
-	CreatedBy null.Val[string] `db:"created_by" `
+	UserID    null.Val[int64]  `db:"user_id" `
 	CreatedAt string           `db:"created_at" `
 
 	R connectionR `db:"-" `
@@ -48,13 +48,13 @@ type ConnectionsQuery = *sqlite.ViewQuery[*Connection, ConnectionSlice]
 // connectionR is where relationships are stored.
 type connectionR struct {
 	ConnectionAccesses ConnectionAccessSlice // fk_connection_access_0
-	CreatedByUser      *User                 // fk_connections_0
+	User               *User                 // fk_connections_0
 }
 
 func buildConnectionColumns(alias string) connectionColumns {
 	return connectionColumns{
 		ColumnsExpr: expr.NewColumnsExpr(
-			"id", "name", "kind", "dsn", "is_enabled", "created_by", "created_at",
+			"id", "name", "kind", "dsn", "is_enabled", "user_id", "created_at",
 		).WithParent("connections"),
 		tableAlias: alias,
 		ID:         sqlite.Quote(alias, "id"),
@@ -62,7 +62,7 @@ func buildConnectionColumns(alias string) connectionColumns {
 		Kind:       sqlite.Quote(alias, "kind"),
 		DSN:        sqlite.Quote(alias, "dsn"),
 		IsEnabled:  sqlite.Quote(alias, "is_enabled"),
-		CreatedBy:  sqlite.Quote(alias, "created_by"),
+		UserID:     sqlite.Quote(alias, "user_id"),
 		CreatedAt:  sqlite.Quote(alias, "created_at"),
 	}
 }
@@ -75,7 +75,7 @@ type connectionColumns struct {
 	Kind       sqlite.Expression
 	DSN        sqlite.Expression
 	IsEnabled  sqlite.Expression
-	CreatedBy  sqlite.Expression
+	UserID     sqlite.Expression
 	CreatedAt  sqlite.Expression
 }
 
@@ -96,7 +96,7 @@ type ConnectionSetter struct {
 	Kind      omit.Val[string]     `db:"kind" `
 	DSN       omitnull.Val[string] `db:"dsn" `
 	IsEnabled omit.Val[int64]      `db:"is_enabled" `
-	CreatedBy omitnull.Val[string] `db:"created_by" `
+	UserID    omitnull.Val[int64]  `db:"user_id" `
 	CreatedAt omit.Val[string]     `db:"created_at" `
 }
 
@@ -117,8 +117,8 @@ func (s ConnectionSetter) SetColumns() []string {
 	if s.IsEnabled.IsValue() {
 		vals = append(vals, "is_enabled")
 	}
-	if !s.CreatedBy.IsUnset() {
-		vals = append(vals, "created_by")
+	if !s.UserID.IsUnset() {
+		vals = append(vals, "user_id")
 	}
 	if s.CreatedAt.IsValue() {
 		vals = append(vals, "created_at")
@@ -142,8 +142,8 @@ func (s ConnectionSetter) Overwrite(t *Connection) {
 	if s.IsEnabled.IsValue() {
 		t.IsEnabled = s.IsEnabled.MustGet()
 	}
-	if !s.CreatedBy.IsUnset() {
-		t.CreatedBy = s.CreatedBy.MustGetNull()
+	if !s.UserID.IsUnset() {
+		t.UserID = s.UserID.MustGetNull()
 	}
 	if s.CreatedAt.IsValue() {
 		t.CreatedAt = s.CreatedAt.MustGet()
@@ -185,8 +185,8 @@ func (s *ConnectionSetter) Apply(q *dialect.InsertQuery) {
 			vals = append(vals, sqlite.Arg(s.IsEnabled.MustGet()))
 		}
 
-		if !s.CreatedBy.IsUnset() {
-			vals = append(vals, sqlite.Arg(s.CreatedBy.MustGetNull()))
+		if !s.UserID.IsUnset() {
+			vals = append(vals, sqlite.Arg(s.UserID.MustGetNull()))
 		}
 
 		if s.CreatedAt.IsValue() {
@@ -243,10 +243,10 @@ func (s ConnectionSetter) Expressions(prefix ...string) []bob.Expression {
 		}})
 	}
 
-	if !s.CreatedBy.IsUnset() {
+	if !s.UserID.IsUnset() {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
-			sqlite.Quote(append(prefix, "created_by")...),
-			sqlite.Arg(s.CreatedBy),
+			sqlite.Quote(append(prefix, "user_id")...),
+			sqlite.Arg(s.UserID),
 		}})
 	}
 
@@ -502,17 +502,17 @@ func (os ConnectionSlice) ConnectionAccesses(mods ...bob.Mod[*dialect.SelectQuer
 	)...)
 }
 
-// CreatedByUser starts a query for related objects on users
-func (o *Connection) CreatedByUser(mods ...bob.Mod[*dialect.SelectQuery]) UsersQuery {
+// User starts a query for related objects on users
+func (o *Connection) User(mods ...bob.Mod[*dialect.SelectQuery]) UsersQuery {
 	return Users.Query(append(mods,
-		sm.Where(Users.Columns.ID.EQ(sqlite.Arg(o.CreatedBy))),
+		sm.Where(Users.Columns.ID.EQ(sqlite.Arg(o.UserID))),
 	)...)
 }
 
-func (os ConnectionSlice) CreatedByUser(mods ...bob.Mod[*dialect.SelectQuery]) UsersQuery {
+func (os ConnectionSlice) User(mods ...bob.Mod[*dialect.SelectQuery]) UsersQuery {
 	PKArgSlice := make([]bob.Expression, len(os))
 	for i, o := range os {
-		PKArgSlice[i] = sqlite.ArgGroup(o.CreatedBy)
+		PKArgSlice[i] = sqlite.ArgGroup(o.UserID)
 	}
 	PKArgExpr := sqlite.Group(PKArgSlice...)
 
@@ -582,20 +582,20 @@ func (connection0 *Connection) AttachConnectionAccesses(ctx context.Context, exe
 	return nil
 }
 
-func attachConnectionCreatedByUser0(ctx context.Context, exec bob.Executor, count int, connection0 *Connection, user1 *User) (*Connection, error) {
+func attachConnectionUser0(ctx context.Context, exec bob.Executor, count int, connection0 *Connection, user1 *User) (*Connection, error) {
 	setter := &ConnectionSetter{
-		CreatedBy: omitnull.From(user1.ID),
+		UserID: omitnull.From(user1.ID),
 	}
 
 	err := connection0.Update(ctx, exec, setter)
 	if err != nil {
-		return nil, fmt.Errorf("attachConnectionCreatedByUser0: %w", err)
+		return nil, fmt.Errorf("attachConnectionUser0: %w", err)
 	}
 
 	return connection0, nil
 }
 
-func (connection0 *Connection) InsertCreatedByUser(ctx context.Context, exec bob.Executor, related *UserSetter) error {
+func (connection0 *Connection) InsertUser(ctx context.Context, exec bob.Executor, related *UserSetter) error {
 	var err error
 
 	user1, err := Users.Insert(related).One(ctx, exec)
@@ -603,25 +603,25 @@ func (connection0 *Connection) InsertCreatedByUser(ctx context.Context, exec bob
 		return fmt.Errorf("inserting related objects: %w", err)
 	}
 
-	_, err = attachConnectionCreatedByUser0(ctx, exec, 1, connection0, user1)
+	_, err = attachConnectionUser0(ctx, exec, 1, connection0, user1)
 	if err != nil {
 		return err
 	}
 
-	connection0.R.CreatedByUser = user1
+	connection0.R.User = user1
 
 	return nil
 }
 
-func (connection0 *Connection) AttachCreatedByUser(ctx context.Context, exec bob.Executor, user1 *User) error {
+func (connection0 *Connection) AttachUser(ctx context.Context, exec bob.Executor, user1 *User) error {
 	var err error
 
-	_, err = attachConnectionCreatedByUser0(ctx, exec, 1, connection0, user1)
+	_, err = attachConnectionUser0(ctx, exec, 1, connection0, user1)
 	if err != nil {
 		return err
 	}
 
-	connection0.R.CreatedByUser = user1
+	connection0.R.User = user1
 
 	return nil
 }
@@ -632,7 +632,7 @@ type connectionWhere[Q sqlite.Filterable] struct {
 	Kind      sqlite.WhereMod[Q, string]
 	DSN       sqlite.WhereNullMod[Q, string]
 	IsEnabled sqlite.WhereMod[Q, int64]
-	CreatedBy sqlite.WhereNullMod[Q, string]
+	UserID    sqlite.WhereNullMod[Q, int64]
 	CreatedAt sqlite.WhereMod[Q, string]
 }
 
@@ -647,7 +647,7 @@ func buildConnectionWhere[Q sqlite.Filterable](cols connectionColumns) connectio
 		Kind:      sqlite.Where[Q, string](cols.Kind),
 		DSN:       sqlite.WhereNull[Q, string](cols.DSN),
 		IsEnabled: sqlite.Where[Q, int64](cols.IsEnabled),
-		CreatedBy: sqlite.WhereNull[Q, string](cols.CreatedBy),
+		UserID:    sqlite.WhereNull[Q, int64](cols.UserID),
 		CreatedAt: sqlite.Where[Q, string](cols.CreatedAt),
 	}
 }
@@ -667,13 +667,13 @@ func (o *Connection) Preload(name string, retrieved any) error {
 		o.R.ConnectionAccesses = rels
 
 		return nil
-	case "CreatedByUser":
+	case "User":
 		rel, ok := retrieved.(*User)
 		if !ok {
 			return fmt.Errorf("connection cannot load %T as %q", retrieved, name)
 		}
 
-		o.R.CreatedByUser = rel
+		o.R.User = rel
 
 		return nil
 	default:
@@ -682,19 +682,19 @@ func (o *Connection) Preload(name string, retrieved any) error {
 }
 
 type connectionPreloader struct {
-	CreatedByUser func(...sqlite.PreloadOption) sqlite.Preloader
+	User func(...sqlite.PreloadOption) sqlite.Preloader
 }
 
 func buildConnectionPreloader() connectionPreloader {
 	return connectionPreloader{
-		CreatedByUser: func(opts ...sqlite.PreloadOption) sqlite.Preloader {
+		User: func(opts ...sqlite.PreloadOption) sqlite.Preloader {
 			return sqlite.Preload[*User, UserSlice](sqlite.PreloadRel{
-				Name: "CreatedByUser",
+				Name: "User",
 				Sides: []sqlite.PreloadSide{
 					{
 						From:        Connections,
 						To:          Users,
-						FromColumns: []string{"created_by"},
+						FromColumns: []string{"user_id"},
 						ToColumns:   []string{"id"},
 					},
 				},
@@ -705,15 +705,15 @@ func buildConnectionPreloader() connectionPreloader {
 
 type connectionThenLoader[Q orm.Loadable] struct {
 	ConnectionAccesses func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	CreatedByUser      func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	User               func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 }
 
 func buildConnectionThenLoader[Q orm.Loadable]() connectionThenLoader[Q] {
 	type ConnectionAccessesLoadInterface interface {
 		LoadConnectionAccesses(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
-	type CreatedByUserLoadInterface interface {
-		LoadCreatedByUser(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	type UserLoadInterface interface {
+		LoadUser(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 
 	return connectionThenLoader[Q]{
@@ -723,10 +723,10 @@ func buildConnectionThenLoader[Q orm.Loadable]() connectionThenLoader[Q] {
 				return retrieved.LoadConnectionAccesses(ctx, exec, mods...)
 			},
 		),
-		CreatedByUser: thenLoadBuilder[Q](
-			"CreatedByUser",
-			func(ctx context.Context, exec bob.Executor, retrieved CreatedByUserLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
-				return retrieved.LoadCreatedByUser(ctx, exec, mods...)
+		User: thenLoadBuilder[Q](
+			"User",
+			func(ctx context.Context, exec bob.Executor, retrieved UserLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadUser(ctx, exec, mods...)
 			},
 		),
 	}
@@ -787,31 +787,31 @@ func (os ConnectionSlice) LoadConnectionAccesses(ctx context.Context, exec bob.E
 	return nil
 }
 
-// LoadCreatedByUser loads the connection's CreatedByUser into the .R struct
-func (o *Connection) LoadCreatedByUser(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+// LoadUser loads the connection's User into the .R struct
+func (o *Connection) LoadUser(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
 	if o == nil {
 		return nil
 	}
 
 	// Reset the relationship
-	o.R.CreatedByUser = nil
+	o.R.User = nil
 
-	related, err := o.CreatedByUser(mods...).One(ctx, exec)
+	related, err := o.User(mods...).One(ctx, exec)
 	if err != nil {
 		return err
 	}
 
-	o.R.CreatedByUser = related
+	o.R.User = related
 	return nil
 }
 
-// LoadCreatedByUser loads the connection's CreatedByUser into the .R struct
-func (os ConnectionSlice) LoadCreatedByUser(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+// LoadUser loads the connection's User into the .R struct
+func (os ConnectionSlice) LoadUser(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
 	if len(os) == 0 {
 		return nil
 	}
 
-	users, err := os.CreatedByUser(mods...).All(ctx, exec)
+	users, err := os.User(mods...).All(ctx, exec)
 	if err != nil {
 		return err
 	}
@@ -822,15 +822,15 @@ func (os ConnectionSlice) LoadCreatedByUser(ctx context.Context, exec bob.Execut
 		}
 
 		for _, rel := range users {
-			if !o.CreatedBy.IsValue() {
+			if !o.UserID.IsValue() {
 				continue
 			}
 
-			if !(o.CreatedBy.IsValue() && o.CreatedBy.MustGet() == rel.ID) {
+			if !(o.UserID.IsValue() && o.UserID.MustGet() == rel.ID) {
 				continue
 			}
 
-			o.R.CreatedByUser = rel
+			o.R.User = rel
 			break
 		}
 	}
@@ -841,7 +841,7 @@ func (os ConnectionSlice) LoadCreatedByUser(ctx context.Context, exec bob.Execut
 type connectionJoins[Q dialect.Joinable] struct {
 	typ                string
 	ConnectionAccesses modAs[Q, connectionAccessColumns]
-	CreatedByUser      modAs[Q, userColumns]
+	User               modAs[Q, userColumns]
 }
 
 func (j connectionJoins[Q]) aliasedAs(alias string) connectionJoins[Q] {
@@ -865,14 +865,14 @@ func buildConnectionJoins[Q dialect.Joinable](cols connectionColumns, typ string
 				return mods
 			},
 		},
-		CreatedByUser: modAs[Q, userColumns]{
+		User: modAs[Q, userColumns]{
 			c: Users.Columns,
 			f: func(to userColumns) bob.Mod[Q] {
 				mods := make(mods.QueryMods[Q], 0, 1)
 
 				{
 					mods = append(mods, dialect.Join[Q](typ, Users.Name().As(to.Alias())).On(
-						to.ID.EQ(cols.CreatedBy),
+						to.ID.EQ(cols.UserID),
 					))
 				}
 

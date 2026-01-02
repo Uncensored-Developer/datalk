@@ -34,8 +34,8 @@ func (mods ConnectionAccessModSlice) Apply(ctx context.Context, n *ConnectionAcc
 // ConnectionAccessTemplate is an object representing the database table.
 // all columns are optional and should be set by mods
 type ConnectionAccessTemplate struct {
-	UserID       func() string
-	ConnectionID func() string
+	UserID       func() int64
+	ConnectionID func() int64
 	CanQuery     func() int64
 	AllowWrites  func() int64
 	CanManage    func() int64
@@ -172,11 +172,11 @@ func (o ConnectionAccessTemplate) BuildMany(number int) models.ConnectionAccessS
 
 func ensureCreatableConnectionAccess(m *models.ConnectionAccessSetter) {
 	if !(m.UserID.IsValue()) {
-		val := random_string(nil)
+		val := random_int64(nil)
 		m.UserID = omit.From(val)
 	}
 	if !(m.ConnectionID.IsValue()) {
-		val := random_string(nil)
+		val := random_int64(nil)
 		m.ConnectionID = omit.From(val)
 	}
 }
@@ -326,14 +326,14 @@ func (m connectionAccessMods) RandomizeAllColumns(f *faker.Faker) ConnectionAcce
 }
 
 // Set the model columns to this value
-func (m connectionAccessMods) UserID(val string) ConnectionAccessMod {
+func (m connectionAccessMods) UserID(val int64) ConnectionAccessMod {
 	return ConnectionAccessModFunc(func(_ context.Context, o *ConnectionAccessTemplate) {
-		o.UserID = func() string { return val }
+		o.UserID = func() int64 { return val }
 	})
 }
 
 // Set the Column from the function
-func (m connectionAccessMods) UserIDFunc(f func() string) ConnectionAccessMod {
+func (m connectionAccessMods) UserIDFunc(f func() int64) ConnectionAccessMod {
 	return ConnectionAccessModFunc(func(_ context.Context, o *ConnectionAccessTemplate) {
 		o.UserID = f
 	})
@@ -350,21 +350,21 @@ func (m connectionAccessMods) UnsetUserID() ConnectionAccessMod {
 // if faker is nil, a default faker is used
 func (m connectionAccessMods) RandomUserID(f *faker.Faker) ConnectionAccessMod {
 	return ConnectionAccessModFunc(func(_ context.Context, o *ConnectionAccessTemplate) {
-		o.UserID = func() string {
-			return random_string(f)
+		o.UserID = func() int64 {
+			return random_int64(f)
 		}
 	})
 }
 
 // Set the model columns to this value
-func (m connectionAccessMods) ConnectionID(val string) ConnectionAccessMod {
+func (m connectionAccessMods) ConnectionID(val int64) ConnectionAccessMod {
 	return ConnectionAccessModFunc(func(_ context.Context, o *ConnectionAccessTemplate) {
-		o.ConnectionID = func() string { return val }
+		o.ConnectionID = func() int64 { return val }
 	})
 }
 
 // Set the Column from the function
-func (m connectionAccessMods) ConnectionIDFunc(f func() string) ConnectionAccessMod {
+func (m connectionAccessMods) ConnectionIDFunc(f func() int64) ConnectionAccessMod {
 	return ConnectionAccessModFunc(func(_ context.Context, o *ConnectionAccessTemplate) {
 		o.ConnectionID = f
 	})
@@ -381,8 +381,8 @@ func (m connectionAccessMods) UnsetConnectionID() ConnectionAccessMod {
 // if faker is nil, a default faker is used
 func (m connectionAccessMods) RandomConnectionID(f *faker.Faker) ConnectionAccessMod {
 	return ConnectionAccessModFunc(func(_ context.Context, o *ConnectionAccessTemplate) {
-		o.ConnectionID = func() string {
-			return random_string(f)
+		o.ConnectionID = func() int64 {
+			return random_int64(f)
 		}
 	})
 }

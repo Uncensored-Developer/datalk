@@ -41,7 +41,7 @@ type ConnectionTemplate struct {
 	Kind      func() string
 	DSN       func() null.Val[string]
 	IsEnabled func() int64
-	CreatedBy func() null.Val[string]
+	UserID    func() null.Val[int64]
 	CreatedAt func() string
 
 	r connectionR
@@ -52,14 +52,14 @@ type ConnectionTemplate struct {
 
 type connectionR struct {
 	ConnectionAccesses []*connectionRConnectionAccessesR
-	CreatedByUser      *connectionRCreatedByUserR
+	User               *connectionRUserR
 }
 
 type connectionRConnectionAccessesR struct {
 	number int
 	o      *ConnectionAccessTemplate
 }
-type connectionRCreatedByUserR struct {
+type connectionRUserR struct {
 	o *UserTemplate
 }
 
@@ -85,10 +85,10 @@ func (t ConnectionTemplate) setModelRels(o *models.Connection) {
 		o.R.ConnectionAccesses = rel
 	}
 
-	if t.r.CreatedByUser != nil {
-		rel := t.r.CreatedByUser.o.Build()
-		o.CreatedBy = null.From(rel.ID) // h2
-		o.R.CreatedByUser = rel
+	if t.r.User != nil {
+		rel := t.r.User.o.Build()
+		o.UserID = null.From(rel.ID) // h2
+		o.R.User = rel
 	}
 }
 
@@ -117,9 +117,9 @@ func (o ConnectionTemplate) BuildSetter() *models.ConnectionSetter {
 		val := o.IsEnabled()
 		m.IsEnabled = omit.From(val)
 	}
-	if o.CreatedBy != nil {
-		val := o.CreatedBy()
-		m.CreatedBy = omitnull.FromNull(val)
+	if o.UserID != nil {
+		val := o.UserID()
+		m.UserID = omitnull.FromNull(val)
 	}
 	if o.CreatedAt != nil {
 		val := o.CreatedAt()
@@ -162,8 +162,8 @@ func (o ConnectionTemplate) Build() *models.Connection {
 	if o.IsEnabled != nil {
 		m.IsEnabled = o.IsEnabled()
 	}
-	if o.CreatedBy != nil {
-		m.CreatedBy = o.CreatedBy()
+	if o.UserID != nil {
+		m.UserID = o.UserID()
 	}
 	if o.CreatedAt != nil {
 		m.CreatedAt = o.CreatedAt()
@@ -224,18 +224,18 @@ func (o *ConnectionTemplate) insertOptRels(ctx context.Context, exec bob.Executo
 		}
 	}
 
-	isCreatedByUserDone, _ := connectionRelCreatedByUserCtx.Value(ctx)
-	if !isCreatedByUserDone && o.r.CreatedByUser != nil {
-		ctx = connectionRelCreatedByUserCtx.WithValue(ctx, true)
-		if o.r.CreatedByUser.o.alreadyPersisted {
-			m.R.CreatedByUser = o.r.CreatedByUser.o.Build()
+	isUserDone, _ := connectionRelUserCtx.Value(ctx)
+	if !isUserDone && o.r.User != nil {
+		ctx = connectionRelUserCtx.WithValue(ctx, true)
+		if o.r.User.o.alreadyPersisted {
+			m.R.User = o.r.User.o.Build()
 		} else {
 			var rel1 *models.User
-			rel1, err = o.r.CreatedByUser.o.Create(ctx, exec)
+			rel1, err = o.r.User.o.Create(ctx, exec)
 			if err != nil {
 				return err
 			}
-			err = m.AttachCreatedByUser(ctx, exec, rel1)
+			err = m.AttachUser(ctx, exec, rel1)
 			if err != nil {
 				return err
 			}
@@ -340,7 +340,7 @@ func (m connectionMods) RandomizeAllColumns(f *faker.Faker) ConnectionMod {
 		ConnectionMods.RandomKind(f),
 		ConnectionMods.RandomDSN(f),
 		ConnectionMods.RandomIsEnabled(f),
-		ConnectionMods.RandomCreatedBy(f),
+		ConnectionMods.RandomUserID(f),
 		ConnectionMods.RandomCreatedAt(f),
 	}
 }
@@ -523,37 +523,37 @@ func (m connectionMods) RandomIsEnabled(f *faker.Faker) ConnectionMod {
 }
 
 // Set the model columns to this value
-func (m connectionMods) CreatedBy(val null.Val[string]) ConnectionMod {
+func (m connectionMods) UserID(val null.Val[int64]) ConnectionMod {
 	return ConnectionModFunc(func(_ context.Context, o *ConnectionTemplate) {
-		o.CreatedBy = func() null.Val[string] { return val }
+		o.UserID = func() null.Val[int64] { return val }
 	})
 }
 
 // Set the Column from the function
-func (m connectionMods) CreatedByFunc(f func() null.Val[string]) ConnectionMod {
+func (m connectionMods) UserIDFunc(f func() null.Val[int64]) ConnectionMod {
 	return ConnectionModFunc(func(_ context.Context, o *ConnectionTemplate) {
-		o.CreatedBy = f
+		o.UserID = f
 	})
 }
 
 // Clear any values for the column
-func (m connectionMods) UnsetCreatedBy() ConnectionMod {
+func (m connectionMods) UnsetUserID() ConnectionMod {
 	return ConnectionModFunc(func(_ context.Context, o *ConnectionTemplate) {
-		o.CreatedBy = nil
+		o.UserID = nil
 	})
 }
 
 // Generates a random value for the column using the given faker
 // if faker is nil, a default faker is used
 // The generated value is sometimes null
-func (m connectionMods) RandomCreatedBy(f *faker.Faker) ConnectionMod {
+func (m connectionMods) RandomUserID(f *faker.Faker) ConnectionMod {
 	return ConnectionModFunc(func(_ context.Context, o *ConnectionTemplate) {
-		o.CreatedBy = func() null.Val[string] {
+		o.UserID = func() null.Val[int64] {
 			if f == nil {
 				f = &defaultFaker
 			}
 
-			val := random_string(f)
+			val := random_int64(f)
 			return null.From(val)
 		}
 	})
@@ -562,14 +562,14 @@ func (m connectionMods) RandomCreatedBy(f *faker.Faker) ConnectionMod {
 // Generates a random value for the column using the given faker
 // if faker is nil, a default faker is used
 // The generated value is never null
-func (m connectionMods) RandomCreatedByNotNull(f *faker.Faker) ConnectionMod {
+func (m connectionMods) RandomUserIDNotNull(f *faker.Faker) ConnectionMod {
 	return ConnectionModFunc(func(_ context.Context, o *ConnectionTemplate) {
-		o.CreatedBy = func() null.Val[string] {
+		o.UserID = func() null.Val[int64] {
 			if f == nil {
 				f = &defaultFaker
 			}
 
-			val := random_string(f)
+			val := random_int64(f)
 			return null.From(val)
 		}
 	})
@@ -615,38 +615,38 @@ func (m connectionMods) WithParentsCascading() ConnectionMod {
 		{
 
 			related := o.f.NewUserWithContext(ctx, UserMods.WithParentsCascading())
-			m.WithCreatedByUser(related).Apply(ctx, o)
+			m.WithUser(related).Apply(ctx, o)
 		}
 	})
 }
 
-func (m connectionMods) WithCreatedByUser(rel *UserTemplate) ConnectionMod {
+func (m connectionMods) WithUser(rel *UserTemplate) ConnectionMod {
 	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
-		o.r.CreatedByUser = &connectionRCreatedByUserR{
+		o.r.User = &connectionRUserR{
 			o: rel,
 		}
 	})
 }
 
-func (m connectionMods) WithNewCreatedByUser(mods ...UserMod) ConnectionMod {
+func (m connectionMods) WithNewUser(mods ...UserMod) ConnectionMod {
 	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
 		related := o.f.NewUserWithContext(ctx, mods...)
 
-		m.WithCreatedByUser(related).Apply(ctx, o)
+		m.WithUser(related).Apply(ctx, o)
 	})
 }
 
-func (m connectionMods) WithExistingCreatedByUser(em *models.User) ConnectionMod {
+func (m connectionMods) WithExistingUser(em *models.User) ConnectionMod {
 	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
-		o.r.CreatedByUser = &connectionRCreatedByUserR{
+		o.r.User = &connectionRUserR{
 			o: o.f.FromExistingUser(em),
 		}
 	})
 }
 
-func (m connectionMods) WithoutCreatedByUser() ConnectionMod {
+func (m connectionMods) WithoutUser() ConnectionMod {
 	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
-		o.r.CreatedByUser = nil
+		o.r.User = nil
 	})
 }
 

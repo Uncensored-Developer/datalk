@@ -22,8 +22,8 @@ import (
 
 // ConnectionAccess is an object representing the database table.
 type ConnectionAccess struct {
-	UserID       string `db:"user_id,pk" `
-	ConnectionID string `db:"connection_id,pk" `
+	UserID       int64  `db:"user_id,pk" `
+	ConnectionID int64  `db:"connection_id,pk" `
 	CanQuery     int64  `db:"can_query" `
 	AllowWrites  int64  `db:"allow_writes" `
 	CanManage    int64  `db:"can_manage" `
@@ -86,8 +86,8 @@ func (connectionAccessColumns) AliasedAs(alias string) connectionAccessColumns {
 // All values are optional, and do not have to be set
 // Generated columns are not included
 type ConnectionAccessSetter struct {
-	UserID       omit.Val[string] `db:"user_id,pk" `
-	ConnectionID omit.Val[string] `db:"connection_id,pk" `
+	UserID       omit.Val[int64]  `db:"user_id,pk" `
+	ConnectionID omit.Val[int64]  `db:"connection_id,pk" `
 	CanQuery     omit.Val[int64]  `db:"can_query" `
 	AllowWrites  omit.Val[int64]  `db:"allow_writes" `
 	CanManage    omit.Val[int64]  `db:"can_manage" `
@@ -239,7 +239,7 @@ func (s ConnectionAccessSetter) Expressions(prefix ...string) []bob.Expression {
 
 // FindConnectionAccess retrieves a single record by primary key
 // If cols is empty Find will return all columns.
-func FindConnectionAccess(ctx context.Context, exec bob.Executor, UserIDPK string, ConnectionIDPK string, cols ...string) (*ConnectionAccess, error) {
+func FindConnectionAccess(ctx context.Context, exec bob.Executor, UserIDPK int64, ConnectionIDPK int64, cols ...string) (*ConnectionAccess, error) {
 	if len(cols) == 0 {
 		return ConnectionAccesses.Query(
 			sm.Where(ConnectionAccesses.Columns.UserID.EQ(sqlite.Arg(UserIDPK))),
@@ -255,7 +255,7 @@ func FindConnectionAccess(ctx context.Context, exec bob.Executor, UserIDPK strin
 }
 
 // ConnectionAccessExists checks the presence of a single record by primary key
-func ConnectionAccessExists(ctx context.Context, exec bob.Executor, UserIDPK string, ConnectionIDPK string) (bool, error) {
+func ConnectionAccessExists(ctx context.Context, exec bob.Executor, UserIDPK int64, ConnectionIDPK int64) (bool, error) {
 	return ConnectionAccesses.Query(
 		sm.Where(ConnectionAccesses.Columns.UserID.EQ(sqlite.Arg(UserIDPK))),
 		sm.Where(ConnectionAccesses.Columns.ConnectionID.EQ(sqlite.Arg(ConnectionIDPK))),
@@ -597,8 +597,8 @@ func (connectionAccess0 *ConnectionAccess) AttachUser(ctx context.Context, exec 
 }
 
 type connectionAccessWhere[Q sqlite.Filterable] struct {
-	UserID       sqlite.WhereMod[Q, string]
-	ConnectionID sqlite.WhereMod[Q, string]
+	UserID       sqlite.WhereMod[Q, int64]
+	ConnectionID sqlite.WhereMod[Q, int64]
 	CanQuery     sqlite.WhereMod[Q, int64]
 	AllowWrites  sqlite.WhereMod[Q, int64]
 	CanManage    sqlite.WhereMod[Q, int64]
@@ -611,8 +611,8 @@ func (connectionAccessWhere[Q]) AliasedAs(alias string) connectionAccessWhere[Q]
 
 func buildConnectionAccessWhere[Q sqlite.Filterable](cols connectionAccessColumns) connectionAccessWhere[Q] {
 	return connectionAccessWhere[Q]{
-		UserID:       sqlite.Where[Q, string](cols.UserID),
-		ConnectionID: sqlite.Where[Q, string](cols.ConnectionID),
+		UserID:       sqlite.Where[Q, int64](cols.UserID),
+		ConnectionID: sqlite.Where[Q, int64](cols.ConnectionID),
 		CanQuery:     sqlite.Where[Q, int64](cols.CanQuery),
 		AllowWrites:  sqlite.Where[Q, int64](cols.AllowWrites),
 		CanManage:    sqlite.Where[Q, int64](cols.CanManage),
