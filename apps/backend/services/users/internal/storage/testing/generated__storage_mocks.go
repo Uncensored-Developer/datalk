@@ -68,7 +68,8 @@ func (_m *Storage) UpsertUser(ctx context.Context, user *users.User) error {
 func NewStorage(t interface {
 	mock.TestingT
 	Cleanup(func())
-}) *Storage {
+},
+) *Storage {
 	mock := &Storage{}
 	mock.Mock.Test(t)
 

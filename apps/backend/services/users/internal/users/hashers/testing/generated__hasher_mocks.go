@@ -74,7 +74,8 @@ func (_m *Hasher) Verify(ctx context.Context, password string, hash string) (boo
 func NewHasher(t interface {
 	mock.TestingT
 	Cleanup(func())
-}) *Hasher {
+},
+) *Hasher {
 	mock := &Hasher{}
 	mock.Mock.Test(t)
 

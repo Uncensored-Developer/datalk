@@ -81,7 +81,8 @@ func (_m *Service) RegisterUser(ctx context.Context, newUser internalusers.NewUs
 func NewService(t interface {
 	mock.TestingT
 	Cleanup(func())
-}) *Service {
+},
+) *Service {
 	mock := &Service{}
 	mock.Mock.Test(t)
 

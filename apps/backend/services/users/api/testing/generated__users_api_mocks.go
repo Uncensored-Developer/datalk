@@ -81,7 +81,8 @@ func (_m *API) RegisterUser(ctx context.Context, newUser internalusers.NewUser) 
 func NewAPI(t interface {
 	mock.TestingT
 	Cleanup(func())
-}) *API {
+},
+) *API {
 	mock := &API{}
 	mock.Mock.Test(t)
 
