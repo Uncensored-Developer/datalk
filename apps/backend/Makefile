@@ -36,11 +36,11 @@ generate-models:
 	go run github.com/stephenafamo/bob/gen/bobgen-sqlite@latest -c etc/bobgen.yaml
 
 # run gofumpt two times because it's buggy and need 2 pass
-	gofumpt -w -l ./db/*/*.go
-	gofumpt -w -l ./db/*/*.go
+	go tool with-modfile gofumpt -w -l ./db/*/*.go
+	go tool with-modfile gofumpt -w -l ./db/*/*.go
 	@echo "generated"
 
 fmt:
 # run gofumpt two times because it's buggy and need 2 pass
-	@find . -type f -name '*.go' ! -path '*/.cookiecutter/*' ! -path './vendor/*' | xargs gofumpt -l -w
-	@find . -type f -name '*.go' ! -path '*/.cookiecutter/*' ! -path './vendor/*' | xargs gofumpt -l -w
+	@find . -type f -name '*.go' ! -path '*/.cookiecutter/*' ! -path './vendor/*' | xargs go tool with-modfile gofumpt -l -w
+	@find . -type f -name '*.go' ! -path '*/.cookiecutter/*' ! -path './vendor/*' | xargs go tool with-modfile gofumpt -l -w
