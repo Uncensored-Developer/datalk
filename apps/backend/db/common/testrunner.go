@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/Uncensored-Developer/datalk/apps/backend/config"
@@ -20,8 +19,6 @@ type TestRunner struct {
 	BobConn bob.DB
 	Logger  *slog.Logger
 	Schema  string
-	dbPath  string
-	tempDir string
 }
 
 func MustNewTestRunner(schema string) *TestRunner {
@@ -39,21 +36,14 @@ func NewTestRunner(cfg config.Config, sLogger *slog.Logger, schema string, maxAt
 		return nil, errors.New("maxAttempts must be greater than 0")
 	}
 
-	tmpDir, err := os.MkdirTemp("", "pkgdb-*")
-	if err != nil {
-		return nil, err
-	}
-	dbPath := filepath.Join(tmpDir, "test_"+schema+".db")
-	dsn := "file:" + filepath.ToSlash(dbPath) + "?journal_mode=WAL"
-
 	for attempt := 0; attempt < maxAttempts; attempt++ {
-		conn, err := TestDB(dsn, sLogger)
+		conn, err := DBFromConfig(cfg, "test"+schema, true, sLogger)
 		if err != nil && !errors.Is(err, ErrNoDBConfiguration) {
 			errMsg := fmt.Sprintf("failed to initialise DB (attempt %d/%d)", attempt+1, maxAttempts)
 			sLogger.Error(errMsg, logger.Err(err))
 			if conn != nil {
 				conn.Close()
-				err := DropTestDB(conn, tmpDir)
+				err := DropTestSchema(conn, schema)
 				if err != nil {
 					errMsg = fmt.Sprintf("failed to initialise DB (attempt %d/%d)", attempt+1, maxAttempts)
 					sLogger.Error(errMsg, logger.Err(err))
@@ -62,7 +52,7 @@ func NewTestRunner(cfg config.Config, sLogger *slog.Logger, schema string, maxAt
 			continue
 		}
 
-		return &TestRunner{Conn: conn, BobConn: bob.NewDB(conn), Schema: schema, dbPath: dbPath, tempDir: tmpDir, Logger: sLogger}, nil
+		return &TestRunner{Conn: conn, BobConn: bob.NewDB(conn), Schema: schema, Logger: sLogger}, nil
 	}
 
 	return nil, xerrors.Newf("failed to initialise DB after %d attempts", maxAttempts)
@@ -74,7 +64,7 @@ func (r *TestRunner) Run(m *testing.M) {
 		r.Logger.Error("database not available, tests disabled")
 	} else {
 		result = m.Run()
-		err := DropTestDB(r.Conn, r.tempDir)
+		err := DropTestSchema(r.Conn, r.Schema)
 		if err != nil {
 			r.Logger.Error("failed to drop schema", logger.Err(err))
 		}

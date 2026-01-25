@@ -1,38 +1,37 @@
 CREATE TABLE organization (
-    id INTEGER PRIMARY KEY,
-    name TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
-    singleton INTEGER NOT NULL DEFAULT 1 UNIQUE
+    id          SERIAL PRIMARY KEY,
+    name        TEXT NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    singleton   BOOLEAN NOT NULL DEFAULT TRUE UNIQUE
 );
 
 CREATE TABLE users (
-    id INTEGER PRIMARY KEY,
-    email TEXT NOT NULL,
-    name TEXT NOT NULL,
-    password_hash TEXT NOT NULL,
-    role TEXT NOT NULL CHECK (role IN ('owner','admin','member')) DEFAULT 'member',
-    is_active INTEGER NOT NULL DEFAULT 1,
-    last_login_at TEXT,
-    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
-    UNIQUE(email)
+    id             SERIAL PRIMARY KEY,
+    email          TEXT NOT NULL UNIQUE,
+    name           TEXT NOT NULL,
+    password_hash  TEXT NOT NULL,
+    role           TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('owner','admin','member')),
+    is_active      BOOLEAN NOT NULL DEFAULT TRUE,
+    last_login_at  TIMESTAMPTZ,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE connections (
-    id INTEGER PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE,
-    kind TEXT NOT NULL CHECK (kind IN ('postgres', 'mysql','cql')),
-    dsn TEXT,
-    is_enabled INTEGER NOT NULL DEFAULT 1,
-    user_id INTEGER REFERENCES users(id),
-    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now'))
+     id          SERIAL PRIMARY KEY,
+     name        TEXT NOT NULL UNIQUE,
+     kind        TEXT NOT NULL CHECK (kind IN ('postgres','mysql','cql')),
+     dsn         TEXT,
+     is_enabled  BOOLEAN NOT NULL DEFAULT TRUE,
+     user_id     INT REFERENCES users(id),
+     created_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE connection_access (
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    connection_id INTEGER NOT NULL REFERENCES connections(id) ON DELETE CASCADE,
-    can_query INTEGER NOT NULL DEFAULT 1,
-    allow_writes INTEGER NOT NULL DEFAULT 0,
-    can_manage INTEGER NOT NULL DEFAULT 0,
-    granted_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
-    PRIMARY KEY (user_id, connection_id)
+   user_id       INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+   connection_id INT NOT NULL REFERENCES connections(id) ON DELETE CASCADE,
+   can_query     BOOLEAN NOT NULL DEFAULT TRUE,
+   allow_writes  BOOLEAN NOT NULL DEFAULT FALSE,
+   can_manage    BOOLEAN NOT NULL DEFAULT FALSE,
+   granted_at    TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+   PRIMARY KEY (user_id, connection_id)
 );

@@ -1,8 +1,7 @@
 no_tests: true
 no_back_referencing: true
 
-sqlite:
-  dsn: "datalk.db"
+psql:
   except:
     schema_migrations:
 

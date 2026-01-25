@@ -17,7 +17,7 @@ type API struct {
 }
 
 // GetUser provides a mock function with given fields: ctx, ID
-func (_m *API) GetUser(ctx context.Context, ID int64) (*users.User, error) {
+func (_m *API) GetUser(ctx context.Context, ID int32) (*users.User, error) {
 	ret := _m.Called(ctx, ID)
 
 	if len(ret) == 0 {
@@ -26,10 +26,10 @@ func (_m *API) GetUser(ctx context.Context, ID int64) (*users.User, error) {
 
 	var r0 *users.User
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, int64) (*users.User, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, int32) (*users.User, error)); ok {
 		return rf(ctx, ID)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, int64) *users.User); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, int32) *users.User); ok {
 		r0 = rf(ctx, ID)
 	} else {
 		if ret.Get(0) != nil {
@@ -37,7 +37,7 @@ func (_m *API) GetUser(ctx context.Context, ID int64) (*users.User, error) {
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, int64) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
 		r1 = rf(ctx, ID)
 	} else {
 		r1 = ret.Error(1)

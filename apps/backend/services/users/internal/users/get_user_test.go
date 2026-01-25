@@ -30,17 +30,17 @@ func TestService_GetUser(t *testing.T) {
 
 	testCases := []struct {
 		name        string
-		userID      int64
-		modifyFn    func(userID int64, mockStorage *storagetesting.Storage)
+		userID      int32
+		modifyFn    func(userID int32, mockStorage *storagetesting.Storage)
 		expect      *users.User
 		expectError error
 	}{
 		{
 			name:   "storage failure",
 			userID: 7,
-			modifyFn: func(userID int64, mockStorage *storagetesting.Storage) {
+			modifyFn: func(userID int32, mockStorage *storagetesting.Storage) {
 				mockStorage.
-					On("ListUsers", mock.Anything, storage.ListUsersParam{ID: []int64{userID}}).
+					On("ListUsers", mock.Anything, storage.ListUsersParam{ID: []int32{userID}}).
 					Return(nil, errors.New("db offline"))
 			},
 			expectError: errors.New("failed to list users"),
@@ -48,9 +48,9 @@ func TestService_GetUser(t *testing.T) {
 		{
 			name:   "user not found",
 			userID: 99,
-			modifyFn: func(userID int64, mockStorage *storagetesting.Storage) {
+			modifyFn: func(userID int32, mockStorage *storagetesting.Storage) {
 				mockStorage.
-					On("ListUsers", mock.Anything, storage.ListUsersParam{ID: []int64{userID}}).
+					On("ListUsers", mock.Anything, storage.ListUsersParam{ID: []int32{userID}}).
 					Return([]*users.User{}, nil)
 			},
 			expectError: serviceerrors.ErrUserNotFound,
@@ -58,9 +58,9 @@ func TestService_GetUser(t *testing.T) {
 		{
 			name:   "success: returns first result",
 			userID: expectedUser.ID,
-			modifyFn: func(userID int64, mockStorage *storagetesting.Storage) {
+			modifyFn: func(userID int32, mockStorage *storagetesting.Storage) {
 				mockStorage.
-					On("ListUsers", mock.Anything, storage.ListUsersParam{ID: []int64{userID}}).
+					On("ListUsers", mock.Anything, storage.ListUsersParam{ID: []int32{userID}}).
 					Return([]*users.User{expectedUser}, nil)
 			},
 			expect: expectedUser,

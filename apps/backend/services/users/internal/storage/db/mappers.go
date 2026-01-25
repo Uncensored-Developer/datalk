@@ -1,29 +1,23 @@
 package db
 
 import (
-	"github.com/Uncensored-Developer/datalk/apps/backend/db/common"
 	"github.com/Uncensored-Developer/datalk/apps/backend/db/models"
-	"github.com/Uncensored-Developer/datalk/apps/backend/pkg/ptr"
 	"github.com/Uncensored-Developer/datalk/apps/backend/pkg/slices"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/users/pkg/users"
 	"github.com/aarondl/opt/omit"
 	"github.com/aarondl/opt/omitnull"
+	"github.com/gotidy/ptr"
 )
 
 func userToDB(user *users.User) *models.UserSetter {
-	dbLoginAt := ""
-	if user.LastLoginAt != nil {
-		dbLoginAt = common.TimeToDB(*user.LastLoginAt)
-	}
-
 	return &models.UserSetter{
 		Email:        omit.From(user.Email),
 		Name:         omit.From(user.Name),
 		PasswordHash: omit.From(user.PasswordHash),
 		Role:         omit.From(string(user.Role)),
-		IsActive:     omit.From(common.BoolToDB(user.IsActive)),
-		LastLoginAt:  omitnull.From(dbLoginAt),
-		CreatedAt:    omit.From(common.TimeToDB(user.CreatedAt)),
+		IsActive:     omit.From(user.IsActive),
+		LastLoginAt:  omitnull.FromPtr(user.LastLoginAt),
+		CreatedAt:    omit.From(user.CreatedAt),
 	}
 }
 
@@ -34,9 +28,9 @@ func userFromDB(dbUser *models.User) (*users.User, error) {
 		Name:         dbUser.Name,
 		PasswordHash: dbUser.PasswordHash,
 		Role:         users.Role(dbUser.Role),
-		IsActive:     common.BoolFromDB(dbUser.IsActive),
-		LastLoginAt:  ptr.TimePtr(common.TimeFromDB(dbUser.LastLoginAt.GetOrZero())),
-		CreatedAt:    common.TimeFromDB(dbUser.CreatedAt),
+		IsActive:     dbUser.IsActive,
+		LastLoginAt:  ptr.Of(dbUser.LastLoginAt.GetOrZero()),
+		CreatedAt:    dbUser.CreatedAt,
 	}, nil
 }
 

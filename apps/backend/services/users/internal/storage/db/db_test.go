@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Uncensored-Developer/datalk/apps/backend/db/common"
 	"github.com/Uncensored-Developer/datalk/apps/backend/db/factory"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/users/internal/storage"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/users/pkg/users"
@@ -42,8 +41,8 @@ func TestStorage_UpsertUser(t *testing.T) {
 		userTmpl := factory.UserTemplate{}
 		createdUser := userTmpl.CreateOrFail(t.Context(), t, runner.BobConn)
 		createdUser.Name = "Edward Newgate (updated)"
-		createdUser.IsActive = 0
-		createdUser.LastLoginAt = null.From(common.TimeToDB(time.Now().UTC()))
+		createdUser.IsActive = false
+		createdUser.LastLoginAt = null.From(time.Now().UTC())
 
 		user, err := userFromDB(createdUser)
 		require.NoError(t, err)

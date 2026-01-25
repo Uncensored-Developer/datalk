@@ -1,0 +1,21 @@
+version: "3.8"
+services:
+
+  datalk-postgres:
+    container_name: datalk_db
+    image: "postgres:15.12"
+    volumes:
+      - "datalk-postgres-data:/var/lib/postgresql/data"
+    ports:
+      - "5437:5432"
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: datalk
+
+volumes:
+  datalk-postgres-data:

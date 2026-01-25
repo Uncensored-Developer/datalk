@@ -18,7 +18,12 @@ type Config struct {
 	AppEnv  AppEnv `env:"APP_ENV"`
 	ApiPort int    `env:"PORT"`
 
-	DbDSN string `env:"DB_DSN"`
+	DBName     string `env:"DB_NAME"`
+	DBHost     string `env:"DB_HOST"`
+	DBPort     int    `env:"DB_PORT"`
+	DBUser     string `env:"DB_USER"`
+	DBPassword string `env:"DB_PASSWORD"`
+	DBSSLMode  string `env:"DB_SSLMODE"`
 }
 
 func MustLoad() Config {

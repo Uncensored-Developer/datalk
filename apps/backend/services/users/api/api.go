@@ -12,7 +12,7 @@ import (
 //go:generate go tool with-modfile mockery --name Service --outpkg testing --output ./testing --filename generated__users_service_mocks.go
 type Service interface {
 	CreateUser(ctx context.Context, params usersservice.NewUser) (*users.User, error)
-	GetUser(ctx context.Context, ID int64) (*users.User, error)
+	GetUser(ctx context.Context, ID int32) (*users.User, error)
 }
 
 type Api struct {
@@ -36,6 +36,6 @@ func (a *Api) CreateUser(ctx context.Context, params NewUserParams) (*users.User
 	})
 }
 
-func (a *Api) GetUser(ctx context.Context, userID int64) (*users.User, error) {
+func (a *Api) GetUser(ctx context.Context, userID int32) (*users.User, error) {
 	return a.service.GetUser(ctx, userID)
 }

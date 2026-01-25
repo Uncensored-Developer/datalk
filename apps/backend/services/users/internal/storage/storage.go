@@ -8,7 +8,7 @@ import (
 
 type ListUsersParam struct {
 	Email []string
-	ID    []int64
+	ID    []int32
 }
 
 //go:generate go tool with-modfile mockery --name Storage --outpkg testing --output ./testing --filename generated__storage_mocks.go
