@@ -2,8 +2,9 @@ no_tests: true
 no_back_referencing: true
 
 psql:
+  schemas: ["datalk"]
   except:
-    schema_migrations:
+    datalk.schema_migrations:
 
 plugins:
   dbinfo:

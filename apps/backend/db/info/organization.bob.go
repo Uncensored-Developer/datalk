@@ -18,7 +18,7 @@ var Organizations = Table[
 		ID: column{
 			Name:      "id",
 			DBType:    "integer",
-			Default:   "nextval('organization_id_seq'::regclass)",
+			Default:   "nextval('datalk.organization_id_seq'::regclass)",
 			Comment:   "",
 			Nullable:  false,
 			Generated: false,

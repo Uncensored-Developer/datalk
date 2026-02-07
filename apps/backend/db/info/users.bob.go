@@ -18,7 +18,7 @@ var Users = Table[
 		ID: column{
 			Name:      "id",
 			DBType:    "integer",
-			Default:   "nextval('users_id_seq'::regclass)",
+			Default:   "nextval('datalk.users_id_seq'::regclass)",
 			Comment:   "",
 			Nullable:  false,
 			Generated: false,

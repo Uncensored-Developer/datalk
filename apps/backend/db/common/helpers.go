@@ -101,7 +101,7 @@ func MigrateUp(conn *sql.DB, schema string, log *slog.Logger) error {
 		return err
 	}
 
-	m, err := migrate.NewWithDatabaseInstance(location, "sqlite3", driver)
+	m, err := migrate.NewWithDatabaseInstance(location, "postgres", driver)
 	if err != nil {
 		return err
 	}

@@ -18,7 +18,7 @@ var Connections = Table[
 		ID: column{
 			Name:      "id",
 			DBType:    "integer",
-			Default:   "nextval('connections_id_seq'::regclass)",
+			Default:   "nextval('datalk.connections_id_seq'::regclass)",
 			Comment:   "",
 			Nullable:  false,
 			Generated: false,
