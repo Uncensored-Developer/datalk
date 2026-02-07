@@ -83,7 +83,7 @@ func (f *Factory) FromExistingConnection(m *models.Connection) *ConnectionTempla
 	o.Kind = func() string { return m.Kind }
 	o.DSN = func() null.Val[string] { return m.DSN }
 	o.IsEnabled = func() bool { return m.IsEnabled }
-	o.UserID = func() null.Val[int32] { return m.UserID }
+	o.UserID = func() int32 { return m.UserID }
 	o.CreatedAt = func() time.Time { return m.CreatedAt }
 
 	ctx := context.Background()

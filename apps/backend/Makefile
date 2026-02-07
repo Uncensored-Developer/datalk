@@ -9,6 +9,10 @@ all: .
 run:
 	./datalk-api --try-migrate
 
+generate:
+	go generate ./...
+	make fmt
+
 migrate-new:
 	@echo "migration name:"; \
 	read name; \

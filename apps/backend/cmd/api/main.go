@@ -64,7 +64,7 @@ func main() {
 }
 
 func setupDB(ctx context.Context, cfg config.Config, log *slog.Logger) (context.Context, *sql.DB, error) {
-	conn, err := common.DBFromConfig(cfg, *tryMigrate, log)
+	conn, err := common.DBFromConfig(cfg, cfg.DBSchema, *tryMigrate, log)
 	if err != nil {
 		logger.Fatal("failed to connect to DB", logger.Err(err))
 	}

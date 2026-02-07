@@ -31,7 +31,7 @@ type Connection struct {
 	Kind      string           `db:"kind" `
 	DSN       null.Val[string] `db:"dsn" `
 	IsEnabled bool             `db:"is_enabled" `
-	UserID    null.Val[int32]  `db:"user_id" `
+	UserID    int32            `db:"user_id" `
 	CreatedAt time.Time        `db:"created_at" `
 
 	R connectionR `db:"-" `
@@ -98,7 +98,7 @@ type ConnectionSetter struct {
 	Kind      omit.Val[string]     `db:"kind" `
 	DSN       omitnull.Val[string] `db:"dsn" `
 	IsEnabled omit.Val[bool]       `db:"is_enabled" `
-	UserID    omitnull.Val[int32]  `db:"user_id" `
+	UserID    omit.Val[int32]      `db:"user_id" `
 	CreatedAt omit.Val[time.Time]  `db:"created_at" `
 }
 
@@ -119,7 +119,7 @@ func (s ConnectionSetter) SetColumns() []string {
 	if s.IsEnabled.IsValue() {
 		vals = append(vals, "is_enabled")
 	}
-	if !s.UserID.IsUnset() {
+	if s.UserID.IsValue() {
 		vals = append(vals, "user_id")
 	}
 	if s.CreatedAt.IsValue() {
@@ -144,8 +144,8 @@ func (s ConnectionSetter) Overwrite(t *Connection) {
 	if s.IsEnabled.IsValue() {
 		t.IsEnabled = s.IsEnabled.MustGet()
 	}
-	if !s.UserID.IsUnset() {
-		t.UserID = s.UserID.MustGetNull()
+	if s.UserID.IsValue() {
+		t.UserID = s.UserID.MustGet()
 	}
 	if s.CreatedAt.IsValue() {
 		t.CreatedAt = s.CreatedAt.MustGet()
@@ -189,8 +189,8 @@ func (s *ConnectionSetter) Apply(q *dialect.InsertQuery) {
 			vals[4] = psql.Raw("DEFAULT")
 		}
 
-		if !s.UserID.IsUnset() {
-			vals[5] = psql.Arg(s.UserID.MustGetNull())
+		if s.UserID.IsValue() {
+			vals[5] = psql.Arg(s.UserID.MustGet())
 		} else {
 			vals[5] = psql.Raw("DEFAULT")
 		}
@@ -247,7 +247,7 @@ func (s ConnectionSetter) Expressions(prefix ...string) []bob.Expression {
 		}})
 	}
 
-	if !s.UserID.IsUnset() {
+	if s.UserID.IsValue() {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "user_id")...),
 			psql.Arg(s.UserID),
@@ -519,7 +519,7 @@ func (o *Connection) User(mods ...bob.Mod[*dialect.SelectQuery]) UsersQuery {
 }
 
 func (os ConnectionSlice) User(mods ...bob.Mod[*dialect.SelectQuery]) UsersQuery {
-	pkUserID := make(pgtypes.Array[null.Val[int32]], 0, len(os))
+	pkUserID := make(pgtypes.Array[int32], 0, len(os))
 	for _, o := range os {
 		if o == nil {
 			continue
@@ -598,7 +598,7 @@ func (connection0 *Connection) AttachConnectionAccesses(ctx context.Context, exe
 
 func attachConnectionUser0(ctx context.Context, exec bob.Executor, count int, connection0 *Connection, user1 *User) (*Connection, error) {
 	setter := &ConnectionSetter{
-		UserID: omitnull.From(user1.ID),
+		UserID: omit.From(user1.ID),
 	}
 
 	err := connection0.Update(ctx, exec, setter)
@@ -646,7 +646,7 @@ type connectionWhere[Q psql.Filterable] struct {
 	Kind      psql.WhereMod[Q, string]
 	DSN       psql.WhereNullMod[Q, string]
 	IsEnabled psql.WhereMod[Q, bool]
-	UserID    psql.WhereNullMod[Q, int32]
+	UserID    psql.WhereMod[Q, int32]
 	CreatedAt psql.WhereMod[Q, time.Time]
 }
 
@@ -661,7 +661,7 @@ func buildConnectionWhere[Q psql.Filterable](cols connectionColumns) connectionW
 		Kind:      psql.Where[Q, string](cols.Kind),
 		DSN:       psql.WhereNull[Q, string](cols.DSN),
 		IsEnabled: psql.Where[Q, bool](cols.IsEnabled),
-		UserID:    psql.WhereNull[Q, int32](cols.UserID),
+		UserID:    psql.Where[Q, int32](cols.UserID),
 		CreatedAt: psql.Where[Q, time.Time](cols.CreatedAt),
 	}
 }
@@ -836,11 +836,8 @@ func (os ConnectionSlice) LoadUser(ctx context.Context, exec bob.Executor, mods 
 		}
 
 		for _, rel := range users {
-			if !o.UserID.IsValue() {
-				continue
-			}
 
-			if !(o.UserID.IsValue() && o.UserID.MustGet() == rel.ID) {
+			if !(o.UserID == rel.ID) {
 				continue
 			}
 

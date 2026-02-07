@@ -42,7 +42,7 @@ type ConnectionTemplate struct {
 	Kind      func() string
 	DSN       func() null.Val[string]
 	IsEnabled func() bool
-	UserID    func() null.Val[int32]
+	UserID    func() int32
 	CreatedAt func() time.Time
 
 	r connectionR
@@ -88,7 +88,7 @@ func (t ConnectionTemplate) setModelRels(o *models.Connection) {
 
 	if t.r.User != nil {
 		rel := t.r.User.o.Build()
-		o.UserID = null.From(rel.ID) // h2
+		o.UserID = rel.ID // h2
 		o.R.User = rel
 	}
 }
@@ -120,7 +120,7 @@ func (o ConnectionTemplate) BuildSetter() *models.ConnectionSetter {
 	}
 	if o.UserID != nil {
 		val := o.UserID()
-		m.UserID = omitnull.FromNull(val)
+		m.UserID = omit.From(val)
 	}
 	if o.CreatedAt != nil {
 		val := o.CreatedAt()
@@ -197,6 +197,10 @@ func ensureCreatableConnection(m *models.ConnectionSetter) {
 		val := random_string(nil)
 		m.Kind = omit.From(val)
 	}
+	if !(m.UserID.IsValue()) {
+		val := random_int32(nil)
+		m.UserID = omit.From(val)
+	}
 }
 
 // insertOptRels creates and inserts any optional the relationships on *models.Connection
@@ -225,25 +229,6 @@ func (o *ConnectionTemplate) insertOptRels(ctx context.Context, exec bob.Executo
 		}
 	}
 
-	isUserDone, _ := connectionRelUserCtx.Value(ctx)
-	if !isUserDone && o.r.User != nil {
-		ctx = connectionRelUserCtx.WithValue(ctx, true)
-		if o.r.User.o.alreadyPersisted {
-			m.R.User = o.r.User.o.Build()
-		} else {
-			var rel1 *models.User
-			rel1, err = o.r.User.o.Create(ctx, exec)
-			if err != nil {
-				return err
-			}
-			err = m.AttachUser(ctx, exec, rel1)
-			if err != nil {
-				return err
-			}
-		}
-
-	}
-
 	return err
 }
 
@@ -254,10 +239,29 @@ func (o *ConnectionTemplate) Create(ctx context.Context, exec bob.Executor) (*mo
 	opt := o.BuildSetter()
 	ensureCreatableConnection(opt)
 
+	if o.r.User == nil {
+		ConnectionMods.WithNewUser().Apply(ctx, o)
+	}
+
+	var rel1 *models.User
+
+	if o.r.User.o.alreadyPersisted {
+		rel1 = o.r.User.o.Build()
+	} else {
+		rel1, err = o.r.User.o.Create(ctx, exec)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	opt.UserID = omit.From(rel1.ID)
+
 	m, err := models.Connections.Insert(opt).One(ctx, exec)
 	if err != nil {
 		return nil, err
 	}
+
+	m.R.User = rel1
 
 	if err := o.insertOptRels(ctx, exec, m); err != nil {
 		return nil, err
@@ -524,14 +528,14 @@ func (m connectionMods) RandomIsEnabled(f *faker.Faker) ConnectionMod {
 }
 
 // Set the model columns to this value
-func (m connectionMods) UserID(val null.Val[int32]) ConnectionMod {
+func (m connectionMods) UserID(val int32) ConnectionMod {
 	return ConnectionModFunc(func(_ context.Context, o *ConnectionTemplate) {
-		o.UserID = func() null.Val[int32] { return val }
+		o.UserID = func() int32 { return val }
 	})
 }
 
 // Set the Column from the function
-func (m connectionMods) UserIDFunc(f func() null.Val[int32]) ConnectionMod {
+func (m connectionMods) UserIDFunc(f func() int32) ConnectionMod {
 	return ConnectionModFunc(func(_ context.Context, o *ConnectionTemplate) {
 		o.UserID = f
 	})
@@ -546,32 +550,10 @@ func (m connectionMods) UnsetUserID() ConnectionMod {
 
 // Generates a random value for the column using the given faker
 // if faker is nil, a default faker is used
-// The generated value is sometimes null
 func (m connectionMods) RandomUserID(f *faker.Faker) ConnectionMod {
 	return ConnectionModFunc(func(_ context.Context, o *ConnectionTemplate) {
-		o.UserID = func() null.Val[int32] {
-			if f == nil {
-				f = &defaultFaker
-			}
-
-			val := random_int32(f)
-			return null.From(val)
-		}
-	})
-}
-
-// Generates a random value for the column using the given faker
-// if faker is nil, a default faker is used
-// The generated value is never null
-func (m connectionMods) RandomUserIDNotNull(f *faker.Faker) ConnectionMod {
-	return ConnectionModFunc(func(_ context.Context, o *ConnectionTemplate) {
-		o.UserID = func() null.Val[int32] {
-			if f == nil {
-				f = &defaultFaker
-			}
-
-			val := random_int32(f)
-			return null.From(val)
+		o.UserID = func() int32 {
+			return random_int32(f)
 		}
 	})
 }

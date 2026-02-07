@@ -22,7 +22,7 @@ CREATE TABLE connections (
      kind        TEXT NOT NULL CHECK (kind IN ('postgres','mysql','cql')),
      dsn         TEXT,
      is_enabled  BOOLEAN NOT NULL DEFAULT TRUE,
-     user_id     INT REFERENCES users(id),
+     user_id     INT NOT NULL REFERENCES users(id),
      created_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

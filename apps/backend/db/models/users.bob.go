@@ -621,7 +621,7 @@ func (user0 *User) AttachConnectionAccesses(ctx context.Context, exec bob.Execut
 
 func insertUserConnections0(ctx context.Context, exec bob.Executor, connections1 []*ConnectionSetter, user0 *User) (ConnectionSlice, error) {
 	for i := range connections1 {
-		connections1[i].UserID = omitnull.From(user0.ID)
+		connections1[i].UserID = omit.From(user0.ID)
 	}
 
 	ret, err := Connections.Insert(bob.ToMods(connections1...)).All(ctx, exec)
@@ -634,7 +634,7 @@ func insertUserConnections0(ctx context.Context, exec bob.Executor, connections1
 
 func attachUserConnections0(ctx context.Context, exec bob.Executor, count int, connections1 ConnectionSlice, user0 *User) (ConnectionSlice, error) {
 	setter := &ConnectionSetter{
-		UserID: omitnull.From(user0.ID),
+		UserID: omit.From(user0.ID),
 	}
 
 	err := connections1.UpdateAll(ctx, exec, *setter)
@@ -871,10 +871,7 @@ func (os UserSlice) LoadConnections(ctx context.Context, exec bob.Executor, mods
 
 		for _, rel := range connections {
 
-			if !rel.UserID.IsValue() {
-				continue
-			}
-			if !(rel.UserID.IsValue() && o.ID == rel.UserID.MustGet()) {
+			if !(o.ID == rel.UserID) {
 				continue
 			}
 

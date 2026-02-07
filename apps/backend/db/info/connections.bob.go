@@ -63,9 +63,9 @@ var Connections = Table[
 		UserID: column{
 			Name:      "user_id",
 			DBType:    "integer",
-			Default:   "NULL",
+			Default:   "",
 			Comment:   "",
-			Nullable:  true,
+			Nullable:  false,
 			Generated: false,
 			AutoIncr:  false,
 		},
