@@ -15,4 +15,6 @@ type Client interface {
 	GetConnection(ctx context.Context, ID int32) (*connections.Connection, error)
 	RegisterAccess(ctx context.Context, newAccess connectionsservice.NewAccess) (*connections.Access, error)
 	GetAccess(ctx context.Context, userID int32, connectionID int32) (*connections.Access, error)
+	RegisterNamespace(ctx context.Context, newNamespace connectionsservice.NewNamespace) (*connections.Namespace, error)
+	GetNamespace(ctx context.Context, ID int32) (*connections.Namespace, error)
 }
