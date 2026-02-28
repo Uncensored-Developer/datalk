@@ -3,7 +3,7 @@ services:
 
   datalk-postgres:
     container_name: datalk_db
-    image: "postgres:15.12"
+    image: "pgvector/pgvector:pg15"
     volumes:
       - "./db/init:/docker-entrypoint-initdb.d"
       - "datalk-postgres-data:/var/lib/postgresql/data"
