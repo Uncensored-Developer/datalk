@@ -151,3 +151,77 @@ func TestStorage_UpsertAccess(t *testing.T) {
 		assert.Equal(t, originalGrantedAt, access.GrantedAt)
 	})
 }
+
+func TestStorage_UpsertNamespace(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Inserting and Listing new namespace", func(t *testing.T) {
+		t.Parallel()
+
+		userTmpl := factory.UserTemplate{}
+		createdUser := userTmpl.CreateOrFail(t.Context(), t, runner.BobConn)
+
+		connTmpl := factory.ConnectionTemplate{}
+		connTmpl.Apply(t.Context(),
+			factory.ConnectionMods.Name("namespace-connection"),
+			factory.ConnectionMods.Kind(string(connections.DatabasePostgres)),
+			factory.ConnectionMods.DSN(null.From("postgres://namespace")),
+			factory.ConnectionMods.UserID(createdUser.ID),
+		)
+		createdConn := connTmpl.CreateOrFail(t.Context(), t, runner.BobConn)
+
+		newNamespace := &connections.Namespace{
+			ConnectionID:  createdConn.ID,
+			Name:          "public",
+			NamespaceType: connections.NamespaceTypeSchema,
+			IsEnabled:     true,
+			CreatedAt:     time.Now().UTC(),
+		}
+		err := s.UpsertNamespace(t.Context(), newNamespace)
+		require.NoError(t, err)
+		assert.NotZero(t, newNamespace.ID)
+		assert.NotEmpty(t, newNamespace.CreatedAt)
+
+		gotNamespaces, err := s.ListNamespace(t.Context(), storage.ListNamespaceParam{ID: []int32{newNamespace.ID}})
+		require.NoError(t, err)
+		require.Len(t, gotNamespaces, 1)
+		assert.Equal(t, newNamespace.ID, gotNamespaces[0].ID)
+		assert.Equal(t, newNamespace.ConnectionID, gotNamespaces[0].ConnectionID)
+	})
+
+	t.Run("Updating existing namespace", func(t *testing.T) {
+		t.Parallel()
+
+		userTmpl := factory.UserTemplate{}
+		createdUser := userTmpl.CreateOrFail(t.Context(), t, runner.BobConn)
+
+		connTmpl := factory.ConnectionTemplate{}
+		connTmpl.Apply(t.Context(),
+			factory.ConnectionMods.Name("namespace-connection-update"),
+			factory.ConnectionMods.Kind(string(connections.DatabasePostgres)),
+			factory.ConnectionMods.DSN(null.From("postgres://namespace-update")),
+			factory.ConnectionMods.UserID(createdUser.ID),
+		)
+		createdConn := connTmpl.CreateOrFail(t.Context(), t, runner.BobConn)
+
+		namespaceTmpl := factory.ConnectionNamespaceTemplate{}
+		namespaceTmpl.Apply(t.Context(),
+			factory.ConnectionNamespaceMods.ConnectionID(createdConn.ID),
+			factory.ConnectionNamespaceMods.Name("public"),
+			factory.ConnectionNamespaceMods.NamespaceType(string(connections.NamespaceTypeSchema)),
+			factory.ConnectionNamespaceMods.IsEnabled(true),
+		)
+		createdNamespace := namespaceTmpl.CreateOrFail(t.Context(), t, runner.BobConn)
+
+		namespace, err := namespaceFromDB(createdNamespace)
+		require.NoError(t, err)
+		originalCreatedAt := namespace.CreatedAt
+
+		namespace.IsEnabled = false
+		err = s.UpsertNamespace(t.Context(), namespace)
+		require.NoError(t, err)
+
+		assert.False(t, namespace.IsEnabled)
+		assert.Equal(t, originalCreatedAt, namespace.CreatedAt)
+	})
+}

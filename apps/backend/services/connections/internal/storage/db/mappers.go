@@ -60,3 +60,28 @@ func accessFromDB(dbAccess *models.ConnectionAccess) (*connections.Access, error
 func accessListFromDB(dbAccess []*models.ConnectionAccess) ([]*connections.Access, error) {
 	return slices.Map(dbAccess, accessFromDB)
 }
+
+func namespaceToDB(namespace *connections.Namespace) *models.ConnectionNamespaceSetter {
+	return &models.ConnectionNamespaceSetter{
+		ConnectionID:  omit.From(namespace.ConnectionID),
+		Name:          omit.From(namespace.Name),
+		NamespaceType: omit.From(string(namespace.NamespaceType)),
+		IsEnabled:     omit.From(namespace.IsEnabled),
+		CreatedAt:     omit.From(namespace.CreatedAt),
+	}
+}
+
+func namespaceFromDB(dbNamespace *models.ConnectionNamespace) (*connections.Namespace, error) {
+	return &connections.Namespace{
+		ID:            dbNamespace.ID,
+		ConnectionID:  dbNamespace.ConnectionID,
+		Name:          dbNamespace.Name,
+		NamespaceType: connections.NamespaceType(dbNamespace.NamespaceType),
+		IsEnabled:     dbNamespace.IsEnabled,
+		CreatedAt:     dbNamespace.CreatedAt,
+	}, nil
+}
+
+func namespacesFromDB(dbNamespaces []*models.ConnectionNamespace) ([]*connections.Namespace, error) {
+	return slices.Map(dbNamespaces, namespaceFromDB)
+}
