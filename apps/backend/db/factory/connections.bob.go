@@ -52,16 +52,31 @@ type ConnectionTemplate struct {
 }
 
 type connectionR struct {
-	ConnectionAccesses []*connectionRConnectionAccessesR
-	User               *connectionRUserR
+	ConnectionAccesses   []*connectionRConnectionAccessesR
+	ConnectionNamespaces []*connectionRConnectionNamespacesR
+	User                 *connectionRUserR
+	SchemaChunks         []*connectionRSchemaChunksR
+	SchemaSnapshots      []*connectionRSchemaSnapshotsR
 }
 
 type connectionRConnectionAccessesR struct {
 	number int
 	o      *ConnectionAccessTemplate
 }
+type connectionRConnectionNamespacesR struct {
+	number int
+	o      *ConnectionNamespaceTemplate
+}
 type connectionRUserR struct {
 	o *UserTemplate
+}
+type connectionRSchemaChunksR struct {
+	number int
+	o      *SchemaChunkTemplate
+}
+type connectionRSchemaSnapshotsR struct {
+	number int
+	o      *SchemaSnapshotTemplate
 }
 
 // Apply mods to the ConnectionTemplate
@@ -86,10 +101,46 @@ func (t ConnectionTemplate) setModelRels(o *models.Connection) {
 		o.R.ConnectionAccesses = rel
 	}
 
+	if t.r.ConnectionNamespaces != nil {
+		rel := models.ConnectionNamespaceSlice{}
+		for _, r := range t.r.ConnectionNamespaces {
+			related := r.o.BuildMany(r.number)
+			for _, rel := range related {
+				rel.ConnectionID = o.ID // h2
+			}
+			rel = append(rel, related...)
+		}
+		o.R.ConnectionNamespaces = rel
+	}
+
 	if t.r.User != nil {
 		rel := t.r.User.o.Build()
 		o.UserID = rel.ID // h2
 		o.R.User = rel
+	}
+
+	if t.r.SchemaChunks != nil {
+		rel := models.SchemaChunkSlice{}
+		for _, r := range t.r.SchemaChunks {
+			related := r.o.BuildMany(r.number)
+			for _, rel := range related {
+				rel.ConnectionID = o.ID // h2
+			}
+			rel = append(rel, related...)
+		}
+		o.R.SchemaChunks = rel
+	}
+
+	if t.r.SchemaSnapshots != nil {
+		rel := models.SchemaSnapshotSlice{}
+		for _, r := range t.r.SchemaSnapshots {
+			related := r.o.BuildMany(r.number)
+			for _, rel := range related {
+				rel.ConnectionID = o.ID // h2
+			}
+			rel = append(rel, related...)
+		}
+		o.R.SchemaSnapshots = rel
 	}
 }
 
@@ -229,6 +280,66 @@ func (o *ConnectionTemplate) insertOptRels(ctx context.Context, exec bob.Executo
 		}
 	}
 
+	isConnectionNamespacesDone, _ := connectionRelConnectionNamespacesCtx.Value(ctx)
+	if !isConnectionNamespacesDone && o.r.ConnectionNamespaces != nil {
+		ctx = connectionRelConnectionNamespacesCtx.WithValue(ctx, true)
+		for _, r := range o.r.ConnectionNamespaces {
+			if r.o.alreadyPersisted {
+				m.R.ConnectionNamespaces = append(m.R.ConnectionNamespaces, r.o.Build())
+			} else {
+				rel1, err := r.o.CreateMany(ctx, exec, r.number)
+				if err != nil {
+					return err
+				}
+
+				err = m.AttachConnectionNamespaces(ctx, exec, rel1...)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	isSchemaChunksDone, _ := connectionRelSchemaChunksCtx.Value(ctx)
+	if !isSchemaChunksDone && o.r.SchemaChunks != nil {
+		ctx = connectionRelSchemaChunksCtx.WithValue(ctx, true)
+		for _, r := range o.r.SchemaChunks {
+			if r.o.alreadyPersisted {
+				m.R.SchemaChunks = append(m.R.SchemaChunks, r.o.Build())
+			} else {
+				rel3, err := r.o.CreateMany(ctx, exec, r.number)
+				if err != nil {
+					return err
+				}
+
+				err = m.AttachSchemaChunks(ctx, exec, rel3...)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	isSchemaSnapshotsDone, _ := connectionRelSchemaSnapshotsCtx.Value(ctx)
+	if !isSchemaSnapshotsDone && o.r.SchemaSnapshots != nil {
+		ctx = connectionRelSchemaSnapshotsCtx.WithValue(ctx, true)
+		for _, r := range o.r.SchemaSnapshots {
+			if r.o.alreadyPersisted {
+				m.R.SchemaSnapshots = append(m.R.SchemaSnapshots, r.o.Build())
+			} else {
+				rel4, err := r.o.CreateMany(ctx, exec, r.number)
+				if err != nil {
+					return err
+				}
+
+				err = m.AttachSchemaSnapshots(ctx, exec, rel4...)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
 	return err
 }
 
@@ -243,25 +354,25 @@ func (o *ConnectionTemplate) Create(ctx context.Context, exec bob.Executor) (*mo
 		ConnectionMods.WithNewUser().Apply(ctx, o)
 	}
 
-	var rel1 *models.User
+	var rel2 *models.User
 
 	if o.r.User.o.alreadyPersisted {
-		rel1 = o.r.User.o.Build()
+		rel2 = o.r.User.o.Build()
 	} else {
-		rel1, err = o.r.User.o.Create(ctx, exec)
+		rel2, err = o.r.User.o.Create(ctx, exec)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	opt.UserID = omit.From(rel1.ID)
+	opt.UserID = omit.From(rel2.ID)
 
 	m, err := models.Connections.Insert(opt).One(ctx, exec)
 	if err != nil {
 		return nil, err
 	}
 
-	m.R.User = rel1
+	m.R.User = rel2
 
 	if err := o.insertOptRels(ctx, exec, m); err != nil {
 		return nil, err
@@ -678,5 +789,149 @@ func (m connectionMods) AddExistingConnectionAccesses(existingModels ...*models.
 func (m connectionMods) WithoutConnectionAccesses() ConnectionMod {
 	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
 		o.r.ConnectionAccesses = nil
+	})
+}
+
+func (m connectionMods) WithConnectionNamespaces(number int, related *ConnectionNamespaceTemplate) ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		o.r.ConnectionNamespaces = []*connectionRConnectionNamespacesR{{
+			number: number,
+			o:      related,
+		}}
+	})
+}
+
+func (m connectionMods) WithNewConnectionNamespaces(number int, mods ...ConnectionNamespaceMod) ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		related := o.f.NewConnectionNamespaceWithContext(ctx, mods...)
+		m.WithConnectionNamespaces(number, related).Apply(ctx, o)
+	})
+}
+
+func (m connectionMods) AddConnectionNamespaces(number int, related *ConnectionNamespaceTemplate) ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		o.r.ConnectionNamespaces = append(o.r.ConnectionNamespaces, &connectionRConnectionNamespacesR{
+			number: number,
+			o:      related,
+		})
+	})
+}
+
+func (m connectionMods) AddNewConnectionNamespaces(number int, mods ...ConnectionNamespaceMod) ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		related := o.f.NewConnectionNamespaceWithContext(ctx, mods...)
+		m.AddConnectionNamespaces(number, related).Apply(ctx, o)
+	})
+}
+
+func (m connectionMods) AddExistingConnectionNamespaces(existingModels ...*models.ConnectionNamespace) ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		for _, em := range existingModels {
+			o.r.ConnectionNamespaces = append(o.r.ConnectionNamespaces, &connectionRConnectionNamespacesR{
+				o: o.f.FromExistingConnectionNamespace(em),
+			})
+		}
+	})
+}
+
+func (m connectionMods) WithoutConnectionNamespaces() ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		o.r.ConnectionNamespaces = nil
+	})
+}
+
+func (m connectionMods) WithSchemaChunks(number int, related *SchemaChunkTemplate) ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		o.r.SchemaChunks = []*connectionRSchemaChunksR{{
+			number: number,
+			o:      related,
+		}}
+	})
+}
+
+func (m connectionMods) WithNewSchemaChunks(number int, mods ...SchemaChunkMod) ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		related := o.f.NewSchemaChunkWithContext(ctx, mods...)
+		m.WithSchemaChunks(number, related).Apply(ctx, o)
+	})
+}
+
+func (m connectionMods) AddSchemaChunks(number int, related *SchemaChunkTemplate) ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		o.r.SchemaChunks = append(o.r.SchemaChunks, &connectionRSchemaChunksR{
+			number: number,
+			o:      related,
+		})
+	})
+}
+
+func (m connectionMods) AddNewSchemaChunks(number int, mods ...SchemaChunkMod) ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		related := o.f.NewSchemaChunkWithContext(ctx, mods...)
+		m.AddSchemaChunks(number, related).Apply(ctx, o)
+	})
+}
+
+func (m connectionMods) AddExistingSchemaChunks(existingModels ...*models.SchemaChunk) ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		for _, em := range existingModels {
+			o.r.SchemaChunks = append(o.r.SchemaChunks, &connectionRSchemaChunksR{
+				o: o.f.FromExistingSchemaChunk(em),
+			})
+		}
+	})
+}
+
+func (m connectionMods) WithoutSchemaChunks() ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		o.r.SchemaChunks = nil
+	})
+}
+
+func (m connectionMods) WithSchemaSnapshots(number int, related *SchemaSnapshotTemplate) ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		o.r.SchemaSnapshots = []*connectionRSchemaSnapshotsR{{
+			number: number,
+			o:      related,
+		}}
+	})
+}
+
+func (m connectionMods) WithNewSchemaSnapshots(number int, mods ...SchemaSnapshotMod) ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		related := o.f.NewSchemaSnapshotWithContext(ctx, mods...)
+		m.WithSchemaSnapshots(number, related).Apply(ctx, o)
+	})
+}
+
+func (m connectionMods) AddSchemaSnapshots(number int, related *SchemaSnapshotTemplate) ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		o.r.SchemaSnapshots = append(o.r.SchemaSnapshots, &connectionRSchemaSnapshotsR{
+			number: number,
+			o:      related,
+		})
+	})
+}
+
+func (m connectionMods) AddNewSchemaSnapshots(number int, mods ...SchemaSnapshotMod) ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		related := o.f.NewSchemaSnapshotWithContext(ctx, mods...)
+		m.AddSchemaSnapshots(number, related).Apply(ctx, o)
+	})
+}
+
+func (m connectionMods) AddExistingSchemaSnapshots(existingModels ...*models.SchemaSnapshot) ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		for _, em := range existingModels {
+			o.r.SchemaSnapshots = append(o.r.SchemaSnapshots, &connectionRSchemaSnapshotsR{
+				o: o.f.FromExistingSchemaSnapshot(em),
+			})
+		}
+	})
+}
+
+func (m connectionMods) WithoutSchemaSnapshots() ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		o.r.SchemaSnapshots = nil
 	})
 }

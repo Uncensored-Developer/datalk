@@ -13,13 +13,34 @@ var (
 	connectionAccessRelConnectionCtx        = newContextual[bool]("connection_access.connections.connection_access.connection_access_connection_id_fkey")
 	connectionAccessRelUserCtx              = newContextual[bool]("connection_access.users.connection_access.connection_access_user_id_fkey")
 
+	// Relationship Contexts for connection_namespaces
+	connectionNamespaceWithParentsCascadingCtx        = newContextual[bool]("connectionNamespaceWithParentsCascading")
+	connectionNamespaceRelConnectionCtx               = newContextual[bool]("connection_namespaces.connections.connection_namespaces.connection_namespaces_connection_id_fkey")
+	connectionNamespaceRelNamespaceSchemaChunksCtx    = newContextual[bool]("connection_namespaces.schema_chunks.schema_chunks.schema_chunks_namespace_id_fkey")
+	connectionNamespaceRelNamespaceSchemaSnapshotsCtx = newContextual[bool]("connection_namespaces.schema_snapshots.schema_snapshots.schema_snapshots_namespace_id_fkey")
+
 	// Relationship Contexts for connections
-	connectionWithParentsCascadingCtx  = newContextual[bool]("connectionWithParentsCascading")
-	connectionRelConnectionAccessesCtx = newContextual[bool]("connection_access.connections.connection_access.connection_access_connection_id_fkey")
-	connectionRelUserCtx               = newContextual[bool]("connections.users.connections.connections_user_id_fkey")
+	connectionWithParentsCascadingCtx    = newContextual[bool]("connectionWithParentsCascading")
+	connectionRelConnectionAccessesCtx   = newContextual[bool]("connection_access.connections.connection_access.connection_access_connection_id_fkey")
+	connectionRelConnectionNamespacesCtx = newContextual[bool]("connection_namespaces.connections.connection_namespaces.connection_namespaces_connection_id_fkey")
+	connectionRelUserCtx                 = newContextual[bool]("connections.users.connections.connections_user_id_fkey")
+	connectionRelSchemaChunksCtx         = newContextual[bool]("connections.schema_chunks.schema_chunks.schema_chunks_connection_id_fkey")
+	connectionRelSchemaSnapshotsCtx      = newContextual[bool]("connections.schema_snapshots.schema_snapshots.schema_snapshots_connection_id_fkey")
 
 	// Relationship Contexts for organization
 	organizationWithParentsCascadingCtx = newContextual[bool]("organizationWithParentsCascading")
+
+	// Relationship Contexts for schema_chunks
+	schemaChunkWithParentsCascadingCtx            = newContextual[bool]("schemaChunkWithParentsCascading")
+	schemaChunkRelConnectionCtx                   = newContextual[bool]("connections.schema_chunks.schema_chunks.schema_chunks_connection_id_fkey")
+	schemaChunkRelNamespaceConnectionNamespaceCtx = newContextual[bool]("connection_namespaces.schema_chunks.schema_chunks.schema_chunks_namespace_id_fkey")
+	schemaChunkRelSnapshotSchemaSnapshotCtx       = newContextual[bool]("schema_chunks.schema_snapshots.schema_chunks.schema_chunks_snapshot_id_fkey")
+
+	// Relationship Contexts for schema_snapshots
+	schemaSnapshotWithParentsCascadingCtx            = newContextual[bool]("schemaSnapshotWithParentsCascading")
+	schemaSnapshotRelSnapshotSchemaChunksCtx         = newContextual[bool]("schema_chunks.schema_snapshots.schema_chunks.schema_chunks_snapshot_id_fkey")
+	schemaSnapshotRelConnectionCtx                   = newContextual[bool]("connections.schema_snapshots.schema_snapshots.schema_snapshots_connection_id_fkey")
+	schemaSnapshotRelNamespaceConnectionNamespaceCtx = newContextual[bool]("connection_namespaces.schema_snapshots.schema_snapshots.schema_snapshots_namespace_id_fkey")
 
 	// Relationship Contexts for users
 	userWithParentsCascadingCtx  = newContextual[bool]("userWithParentsCascading")

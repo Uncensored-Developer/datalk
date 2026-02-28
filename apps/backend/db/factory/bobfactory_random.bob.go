@@ -4,11 +4,17 @@
 package factory
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/jaswdr/faker/v2"
+	pgvector "github.com/pgvector/pgvector-go"
+	"github.com/stephenafamo/bob/types"
 )
 
 var defaultFaker = faker.New()
@@ -21,12 +27,67 @@ func random_bool(f *faker.Faker, limits ...string) bool {
 	return f.Bool()
 }
 
+func random_float32(f *faker.Faker, limits ...string) float32 {
+	if f == nil {
+		f = &defaultFaker
+	}
+
+	var precision int64 = 5
+	var scale int64 = 2
+
+	if len(limits) > 0 {
+		precision, _ = strconv.ParseInt(limits[0], 10, 32)
+	}
+
+	if len(limits) > 1 {
+		scale, _ = strconv.ParseInt(limits[1], 10, 32)
+	}
+
+	baseVal := f.Float64(10, -1, 1)
+	for baseVal == -1 || baseVal == 0 || baseVal == 1 {
+		baseVal = f.Float64(10, -1, 1)
+	}
+
+	scaleFloat := math.Pow10(int(scale))
+
+	val := baseVal * math.Pow10(int(precision))
+	val = math.Trunc(val) / scaleFloat
+
+	return float32(val)
+}
+
 func random_int32(f *faker.Faker, limits ...string) int32 {
 	if f == nil {
 		f = &defaultFaker
 	}
 
 	return f.Int32()
+}
+
+func random_int64(f *faker.Faker, limits ...string) int64 {
+	if f == nil {
+		f = &defaultFaker
+	}
+
+	return f.Int64()
+}
+
+func random_pgvector_Vector(f *faker.Faker, limits ...string) pgvector.Vector {
+	if f == nil {
+		f = &defaultFaker
+	}
+
+	var dims int64 = f.Int64Between(1, 5)
+	if len(limits) > 0 {
+		dims, _ = strconv.ParseInt(limits[0], 10, 32)
+	}
+
+	arr := make([]float32, dims)
+	for i := range arr {
+		arr[i] = random_float32(f)
+	}
+
+	return pgvector.NewVector(arr)
 }
 
 func random_string(f *faker.Faker, limits ...string) string {
@@ -54,4 +115,21 @@ func random_time_Time(f *faker.Faker, limits ...string) time.Time {
 	min := time.Now().Add(-year)
 	max := time.Now().Add(year)
 	return f.Time().TimeBetween(min, max)
+}
+
+func random_types_JSON_json_RawMessage_(f *faker.Faker, limits ...string) types.JSON[json.RawMessage] {
+	if f == nil {
+		f = &defaultFaker
+	}
+
+	s := &bytes.Buffer{}
+	s.WriteRune('{')
+	for i := range f.IntBetween(1, 5) {
+		if i > 0 {
+			fmt.Fprint(s, ", ")
+		}
+		fmt.Fprintf(s, "%q:%q", f.Lorem().Word(), f.Lorem().Word())
+	}
+	s.WriteRune('}')
+	return types.NewJSON[json.RawMessage](s.Bytes())
 }

@@ -49,8 +49,11 @@ type ConnectionsQuery = *psql.ViewQuery[*Connection, ConnectionSlice]
 
 // connectionR is where relationships are stored.
 type connectionR struct {
-	ConnectionAccesses ConnectionAccessSlice // connection_access.connection_access_connection_id_fkey
-	User               *User                 // connections.connections_user_id_fkey
+	ConnectionAccesses   ConnectionAccessSlice    // connection_access.connection_access_connection_id_fkey
+	ConnectionNamespaces ConnectionNamespaceSlice // connection_namespaces.connection_namespaces_connection_id_fkey
+	User                 *User                    // connections.connections_user_id_fkey
+	SchemaChunks         SchemaChunkSlice         // schema_chunks.schema_chunks_connection_id_fkey
+	SchemaSnapshots      SchemaSnapshotSlice      // schema_snapshots.schema_snapshots_connection_id_fkey
 }
 
 func buildConnectionColumns(alias string) connectionColumns {
@@ -511,6 +514,30 @@ func (os ConnectionSlice) ConnectionAccesses(mods ...bob.Mod[*dialect.SelectQuer
 	)...)
 }
 
+// ConnectionNamespaces starts a query for related objects on connection_namespaces
+func (o *Connection) ConnectionNamespaces(mods ...bob.Mod[*dialect.SelectQuery]) ConnectionNamespacesQuery {
+	return ConnectionNamespaces.Query(append(mods,
+		sm.Where(ConnectionNamespaces.Columns.ConnectionID.EQ(psql.Arg(o.ID))),
+	)...)
+}
+
+func (os ConnectionSlice) ConnectionNamespaces(mods ...bob.Mod[*dialect.SelectQuery]) ConnectionNamespacesQuery {
+	pkID := make(pgtypes.Array[int32], 0, len(os))
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+		pkID = append(pkID, o.ID)
+	}
+	PKArgExpr := psql.Select(sm.Columns(
+		psql.F("unnest", psql.Cast(psql.Arg(pkID), "integer[]")),
+	))
+
+	return ConnectionNamespaces.Query(append(mods,
+		sm.Where(psql.Group(ConnectionNamespaces.Columns.ConnectionID).OP("IN", PKArgExpr)),
+	)...)
+}
+
 // User starts a query for related objects on users
 func (o *Connection) User(mods ...bob.Mod[*dialect.SelectQuery]) UsersQuery {
 	return Users.Query(append(mods,
@@ -532,6 +559,54 @@ func (os ConnectionSlice) User(mods ...bob.Mod[*dialect.SelectQuery]) UsersQuery
 
 	return Users.Query(append(mods,
 		sm.Where(psql.Group(Users.Columns.ID).OP("IN", PKArgExpr)),
+	)...)
+}
+
+// SchemaChunks starts a query for related objects on schema_chunks
+func (o *Connection) SchemaChunks(mods ...bob.Mod[*dialect.SelectQuery]) SchemaChunksQuery {
+	return SchemaChunks.Query(append(mods,
+		sm.Where(SchemaChunks.Columns.ConnectionID.EQ(psql.Arg(o.ID))),
+	)...)
+}
+
+func (os ConnectionSlice) SchemaChunks(mods ...bob.Mod[*dialect.SelectQuery]) SchemaChunksQuery {
+	pkID := make(pgtypes.Array[int32], 0, len(os))
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+		pkID = append(pkID, o.ID)
+	}
+	PKArgExpr := psql.Select(sm.Columns(
+		psql.F("unnest", psql.Cast(psql.Arg(pkID), "integer[]")),
+	))
+
+	return SchemaChunks.Query(append(mods,
+		sm.Where(psql.Group(SchemaChunks.Columns.ConnectionID).OP("IN", PKArgExpr)),
+	)...)
+}
+
+// SchemaSnapshots starts a query for related objects on schema_snapshots
+func (o *Connection) SchemaSnapshots(mods ...bob.Mod[*dialect.SelectQuery]) SchemaSnapshotsQuery {
+	return SchemaSnapshots.Query(append(mods,
+		sm.Where(SchemaSnapshots.Columns.ConnectionID.EQ(psql.Arg(o.ID))),
+	)...)
+}
+
+func (os ConnectionSlice) SchemaSnapshots(mods ...bob.Mod[*dialect.SelectQuery]) SchemaSnapshotsQuery {
+	pkID := make(pgtypes.Array[int32], 0, len(os))
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+		pkID = append(pkID, o.ID)
+	}
+	PKArgExpr := psql.Select(sm.Columns(
+		psql.F("unnest", psql.Cast(psql.Arg(pkID), "integer[]")),
+	))
+
+	return SchemaSnapshots.Query(append(mods,
+		sm.Where(psql.Group(SchemaSnapshots.Columns.ConnectionID).OP("IN", PKArgExpr)),
 	)...)
 }
 
@@ -596,6 +671,67 @@ func (connection0 *Connection) AttachConnectionAccesses(ctx context.Context, exe
 	return nil
 }
 
+func insertConnectionConnectionNamespaces0(ctx context.Context, exec bob.Executor, connectionNamespaces1 []*ConnectionNamespaceSetter, connection0 *Connection) (ConnectionNamespaceSlice, error) {
+	for i := range connectionNamespaces1 {
+		connectionNamespaces1[i].ConnectionID = omit.From(connection0.ID)
+	}
+
+	ret, err := ConnectionNamespaces.Insert(bob.ToMods(connectionNamespaces1...)).All(ctx, exec)
+	if err != nil {
+		return ret, fmt.Errorf("insertConnectionConnectionNamespaces0: %w", err)
+	}
+
+	return ret, nil
+}
+
+func attachConnectionConnectionNamespaces0(ctx context.Context, exec bob.Executor, count int, connectionNamespaces1 ConnectionNamespaceSlice, connection0 *Connection) (ConnectionNamespaceSlice, error) {
+	setter := &ConnectionNamespaceSetter{
+		ConnectionID: omit.From(connection0.ID),
+	}
+
+	err := connectionNamespaces1.UpdateAll(ctx, exec, *setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachConnectionConnectionNamespaces0: %w", err)
+	}
+
+	return connectionNamespaces1, nil
+}
+
+func (connection0 *Connection) InsertConnectionNamespaces(ctx context.Context, exec bob.Executor, related ...*ConnectionNamespaceSetter) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+
+	connectionNamespaces1, err := insertConnectionConnectionNamespaces0(ctx, exec, related, connection0)
+	if err != nil {
+		return err
+	}
+
+	connection0.R.ConnectionNamespaces = append(connection0.R.ConnectionNamespaces, connectionNamespaces1...)
+
+	return nil
+}
+
+func (connection0 *Connection) AttachConnectionNamespaces(ctx context.Context, exec bob.Executor, related ...*ConnectionNamespace) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+	connectionNamespaces1 := ConnectionNamespaceSlice(related)
+
+	_, err = attachConnectionConnectionNamespaces0(ctx, exec, len(related), connectionNamespaces1, connection0)
+	if err != nil {
+		return err
+	}
+
+	connection0.R.ConnectionNamespaces = append(connection0.R.ConnectionNamespaces, connectionNamespaces1...)
+
+	return nil
+}
+
 func attachConnectionUser0(ctx context.Context, exec bob.Executor, count int, connection0 *Connection, user1 *User) (*Connection, error) {
 	setter := &ConnectionSetter{
 		UserID: omit.From(user1.ID),
@@ -636,6 +772,128 @@ func (connection0 *Connection) AttachUser(ctx context.Context, exec bob.Executor
 	}
 
 	connection0.R.User = user1
+
+	return nil
+}
+
+func insertConnectionSchemaChunks0(ctx context.Context, exec bob.Executor, schemaChunks1 []*SchemaChunkSetter, connection0 *Connection) (SchemaChunkSlice, error) {
+	for i := range schemaChunks1 {
+		schemaChunks1[i].ConnectionID = omit.From(connection0.ID)
+	}
+
+	ret, err := SchemaChunks.Insert(bob.ToMods(schemaChunks1...)).All(ctx, exec)
+	if err != nil {
+		return ret, fmt.Errorf("insertConnectionSchemaChunks0: %w", err)
+	}
+
+	return ret, nil
+}
+
+func attachConnectionSchemaChunks0(ctx context.Context, exec bob.Executor, count int, schemaChunks1 SchemaChunkSlice, connection0 *Connection) (SchemaChunkSlice, error) {
+	setter := &SchemaChunkSetter{
+		ConnectionID: omit.From(connection0.ID),
+	}
+
+	err := schemaChunks1.UpdateAll(ctx, exec, *setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachConnectionSchemaChunks0: %w", err)
+	}
+
+	return schemaChunks1, nil
+}
+
+func (connection0 *Connection) InsertSchemaChunks(ctx context.Context, exec bob.Executor, related ...*SchemaChunkSetter) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+
+	schemaChunks1, err := insertConnectionSchemaChunks0(ctx, exec, related, connection0)
+	if err != nil {
+		return err
+	}
+
+	connection0.R.SchemaChunks = append(connection0.R.SchemaChunks, schemaChunks1...)
+
+	return nil
+}
+
+func (connection0 *Connection) AttachSchemaChunks(ctx context.Context, exec bob.Executor, related ...*SchemaChunk) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+	schemaChunks1 := SchemaChunkSlice(related)
+
+	_, err = attachConnectionSchemaChunks0(ctx, exec, len(related), schemaChunks1, connection0)
+	if err != nil {
+		return err
+	}
+
+	connection0.R.SchemaChunks = append(connection0.R.SchemaChunks, schemaChunks1...)
+
+	return nil
+}
+
+func insertConnectionSchemaSnapshots0(ctx context.Context, exec bob.Executor, schemaSnapshots1 []*SchemaSnapshotSetter, connection0 *Connection) (SchemaSnapshotSlice, error) {
+	for i := range schemaSnapshots1 {
+		schemaSnapshots1[i].ConnectionID = omit.From(connection0.ID)
+	}
+
+	ret, err := SchemaSnapshots.Insert(bob.ToMods(schemaSnapshots1...)).All(ctx, exec)
+	if err != nil {
+		return ret, fmt.Errorf("insertConnectionSchemaSnapshots0: %w", err)
+	}
+
+	return ret, nil
+}
+
+func attachConnectionSchemaSnapshots0(ctx context.Context, exec bob.Executor, count int, schemaSnapshots1 SchemaSnapshotSlice, connection0 *Connection) (SchemaSnapshotSlice, error) {
+	setter := &SchemaSnapshotSetter{
+		ConnectionID: omit.From(connection0.ID),
+	}
+
+	err := schemaSnapshots1.UpdateAll(ctx, exec, *setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachConnectionSchemaSnapshots0: %w", err)
+	}
+
+	return schemaSnapshots1, nil
+}
+
+func (connection0 *Connection) InsertSchemaSnapshots(ctx context.Context, exec bob.Executor, related ...*SchemaSnapshotSetter) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+
+	schemaSnapshots1, err := insertConnectionSchemaSnapshots0(ctx, exec, related, connection0)
+	if err != nil {
+		return err
+	}
+
+	connection0.R.SchemaSnapshots = append(connection0.R.SchemaSnapshots, schemaSnapshots1...)
+
+	return nil
+}
+
+func (connection0 *Connection) AttachSchemaSnapshots(ctx context.Context, exec bob.Executor, related ...*SchemaSnapshot) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+	schemaSnapshots1 := SchemaSnapshotSlice(related)
+
+	_, err = attachConnectionSchemaSnapshots0(ctx, exec, len(related), schemaSnapshots1, connection0)
+	if err != nil {
+		return err
+	}
+
+	connection0.R.SchemaSnapshots = append(connection0.R.SchemaSnapshots, schemaSnapshots1...)
 
 	return nil
 }
@@ -681,6 +939,15 @@ func (o *Connection) Preload(name string, retrieved any) error {
 		o.R.ConnectionAccesses = rels
 
 		return nil
+	case "ConnectionNamespaces":
+		rels, ok := retrieved.(ConnectionNamespaceSlice)
+		if !ok {
+			return fmt.Errorf("connection cannot load %T as %q", retrieved, name)
+		}
+
+		o.R.ConnectionNamespaces = rels
+
+		return nil
 	case "User":
 		rel, ok := retrieved.(*User)
 		if !ok {
@@ -688,6 +955,24 @@ func (o *Connection) Preload(name string, retrieved any) error {
 		}
 
 		o.R.User = rel
+
+		return nil
+	case "SchemaChunks":
+		rels, ok := retrieved.(SchemaChunkSlice)
+		if !ok {
+			return fmt.Errorf("connection cannot load %T as %q", retrieved, name)
+		}
+
+		o.R.SchemaChunks = rels
+
+		return nil
+	case "SchemaSnapshots":
+		rels, ok := retrieved.(SchemaSnapshotSlice)
+		if !ok {
+			return fmt.Errorf("connection cannot load %T as %q", retrieved, name)
+		}
+
+		o.R.SchemaSnapshots = rels
 
 		return nil
 	default:
@@ -718,16 +1003,28 @@ func buildConnectionPreloader() connectionPreloader {
 }
 
 type connectionThenLoader[Q orm.Loadable] struct {
-	ConnectionAccesses func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	User               func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	ConnectionAccesses   func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	ConnectionNamespaces func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	User                 func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	SchemaChunks         func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	SchemaSnapshots      func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 }
 
 func buildConnectionThenLoader[Q orm.Loadable]() connectionThenLoader[Q] {
 	type ConnectionAccessesLoadInterface interface {
 		LoadConnectionAccesses(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
+	type ConnectionNamespacesLoadInterface interface {
+		LoadConnectionNamespaces(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	}
 	type UserLoadInterface interface {
 		LoadUser(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	}
+	type SchemaChunksLoadInterface interface {
+		LoadSchemaChunks(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	}
+	type SchemaSnapshotsLoadInterface interface {
+		LoadSchemaSnapshots(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 
 	return connectionThenLoader[Q]{
@@ -737,10 +1034,28 @@ func buildConnectionThenLoader[Q orm.Loadable]() connectionThenLoader[Q] {
 				return retrieved.LoadConnectionAccesses(ctx, exec, mods...)
 			},
 		),
+		ConnectionNamespaces: thenLoadBuilder[Q](
+			"ConnectionNamespaces",
+			func(ctx context.Context, exec bob.Executor, retrieved ConnectionNamespacesLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadConnectionNamespaces(ctx, exec, mods...)
+			},
+		),
 		User: thenLoadBuilder[Q](
 			"User",
 			func(ctx context.Context, exec bob.Executor, retrieved UserLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
 				return retrieved.LoadUser(ctx, exec, mods...)
+			},
+		),
+		SchemaChunks: thenLoadBuilder[Q](
+			"SchemaChunks",
+			func(ctx context.Context, exec bob.Executor, retrieved SchemaChunksLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadSchemaChunks(ctx, exec, mods...)
+			},
+		),
+		SchemaSnapshots: thenLoadBuilder[Q](
+			"SchemaSnapshots",
+			func(ctx context.Context, exec bob.Executor, retrieved SchemaSnapshotsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadSchemaSnapshots(ctx, exec, mods...)
 			},
 		),
 	}
@@ -801,6 +1116,61 @@ func (os ConnectionSlice) LoadConnectionAccesses(ctx context.Context, exec bob.E
 	return nil
 }
 
+// LoadConnectionNamespaces loads the connection's ConnectionNamespaces into the .R struct
+func (o *Connection) LoadConnectionNamespaces(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if o == nil {
+		return nil
+	}
+
+	// Reset the relationship
+	o.R.ConnectionNamespaces = nil
+
+	related, err := o.ConnectionNamespaces(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	o.R.ConnectionNamespaces = related
+	return nil
+}
+
+// LoadConnectionNamespaces loads the connection's ConnectionNamespaces into the .R struct
+func (os ConnectionSlice) LoadConnectionNamespaces(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if len(os) == 0 {
+		return nil
+	}
+
+	connectionNamespaces, err := os.ConnectionNamespaces(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+
+		o.R.ConnectionNamespaces = nil
+	}
+
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+
+		for _, rel := range connectionNamespaces {
+
+			if !(o.ID == rel.ConnectionID) {
+				continue
+			}
+
+			o.R.ConnectionNamespaces = append(o.R.ConnectionNamespaces, rel)
+		}
+	}
+
+	return nil
+}
+
 // LoadUser loads the connection's User into the .R struct
 func (o *Connection) LoadUser(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
 	if o == nil {
@@ -849,10 +1219,123 @@ func (os ConnectionSlice) LoadUser(ctx context.Context, exec bob.Executor, mods 
 	return nil
 }
 
+// LoadSchemaChunks loads the connection's SchemaChunks into the .R struct
+func (o *Connection) LoadSchemaChunks(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if o == nil {
+		return nil
+	}
+
+	// Reset the relationship
+	o.R.SchemaChunks = nil
+
+	related, err := o.SchemaChunks(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	o.R.SchemaChunks = related
+	return nil
+}
+
+// LoadSchemaChunks loads the connection's SchemaChunks into the .R struct
+func (os ConnectionSlice) LoadSchemaChunks(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if len(os) == 0 {
+		return nil
+	}
+
+	schemaChunks, err := os.SchemaChunks(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+
+		o.R.SchemaChunks = nil
+	}
+
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+
+		for _, rel := range schemaChunks {
+
+			if !(o.ID == rel.ConnectionID) {
+				continue
+			}
+
+			o.R.SchemaChunks = append(o.R.SchemaChunks, rel)
+		}
+	}
+
+	return nil
+}
+
+// LoadSchemaSnapshots loads the connection's SchemaSnapshots into the .R struct
+func (o *Connection) LoadSchemaSnapshots(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if o == nil {
+		return nil
+	}
+
+	// Reset the relationship
+	o.R.SchemaSnapshots = nil
+
+	related, err := o.SchemaSnapshots(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	o.R.SchemaSnapshots = related
+	return nil
+}
+
+// LoadSchemaSnapshots loads the connection's SchemaSnapshots into the .R struct
+func (os ConnectionSlice) LoadSchemaSnapshots(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if len(os) == 0 {
+		return nil
+	}
+
+	schemaSnapshots, err := os.SchemaSnapshots(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+
+		o.R.SchemaSnapshots = nil
+	}
+
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+
+		for _, rel := range schemaSnapshots {
+
+			if !(o.ID == rel.ConnectionID) {
+				continue
+			}
+
+			o.R.SchemaSnapshots = append(o.R.SchemaSnapshots, rel)
+		}
+	}
+
+	return nil
+}
+
 type connectionJoins[Q dialect.Joinable] struct {
-	typ                string
-	ConnectionAccesses modAs[Q, connectionAccessColumns]
-	User               modAs[Q, userColumns]
+	typ                  string
+	ConnectionAccesses   modAs[Q, connectionAccessColumns]
+	ConnectionNamespaces modAs[Q, connectionNamespaceColumns]
+	User                 modAs[Q, userColumns]
+	SchemaChunks         modAs[Q, schemaChunkColumns]
+	SchemaSnapshots      modAs[Q, schemaSnapshotColumns]
 }
 
 func (j connectionJoins[Q]) aliasedAs(alias string) connectionJoins[Q] {
@@ -876,6 +1359,20 @@ func buildConnectionJoins[Q dialect.Joinable](cols connectionColumns, typ string
 				return mods
 			},
 		},
+		ConnectionNamespaces: modAs[Q, connectionNamespaceColumns]{
+			c: ConnectionNamespaces.Columns,
+			f: func(to connectionNamespaceColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, ConnectionNamespaces.Name().As(to.Alias())).On(
+						to.ConnectionID.EQ(cols.ID),
+					))
+				}
+
+				return mods
+			},
+		},
 		User: modAs[Q, userColumns]{
 			c: Users.Columns,
 			f: func(to userColumns) bob.Mod[Q] {
@@ -884,6 +1381,34 @@ func buildConnectionJoins[Q dialect.Joinable](cols connectionColumns, typ string
 				{
 					mods = append(mods, dialect.Join[Q](typ, Users.Name().As(to.Alias())).On(
 						to.ID.EQ(cols.UserID),
+					))
+				}
+
+				return mods
+			},
+		},
+		SchemaChunks: modAs[Q, schemaChunkColumns]{
+			c: SchemaChunks.Columns,
+			f: func(to schemaChunkColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, SchemaChunks.Name().As(to.Alias())).On(
+						to.ConnectionID.EQ(cols.ID),
+					))
+				}
+
+				return mods
+			},
+		},
+		SchemaSnapshots: modAs[Q, schemaSnapshotColumns]{
+			c: SchemaSnapshots.Columns,
+			f: func(to schemaSnapshotColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, SchemaSnapshots.Name().As(to.Alias())).On(
+						to.ConnectionID.EQ(cols.ID),
 					))
 				}
 
