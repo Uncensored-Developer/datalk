@@ -14,8 +14,6 @@ CREATE INDEX schema_snapshots_latest_complete_idx
 ON schema_snapshots (connection_id, namespace_id, introspected_at DESC)
 WHERE status = 'completed';
 
-CREATE EXTENSION IF NOT EXISTS vector;
-
 CREATE TABLE IF NOT EXISTS schema_chunks (
     id              BIGSERIAL PRIMARY KEY,
     snapshot_id     INT NOT NULL REFERENCES schema_snapshots(id) ON DELETE CASCADE,
@@ -25,7 +23,7 @@ CREATE TABLE IF NOT EXISTS schema_chunks (
     object_name     TEXT        NOT NULL,          -- e.g. 'orders' or 'orders.customer_id'
     schema_json     JSONB       NOT NULL,          -- canonical structured schema snippet
     content         TEXT        NOT NULL,
-    embedding       VECTOR(1536),
+    embedding       datalk.VECTOR(1536),
     metadata        JSONB       NOT NULL DEFAULT '{}'::jsonb,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

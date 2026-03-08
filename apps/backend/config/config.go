@@ -18,13 +18,14 @@ type Config struct {
 	AppEnv  AppEnv `env:"APP_ENV"`
 	ApiPort int    `env:"PORT"`
 
-	DBName     string `env:"DB_NAME"`
-	DBHost     string `env:"DB_HOST"`
-	DBPort     int    `env:"DB_PORT"`
-	DBUser     string `env:"DB_USER"`
-	DBPassword string `env:"DB_PASSWORD"`
-	DBSSLMode  string `env:"DB_SSLMODE"`
-	DBSchema   string `env:"DB_SCHEMA"`
+	DBName         string `env:"DB_NAME"`
+	DBHost         string `env:"DB_HOST"`
+	DBPort         int    `env:"DB_PORT"`
+	DBUser         string `env:"DB_USER"`
+	DBPassword     string `env:"DB_PASSWORD"`
+	DBSSLMode      string `env:"DB_SSLMODE"`
+	DBSchema       string `env:"DB_SCHEMA"`
+	GoMigrateTable string `env:"GO_MIGRATE_TABLE"`
 }
 
 func MustLoad() Config {

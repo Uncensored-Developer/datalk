@@ -51,3 +51,6 @@ fmt:
 
 docker-up:
 	docker compose -f docker/docker-compose.yaml --env-file .env -p datalk-backend up
+
+test:
+	go test -v ./...
