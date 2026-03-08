@@ -206,7 +206,7 @@ func TestStorage_UpsertNamespace(t *testing.T) {
 
 		namespaceTmpl := factory.ConnectionNamespaceTemplate{}
 		namespaceTmpl.Apply(t.Context(),
-			factory.ConnectionNamespaceMods.ConnectionID(createdConn.ID),
+			factory.ConnectionNamespaceMods.WithExistingConnection(createdConn),
 			factory.ConnectionNamespaceMods.Name("public"),
 			factory.ConnectionNamespaceMods.NamespaceType(string(connections.NamespaceTypeSchema)),
 			factory.ConnectionNamespaceMods.IsEnabled(true),

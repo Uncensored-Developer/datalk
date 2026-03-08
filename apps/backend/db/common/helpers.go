@@ -59,7 +59,7 @@ func DBFromConfig(cfg config.Config, schema string, migrateUp bool, log *slog.Lo
 	}
 
 	if migrateUp {
-		if err := MigrateUp(conn, schema, log); err != nil {
+		if err := MigrateUp(conn, schema, cfg.GoMigrateTable, log); err != nil {
 			return conn, err
 		}
 	}
@@ -88,9 +88,10 @@ func FindMigrations() (string, error) {
 	return "", ErrMigrationsNotFound
 }
 
-func MigrateUp(conn *sql.DB, schema string, log *slog.Logger) error {
+func MigrateUp(conn *sql.DB, schema string, migrationsTable string, log *slog.Logger) error {
 	driver, err := postgres.WithInstance(conn, &postgres.Config{
-		SchemaName: schema,
+		SchemaName:      schema,
+		MigrationsTable: migrationsTable,
 	})
 	if err != nil {
 		return err
