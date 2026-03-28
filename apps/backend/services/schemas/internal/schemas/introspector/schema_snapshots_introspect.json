@@ -1,0 +1,115 @@
+{
+  "kind": "postgres",
+  "discovered_at": "0001-01-01T00:00:00Z",
+  "namespaces": [
+    {
+      "name": "testatlas_storage",
+      "tables": [
+        {
+          "name": "schema_snapshots",
+          "columns": [
+            {
+              "name": "id",
+              "data_type": "serial",
+              "nullable": false,
+              "position": 1
+            },
+            {
+              "name": "connection_id",
+              "data_type": "integer",
+              "nullable": false,
+              "position": 2
+            },
+            {
+              "name": "namespace_id",
+              "data_type": "integer",
+              "nullable": false,
+              "position": 3
+            },
+            {
+              "name": "schema_hash",
+              "data_type": "text",
+              "nullable": false,
+              "position": 4,
+              "comment": "Hash of the schema snapshot"
+            },
+            {
+              "name": "slice_json",
+              "data_type": "jsonb",
+              "nullable": false,
+              "position": 5,
+              "comment": "Normalized schema JSON"
+            },
+            {
+              "name": "status",
+              "data_type": "text",
+              "nullable": false,
+              "position": 6
+            },
+            {
+              "name": "error_message",
+              "data_type": "text",
+              "nullable": true,
+              "position": 7
+            },
+            {
+              "name": "introspected_at",
+              "data_type": "timestamp with time zone",
+              "nullable": false,
+              "position": 8
+            }
+          ],
+          "primary_key": [
+            "id"
+          ],
+          "foreign_keys": [
+            {
+              "columns": [
+                "connection_id"
+              ],
+              "ref_namespace": "testatlas_storage",
+              "ref_table": "connections",
+              "ref_columns": [
+                "id"
+              ]
+            },
+            {
+              "columns": [
+                "namespace_id"
+              ],
+              "ref_namespace": "testatlas_storage",
+              "ref_table": "connection_namespaces",
+              "ref_columns": [
+                "id"
+              ]
+            }
+          ],
+          "indexes": [
+            {
+              "name": "schema_snapshots_connection_id_schema_hash_key",
+              "columns": [
+                "connection_id",
+                "schema_hash"
+              ],
+              "is_unique": true,
+              "method": "btree"
+            },
+            {
+              "name": "schema_snapshots_latest_complete_idx",
+              "columns": [
+                "connection_id",
+                "namespace_id",
+                "introspected_at"
+              ],
+              "is_unique": false,
+              "method": "btree"
+            }
+          ],
+          "comment": "Stores schema snapshot versions"
+        }
+      ],
+      "views": [],
+      "extras": null
+    }
+  ]
+}

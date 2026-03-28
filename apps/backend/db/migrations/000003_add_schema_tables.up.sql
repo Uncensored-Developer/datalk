@@ -10,6 +10,10 @@ CREATE TABLE schema_snapshots (
     UNIQUE (connection_id, schema_hash)
 );
 
+COMMENT ON TABLE schema_snapshots IS 'Stores schema snapshot versions';
+COMMENT ON COLUMN schema_snapshots.slice_json IS 'Normalized schema JSON';
+COMMENT ON COLUMN schema_snapshots.schema_hash IS 'Hash of the schema snapshot';
+
 CREATE INDEX schema_snapshots_latest_complete_idx
 ON schema_snapshots (connection_id, namespace_id, introspected_at DESC)
 WHERE status = 'completed';
