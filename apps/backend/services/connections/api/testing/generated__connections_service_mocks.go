@@ -77,36 +77,6 @@ func (_m *Service) CreateConnection(ctx context.Context, params connections.NewC
 	return r0, r1
 }
 
-// CreateNamespace provides a mock function with given fields: ctx, params
-func (_m *Service) CreateNamespace(ctx context.Context, params connections.NewNamespace) (*pkgconnections.Namespace, error) {
-	ret := _m.Called(ctx, params)
-
-	if len(ret) == 0 {
-		panic("no return value specified for CreateNamespace")
-	}
-
-	var r0 *pkgconnections.Namespace
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, connections.NewNamespace) (*pkgconnections.Namespace, error)); ok {
-		return rf(ctx, params)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, connections.NewNamespace) *pkgconnections.Namespace); ok {
-		r0 = rf(ctx, params)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*pkgconnections.Namespace)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, connections.NewNamespace) error); ok {
-		r1 = rf(ctx, params)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // GetAccess provides a mock function with given fields: ctx, userID, connectionID
 func (_m *Service) GetAccess(ctx context.Context, userID int32, connectionID int32) (*pkgconnections.Access, error) {
 	ret := _m.Called(ctx, userID, connectionID)
@@ -155,36 +125,6 @@ func (_m *Service) GetConnection(ctx context.Context, ID int32) (*pkgconnections
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*pkgconnections.Connection)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
-		r1 = rf(ctx, ID)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// GetNamespace provides a mock function with given fields: ctx, ID
-func (_m *Service) GetNamespace(ctx context.Context, ID int32) (*pkgconnections.Namespace, error) {
-	ret := _m.Called(ctx, ID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetNamespace")
-	}
-
-	var r0 *pkgconnections.Namespace
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, int32) (*pkgconnections.Namespace, error)); ok {
-		return rf(ctx, ID)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, int32) *pkgconnections.Namespace); ok {
-		r0 = rf(ctx, ID)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*pkgconnections.Namespace)
 		}
 	}
 

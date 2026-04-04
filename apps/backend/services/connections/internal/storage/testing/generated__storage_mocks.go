@@ -77,36 +77,6 @@ func (_m *Storage) ListConnections(ctx context.Context, params storage.ListConne
 	return r0, r1
 }
 
-// ListNamespace provides a mock function with given fields: ctx, params
-func (_m *Storage) ListNamespace(ctx context.Context, params storage.ListNamespaceParam) ([]*connections.Namespace, error) {
-	ret := _m.Called(ctx, params)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ListNamespace")
-	}
-
-	var r0 []*connections.Namespace
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, storage.ListNamespaceParam) ([]*connections.Namespace, error)); ok {
-		return rf(ctx, params)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, storage.ListNamespaceParam) []*connections.Namespace); ok {
-		r0 = rf(ctx, params)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*connections.Namespace)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, storage.ListNamespaceParam) error); ok {
-		r1 = rf(ctx, params)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // UpsertAccess provides a mock function with given fields: ctx, access
 func (_m *Storage) UpsertAccess(ctx context.Context, access *connections.Access) error {
 	ret := _m.Called(ctx, access)
@@ -136,24 +106,6 @@ func (_m *Storage) UpsertConnection(ctx context.Context, connection *connections
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, *connections.Connection) error); ok {
 		r0 = rf(ctx, connection)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// UpsertNamespace provides a mock function with given fields: ctx, namespace
-func (_m *Storage) UpsertNamespace(ctx context.Context, namespace *connections.Namespace) error {
-	ret := _m.Called(ctx, namespace)
-
-	if len(ret) == 0 {
-		panic("no return value specified for UpsertNamespace")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *connections.Namespace) error); ok {
-		r0 = rf(ctx, namespace)
 	} else {
 		r0 = ret.Error(0)
 	}

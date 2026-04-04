@@ -16,9 +16,3 @@ type NewAccessParams struct {
 	AllowWrites  bool
 	CanManage    bool
 }
-
-type NewNamespaceParams struct {
-	ConnectionID  int32
-	Name          string
-	NamespaceType connections.NamespaceType
-}

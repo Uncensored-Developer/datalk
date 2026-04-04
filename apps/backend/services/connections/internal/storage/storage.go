@@ -17,11 +17,6 @@ type ListAccessParam struct {
 	ConnectionID []int32
 }
 
-type ListNamespaceParam struct {
-	ID           []int32
-	ConnectionID []int32
-}
-
 //go:generate go tool with-modfile mockery --name Storage --outpkg testing --output ./testing --filename generated__storage_mocks.go
 type Storage interface {
 	UpsertConnection(ctx context.Context, connection *connections.Connection) error
@@ -31,8 +26,4 @@ type Storage interface {
 	UpsertAccess(ctx context.Context, access *connections.Access) error
 
 	ListAccess(ctx context.Context, params ListAccessParam) ([]*connections.Access, error)
-
-	UpsertNamespace(ctx context.Context, namespace *connections.Namespace) error
-
-	ListNamespace(ctx context.Context, params ListNamespaceParam) ([]*connections.Namespace, error)
 }

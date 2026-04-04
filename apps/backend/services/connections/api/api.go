@@ -15,8 +15,6 @@ type Service interface {
 	GetConnection(ctx context.Context, ID int32) (*connections.Connection, error)
 	CreateAccess(ctx context.Context, params connectionsservice.NewAccess) (*connections.Access, error)
 	GetAccess(ctx context.Context, userID int32, connectionID int32) (*connections.Access, error)
-	CreateNamespace(ctx context.Context, params connectionsservice.NewNamespace) (*connections.Namespace, error)
-	GetNamespace(ctx context.Context, ID int32) (*connections.Namespace, error)
 }
 
 type Api struct {
@@ -56,16 +54,4 @@ func (a *Api) CreateAccess(ctx context.Context, params NewAccessParams) (*connec
 
 func (a *Api) GetAccess(ctx context.Context, userID int32, connectionID int32) (*connections.Access, error) {
 	return a.service.GetAccess(ctx, userID, connectionID)
-}
-
-func (a *Api) CreateNamespace(ctx context.Context, params NewNamespaceParams) (*connections.Namespace, error) {
-	return a.service.CreateNamespace(ctx, connectionsservice.NewNamespace{
-		Name:          params.Name,
-		NamespaceType: params.NamespaceType,
-		ConnectionID:  params.ConnectionID,
-	})
-}
-
-func (a *Api) GetNamespace(ctx context.Context, namespaceID int32) (*connections.Namespace, error) {
-	return a.service.GetNamespace(ctx, namespaceID)
 }

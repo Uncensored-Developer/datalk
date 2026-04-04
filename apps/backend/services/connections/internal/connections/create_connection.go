@@ -14,6 +14,7 @@ type NewConnection struct {
 	Database connections.Database
 	DSN      string
 	UserID   int32
+	Metadata connections.Metadata
 }
 
 func (n *NewConnection) Validate() error {
@@ -47,6 +48,7 @@ func (s *Service) CreateConnection(ctx context.Context, newConnection NewConnect
 		UserID:    newConnection.UserID,
 		IsEnabled: true,
 		CreatedAt: time.Now().UTC(),
+		Metadata:  newConnection.Metadata,
 	}
 	if err := s.storage.UpsertConnection(ctx, &connection); err != nil {
 		return nil, xerrors.Newf("failed to insert connection: %w", err)

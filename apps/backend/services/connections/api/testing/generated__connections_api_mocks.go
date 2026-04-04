@@ -77,36 +77,6 @@ func (_m *API) GetConnection(ctx context.Context, ID int32) (*connections.Connec
 	return r0, r1
 }
 
-// GetNamespace provides a mock function with given fields: ctx, ID
-func (_m *API) GetNamespace(ctx context.Context, ID int32) (*connections.Namespace, error) {
-	ret := _m.Called(ctx, ID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetNamespace")
-	}
-
-	var r0 *connections.Namespace
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, int32) (*connections.Namespace, error)); ok {
-		return rf(ctx, ID)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, int32) *connections.Namespace); ok {
-		r0 = rf(ctx, ID)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*connections.Namespace)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
-		r1 = rf(ctx, ID)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // RegisterAccess provides a mock function with given fields: ctx, newAccess
 func (_m *API) RegisterAccess(ctx context.Context, newAccess internalconnections.NewAccess) (*connections.Access, error) {
 	ret := _m.Called(ctx, newAccess)
@@ -160,36 +130,6 @@ func (_m *API) RegisterConnection(ctx context.Context, newConnection internalcon
 
 	if rf, ok := ret.Get(1).(func(context.Context, internalconnections.NewConnection) error); ok {
 		r1 = rf(ctx, newConnection)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// RegisterNamespace provides a mock function with given fields: ctx, newNamespace
-func (_m *API) RegisterNamespace(ctx context.Context, newNamespace internalconnections.NewNamespace) (*connections.Namespace, error) {
-	ret := _m.Called(ctx, newNamespace)
-
-	if len(ret) == 0 {
-		panic("no return value specified for RegisterNamespace")
-	}
-
-	var r0 *connections.Namespace
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, internalconnections.NewNamespace) (*connections.Namespace, error)); ok {
-		return rf(ctx, newNamespace)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, internalconnections.NewNamespace) *connections.Namespace); ok {
-		r0 = rf(ctx, newNamespace)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*connections.Namespace)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, internalconnections.NewNamespace) error); ok {
-		r1 = rf(ctx, newNamespace)
 	} else {
 		r1 = ret.Error(1)
 	}

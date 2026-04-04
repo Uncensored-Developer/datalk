@@ -1,15 +1,18 @@
 package db
 
 import (
+	"encoding/json"
+
 	"github.com/Uncensored-Developer/datalk/apps/backend/db/models"
 	"github.com/Uncensored-Developer/datalk/apps/backend/pkg/slices"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/connections/pkg/connections"
 	"github.com/aarondl/opt/omit"
 	"github.com/aarondl/opt/omitnull"
+	"github.com/stephenafamo/bob/types"
 )
 
-func connectionToDB(connection *connections.Connection) *models.ConnectionSetter {
-	return &models.ConnectionSetter{
+func connectionToDB(connection *connections.Connection) (*models.ConnectionSetter, error) {
+	dbConnection := &models.ConnectionSetter{
 		Name:      omit.From(connection.Name),
 		Kind:      omit.From(string(connection.Database)),
 		DSN:       omitnull.From(connection.DSN),
@@ -17,10 +20,18 @@ func connectionToDB(connection *connections.Connection) *models.ConnectionSetter
 		UserID:    omit.From(connection.UserID),
 		CreatedAt: omit.From(connection.CreatedAt),
 	}
+
+	metadataBytes, err := json.Marshal(connection.Metadata)
+	if err != nil {
+		return nil, err
+	}
+	dbConnection.Metadata = omit.From(types.NewJSON[json.RawMessage](metadataBytes))
+
+	return dbConnection, nil
 }
 
 func connectionFromDB(dbConnection *models.Connection) (*connections.Connection, error) {
-	return &connections.Connection{
+	connection := &connections.Connection{
 		ID:        dbConnection.ID,
 		UserID:    dbConnection.UserID,
 		Name:      dbConnection.Name,
@@ -28,7 +39,13 @@ func connectionFromDB(dbConnection *models.Connection) (*connections.Connection,
 		DSN:       dbConnection.DSN.GetOrZero(),
 		IsEnabled: dbConnection.IsEnabled,
 		CreatedAt: dbConnection.CreatedAt,
-	}, nil
+	}
+
+	err := json.Unmarshal(dbConnection.Metadata.Val, &connection.Metadata)
+	if err != nil {
+		return nil, err
+	}
+	return connection, nil
 }
 
 func connectionsFromDB(dbConnections []*models.Connection) ([]*connections.Connection, error) {
@@ -59,29 +76,4 @@ func accessFromDB(dbAccess *models.ConnectionAccess) (*connections.Access, error
 
 func accessListFromDB(dbAccess []*models.ConnectionAccess) ([]*connections.Access, error) {
 	return slices.Map(dbAccess, accessFromDB)
-}
-
-func namespaceToDB(namespace *connections.Namespace) *models.ConnectionNamespaceSetter {
-	return &models.ConnectionNamespaceSetter{
-		ConnectionID:  omit.From(namespace.ConnectionID),
-		Name:          omit.From(namespace.Name),
-		NamespaceType: omit.From(string(namespace.NamespaceType)),
-		IsEnabled:     omit.From(namespace.IsEnabled),
-		CreatedAt:     omit.From(namespace.CreatedAt),
-	}
-}
-
-func namespaceFromDB(dbNamespace *models.ConnectionNamespace) (*connections.Namespace, error) {
-	return &connections.Namespace{
-		ID:            dbNamespace.ID,
-		ConnectionID:  dbNamespace.ConnectionID,
-		Name:          dbNamespace.Name,
-		NamespaceType: connections.NamespaceType(dbNamespace.NamespaceType),
-		IsEnabled:     dbNamespace.IsEnabled,
-		CreatedAt:     dbNamespace.CreatedAt,
-	}, nil
-}
-
-func namespacesFromDB(dbNamespaces []*models.ConnectionNamespace) ([]*connections.Namespace, error) {
-	return slices.Map(dbNamespaces, namespaceFromDB)
 }
