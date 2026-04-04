@@ -78,6 +78,15 @@ var Connections = Table[
 			Generated: false,
 			AutoIncr:  false,
 		},
+		Metadata: column{
+			Name:      "metadata",
+			DBType:    "jsonb",
+			Default:   "'{}'::jsonb",
+			Comment:   "",
+			Nullable:  false,
+			Generated: false,
+			AutoIncr:  false,
+		},
 	},
 	Indexes: connectionIndexes{
 		ConnectionsPkey: index{
@@ -159,11 +168,12 @@ type connectionColumns struct {
 	IsEnabled column
 	UserID    column
 	CreatedAt column
+	Metadata  column
 }
 
 func (c connectionColumns) AsSlice() []column {
 	return []column{
-		c.ID, c.Name, c.Kind, c.DSN, c.IsEnabled, c.UserID, c.CreatedAt,
+		c.ID, c.Name, c.Kind, c.DSN, c.IsEnabled, c.UserID, c.CreatedAt, c.Metadata,
 	}
 }
 

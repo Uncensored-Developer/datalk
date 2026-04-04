@@ -15,13 +15,12 @@ import (
 )
 
 type Factory struct {
-	baseConnectionAccessMods    ConnectionAccessModSlice
-	baseConnectionNamespaceMods ConnectionNamespaceModSlice
-	baseConnectionMods          ConnectionModSlice
-	baseOrganizationMods        OrganizationModSlice
-	baseSchemaChunkMods         SchemaChunkModSlice
-	baseSchemaSnapshotMods      SchemaSnapshotModSlice
-	baseUserMods                UserModSlice
+	baseConnectionAccessMods ConnectionAccessModSlice
+	baseConnectionMods       ConnectionModSlice
+	baseOrganizationMods     OrganizationModSlice
+	baseSchemaChunkMods      SchemaChunkModSlice
+	baseSchemaSnapshotMods   SchemaSnapshotModSlice
+	baseUserMods             UserModSlice
 }
 
 func New() *Factory {
@@ -65,46 +64,6 @@ func (f *Factory) FromExistingConnectionAccess(m *models.ConnectionAccess) *Conn
 	return o
 }
 
-func (f *Factory) NewConnectionNamespace(mods ...ConnectionNamespaceMod) *ConnectionNamespaceTemplate {
-	return f.NewConnectionNamespaceWithContext(context.Background(), mods...)
-}
-
-func (f *Factory) NewConnectionNamespaceWithContext(ctx context.Context, mods ...ConnectionNamespaceMod) *ConnectionNamespaceTemplate {
-	o := &ConnectionNamespaceTemplate{f: f}
-
-	if f != nil {
-		f.baseConnectionNamespaceMods.Apply(ctx, o)
-	}
-
-	ConnectionNamespaceModSlice(mods).Apply(ctx, o)
-
-	return o
-}
-
-func (f *Factory) FromExistingConnectionNamespace(m *models.ConnectionNamespace) *ConnectionNamespaceTemplate {
-	o := &ConnectionNamespaceTemplate{f: f, alreadyPersisted: true}
-
-	o.ID = func() int32 { return m.ID }
-	o.ConnectionID = func() int32 { return m.ConnectionID }
-	o.Name = func() string { return m.Name }
-	o.NamespaceType = func() string { return m.NamespaceType }
-	o.IsEnabled = func() bool { return m.IsEnabled }
-	o.CreatedAt = func() time.Time { return m.CreatedAt }
-
-	ctx := context.Background()
-	if m.R.Connection != nil {
-		ConnectionNamespaceMods.WithExistingConnection(m.R.Connection).Apply(ctx, o)
-	}
-	if len(m.R.NamespaceSchemaChunks) > 0 {
-		ConnectionNamespaceMods.AddExistingNamespaceSchemaChunks(m.R.NamespaceSchemaChunks...).Apply(ctx, o)
-	}
-	if len(m.R.NamespaceSchemaSnapshots) > 0 {
-		ConnectionNamespaceMods.AddExistingNamespaceSchemaSnapshots(m.R.NamespaceSchemaSnapshots...).Apply(ctx, o)
-	}
-
-	return o
-}
-
 func (f *Factory) NewConnection(mods ...ConnectionMod) *ConnectionTemplate {
 	return f.NewConnectionWithContext(context.Background(), mods...)
 }
@@ -131,13 +90,11 @@ func (f *Factory) FromExistingConnection(m *models.Connection) *ConnectionTempla
 	o.IsEnabled = func() bool { return m.IsEnabled }
 	o.UserID = func() int32 { return m.UserID }
 	o.CreatedAt = func() time.Time { return m.CreatedAt }
+	o.Metadata = func() types.JSON[json.RawMessage] { return m.Metadata }
 
 	ctx := context.Background()
 	if len(m.R.ConnectionAccesses) > 0 {
 		ConnectionMods.AddExistingConnectionAccesses(m.R.ConnectionAccesses...).Apply(ctx, o)
-	}
-	if len(m.R.ConnectionNamespaces) > 0 {
-		ConnectionMods.AddExistingConnectionNamespaces(m.R.ConnectionNamespaces...).Apply(ctx, o)
 	}
 	if m.R.User != nil {
 		ConnectionMods.WithExistingUser(m.R.User).Apply(ctx, o)
@@ -201,7 +158,6 @@ func (f *Factory) FromExistingSchemaChunk(m *models.SchemaChunk) *SchemaChunkTem
 	o.ID = func() int64 { return m.ID }
 	o.SnapshotID = func() int32 { return m.SnapshotID }
 	o.ConnectionID = func() int32 { return m.ConnectionID }
-	o.NamespaceID = func() int32 { return m.NamespaceID }
 	o.ObjectType = func() string { return m.ObjectType }
 	o.ObjectName = func() string { return m.ObjectName }
 	o.SchemaJSON = func() types.JSON[json.RawMessage] { return m.SchemaJSON }
@@ -213,9 +169,6 @@ func (f *Factory) FromExistingSchemaChunk(m *models.SchemaChunk) *SchemaChunkTem
 	ctx := context.Background()
 	if m.R.Connection != nil {
 		SchemaChunkMods.WithExistingConnection(m.R.Connection).Apply(ctx, o)
-	}
-	if m.R.NamespaceConnectionNamespace != nil {
-		SchemaChunkMods.WithExistingNamespaceConnectionNamespace(m.R.NamespaceConnectionNamespace).Apply(ctx, o)
 	}
 	if m.R.SnapshotSchemaSnapshot != nil {
 		SchemaChunkMods.WithExistingSnapshotSchemaSnapshot(m.R.SnapshotSchemaSnapshot).Apply(ctx, o)
@@ -245,7 +198,6 @@ func (f *Factory) FromExistingSchemaSnapshot(m *models.SchemaSnapshot) *SchemaSn
 
 	o.ID = func() int32 { return m.ID }
 	o.ConnectionID = func() int32 { return m.ConnectionID }
-	o.NamespaceID = func() int32 { return m.NamespaceID }
 	o.SchemaHash = func() string { return m.SchemaHash }
 	o.SliceJSON = func() types.JSON[json.RawMessage] { return m.SliceJSON }
 	o.Status = func() string { return m.Status }
@@ -258,9 +210,6 @@ func (f *Factory) FromExistingSchemaSnapshot(m *models.SchemaSnapshot) *SchemaSn
 	}
 	if m.R.Connection != nil {
 		SchemaSnapshotMods.WithExistingConnection(m.R.Connection).Apply(ctx, o)
-	}
-	if m.R.NamespaceConnectionNamespace != nil {
-		SchemaSnapshotMods.WithExistingNamespaceConnectionNamespace(m.R.NamespaceConnectionNamespace).Apply(ctx, o)
 	}
 
 	return o
@@ -311,14 +260,6 @@ func (f *Factory) ClearBaseConnectionAccessMods() {
 
 func (f *Factory) AddBaseConnectionAccessMod(mods ...ConnectionAccessMod) {
 	f.baseConnectionAccessMods = append(f.baseConnectionAccessMods, mods...)
-}
-
-func (f *Factory) ClearBaseConnectionNamespaceMods() {
-	f.baseConnectionNamespaceMods = nil
-}
-
-func (f *Factory) AddBaseConnectionNamespaceMod(mods ...ConnectionNamespaceMod) {
-	f.baseConnectionNamespaceMods = append(f.baseConnectionNamespaceMods, mods...)
 }
 
 func (f *Factory) ClearBaseConnectionMods() {

@@ -41,7 +41,6 @@ func (mods SchemaSnapshotModSlice) Apply(ctx context.Context, n *SchemaSnapshotT
 type SchemaSnapshotTemplate struct {
 	ID             func() int32
 	ConnectionID   func() int32
-	NamespaceID    func() int32
 	SchemaHash     func() string
 	SliceJSON      func() types.JSON[json.RawMessage]
 	Status         func() string
@@ -55,9 +54,8 @@ type SchemaSnapshotTemplate struct {
 }
 
 type schemaSnapshotR struct {
-	SnapshotSchemaChunks         []*schemaSnapshotRSnapshotSchemaChunksR
-	Connection                   *schemaSnapshotRConnectionR
-	NamespaceConnectionNamespace *schemaSnapshotRNamespaceConnectionNamespaceR
+	SnapshotSchemaChunks []*schemaSnapshotRSnapshotSchemaChunksR
+	Connection           *schemaSnapshotRConnectionR
 }
 
 type schemaSnapshotRSnapshotSchemaChunksR struct {
@@ -66,9 +64,6 @@ type schemaSnapshotRSnapshotSchemaChunksR struct {
 }
 type schemaSnapshotRConnectionR struct {
 	o *ConnectionTemplate
-}
-type schemaSnapshotRNamespaceConnectionNamespaceR struct {
-	o *ConnectionNamespaceTemplate
 }
 
 // Apply mods to the SchemaSnapshotTemplate
@@ -98,12 +93,6 @@ func (t SchemaSnapshotTemplate) setModelRels(o *models.SchemaSnapshot) {
 		o.ConnectionID = rel.ID // h2
 		o.R.Connection = rel
 	}
-
-	if t.r.NamespaceConnectionNamespace != nil {
-		rel := t.r.NamespaceConnectionNamespace.o.Build()
-		o.NamespaceID = rel.ID // h2
-		o.R.NamespaceConnectionNamespace = rel
-	}
 }
 
 // BuildSetter returns an *models.SchemaSnapshotSetter
@@ -118,10 +107,6 @@ func (o SchemaSnapshotTemplate) BuildSetter() *models.SchemaSnapshotSetter {
 	if o.ConnectionID != nil {
 		val := o.ConnectionID()
 		m.ConnectionID = omit.From(val)
-	}
-	if o.NamespaceID != nil {
-		val := o.NamespaceID()
-		m.NamespaceID = omit.From(val)
 	}
 	if o.SchemaHash != nil {
 		val := o.SchemaHash()
@@ -171,9 +156,6 @@ func (o SchemaSnapshotTemplate) Build() *models.SchemaSnapshot {
 	if o.ConnectionID != nil {
 		m.ConnectionID = o.ConnectionID()
 	}
-	if o.NamespaceID != nil {
-		m.NamespaceID = o.NamespaceID()
-	}
 	if o.SchemaHash != nil {
 		m.SchemaHash = o.SchemaHash()
 	}
@@ -212,10 +194,6 @@ func ensureCreatableSchemaSnapshot(m *models.SchemaSnapshotSetter) {
 	if !(m.ConnectionID.IsValue()) {
 		val := random_int32(nil)
 		m.ConnectionID = omit.From(val)
-	}
-	if !(m.NamespaceID.IsValue()) {
-		val := random_int32(nil)
-		m.NamespaceID = omit.From(val)
 	}
 	if !(m.SchemaHash.IsValue()) {
 		val := random_string(nil)
@@ -284,30 +262,12 @@ func (o *SchemaSnapshotTemplate) Create(ctx context.Context, exec bob.Executor) 
 
 	opt.ConnectionID = omit.From(rel1.ID)
 
-	if o.r.NamespaceConnectionNamespace == nil {
-		SchemaSnapshotMods.WithNewNamespaceConnectionNamespace().Apply(ctx, o)
-	}
-
-	var rel2 *models.ConnectionNamespace
-
-	if o.r.NamespaceConnectionNamespace.o.alreadyPersisted {
-		rel2 = o.r.NamespaceConnectionNamespace.o.Build()
-	} else {
-		rel2, err = o.r.NamespaceConnectionNamespace.o.Create(ctx, exec)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	opt.NamespaceID = omit.From(rel2.ID)
-
 	m, err := models.SchemaSnapshots.Insert(opt).One(ctx, exec)
 	if err != nil {
 		return nil, err
 	}
 
 	m.R.Connection = rel1
-	m.R.NamespaceConnectionNamespace = rel2
 
 	if err := o.insertOptRels(ctx, exec, m); err != nil {
 		return nil, err
@@ -388,7 +348,6 @@ func (m schemaSnapshotMods) RandomizeAllColumns(f *faker.Faker) SchemaSnapshotMo
 	return SchemaSnapshotModSlice{
 		SchemaSnapshotMods.RandomID(f),
 		SchemaSnapshotMods.RandomConnectionID(f),
-		SchemaSnapshotMods.RandomNamespaceID(f),
 		SchemaSnapshotMods.RandomSchemaHash(f),
 		SchemaSnapshotMods.RandomSliceJSON(f),
 		SchemaSnapshotMods.RandomStatus(f),
@@ -454,37 +413,6 @@ func (m schemaSnapshotMods) UnsetConnectionID() SchemaSnapshotMod {
 func (m schemaSnapshotMods) RandomConnectionID(f *faker.Faker) SchemaSnapshotMod {
 	return SchemaSnapshotModFunc(func(_ context.Context, o *SchemaSnapshotTemplate) {
 		o.ConnectionID = func() int32 {
-			return random_int32(f)
-		}
-	})
-}
-
-// Set the model columns to this value
-func (m schemaSnapshotMods) NamespaceID(val int32) SchemaSnapshotMod {
-	return SchemaSnapshotModFunc(func(_ context.Context, o *SchemaSnapshotTemplate) {
-		o.NamespaceID = func() int32 { return val }
-	})
-}
-
-// Set the Column from the function
-func (m schemaSnapshotMods) NamespaceIDFunc(f func() int32) SchemaSnapshotMod {
-	return SchemaSnapshotModFunc(func(_ context.Context, o *SchemaSnapshotTemplate) {
-		o.NamespaceID = f
-	})
-}
-
-// Clear any values for the column
-func (m schemaSnapshotMods) UnsetNamespaceID() SchemaSnapshotMod {
-	return SchemaSnapshotModFunc(func(_ context.Context, o *SchemaSnapshotTemplate) {
-		o.NamespaceID = nil
-	})
-}
-
-// Generates a random value for the column using the given faker
-// if faker is nil, a default faker is used
-func (m schemaSnapshotMods) RandomNamespaceID(f *faker.Faker) SchemaSnapshotMod {
-	return SchemaSnapshotModFunc(func(_ context.Context, o *SchemaSnapshotTemplate) {
-		o.NamespaceID = func() int32 {
 			return random_int32(f)
 		}
 	})
@@ -678,11 +606,6 @@ func (m schemaSnapshotMods) WithParentsCascading() SchemaSnapshotMod {
 			related := o.f.NewConnectionWithContext(ctx, ConnectionMods.WithParentsCascading())
 			m.WithConnection(related).Apply(ctx, o)
 		}
-		{
-
-			related := o.f.NewConnectionNamespaceWithContext(ctx, ConnectionNamespaceMods.WithParentsCascading())
-			m.WithNamespaceConnectionNamespace(related).Apply(ctx, o)
-		}
 	})
 }
 
@@ -713,36 +636,6 @@ func (m schemaSnapshotMods) WithExistingConnection(em *models.Connection) Schema
 func (m schemaSnapshotMods) WithoutConnection() SchemaSnapshotMod {
 	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
 		o.r.Connection = nil
-	})
-}
-
-func (m schemaSnapshotMods) WithNamespaceConnectionNamespace(rel *ConnectionNamespaceTemplate) SchemaSnapshotMod {
-	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
-		o.r.NamespaceConnectionNamespace = &schemaSnapshotRNamespaceConnectionNamespaceR{
-			o: rel,
-		}
-	})
-}
-
-func (m schemaSnapshotMods) WithNewNamespaceConnectionNamespace(mods ...ConnectionNamespaceMod) SchemaSnapshotMod {
-	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
-		related := o.f.NewConnectionNamespaceWithContext(ctx, mods...)
-
-		m.WithNamespaceConnectionNamespace(related).Apply(ctx, o)
-	})
-}
-
-func (m schemaSnapshotMods) WithExistingNamespaceConnectionNamespace(em *models.ConnectionNamespace) SchemaSnapshotMod {
-	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
-		o.r.NamespaceConnectionNamespace = &schemaSnapshotRNamespaceConnectionNamespaceR{
-			o: o.f.FromExistingConnectionNamespace(em),
-		}
-	})
-}
-
-func (m schemaSnapshotMods) WithoutNamespaceConnectionNamespace() SchemaSnapshotMod {
-	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
-		o.r.NamespaceConnectionNamespace = nil
 	})
 }
 

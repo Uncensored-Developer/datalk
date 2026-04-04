@@ -42,15 +42,6 @@ var SchemaChunks = Table[
 			Generated: false,
 			AutoIncr:  false,
 		},
-		NamespaceID: column{
-			Name:      "namespace_id",
-			DBType:    "integer",
-			Default:   "",
-			Comment:   "",
-			Nullable:  false,
-			Generated: false,
-			AutoIncr:  false,
-		},
 		ObjectType: column{
 			Name:      "object_type",
 			DBType:    "text",
@@ -143,11 +134,6 @@ var SchemaChunks = Table[
 					IsExpression: false,
 				},
 				{
-					Name:         "namespace_id",
-					Desc:         null.FromCond(false, true),
-					IsExpression: false,
-				},
-				{
 					Name:         "object_type",
 					Desc:         null.FromCond(false, true),
 					IsExpression: false,
@@ -155,7 +141,7 @@ var SchemaChunks = Table[
 			},
 			Unique:        false,
 			Comment:       "",
-			NullsFirst:    []bool{false, false, false},
+			NullsFirst:    []bool{false, false},
 			NullsDistinct: false,
 			Where:         "",
 			Include:       []string{},
@@ -203,15 +189,6 @@ var SchemaChunks = Table[
 			ForeignTable:   "connections",
 			ForeignColumns: []string{"id"},
 		},
-		SchemaChunksSchemaChunksNamespaceIDFkey: foreignKey{
-			constraint: constraint{
-				Name:    "schema_chunks.schema_chunks_namespace_id_fkey",
-				Columns: []string{"namespace_id"},
-				Comment: "",
-			},
-			ForeignTable:   "connection_namespaces",
-			ForeignColumns: []string{"id"},
-		},
 		SchemaChunksSchemaChunksSnapshotIDFkey: foreignKey{
 			constraint: constraint{
 				Name:    "schema_chunks.schema_chunks_snapshot_id_fkey",
@@ -230,7 +207,6 @@ type schemaChunkColumns struct {
 	ID           column
 	SnapshotID   column
 	ConnectionID column
-	NamespaceID  column
 	ObjectType   column
 	ObjectName   column
 	SchemaJSON   column
@@ -242,7 +218,7 @@ type schemaChunkColumns struct {
 
 func (c schemaChunkColumns) AsSlice() []column {
 	return []column{
-		c.ID, c.SnapshotID, c.ConnectionID, c.NamespaceID, c.ObjectType, c.ObjectName, c.SchemaJSON, c.Content, c.Embedding, c.Metadata, c.CreatedAt,
+		c.ID, c.SnapshotID, c.ConnectionID, c.ObjectType, c.ObjectName, c.SchemaJSON, c.Content, c.Embedding, c.Metadata, c.CreatedAt,
 	}
 }
 
@@ -260,13 +236,12 @@ func (i schemaChunkIndexes) AsSlice() []index {
 
 type schemaChunkForeignKeys struct {
 	SchemaChunksSchemaChunksConnectionIDFkey foreignKey
-	SchemaChunksSchemaChunksNamespaceIDFkey  foreignKey
 	SchemaChunksSchemaChunksSnapshotIDFkey   foreignKey
 }
 
 func (f schemaChunkForeignKeys) AsSlice() []foreignKey {
 	return []foreignKey{
-		f.SchemaChunksSchemaChunksConnectionIDFkey, f.SchemaChunksSchemaChunksNamespaceIDFkey, f.SchemaChunksSchemaChunksSnapshotIDFkey,
+		f.SchemaChunksSchemaChunksConnectionIDFkey, f.SchemaChunksSchemaChunksSnapshotIDFkey,
 	}
 }
 

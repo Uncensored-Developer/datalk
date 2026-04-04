@@ -28,10 +28,11 @@ import (
 
 // SchemaSnapshot is an object representing the database table.
 type SchemaSnapshot struct {
-	ID             int32                       `db:"id,pk" `
-	ConnectionID   int32                       `db:"connection_id" `
-	NamespaceID    int32                       `db:"namespace_id" `
-	SchemaHash     string                      `db:"schema_hash" `
+	ID           int32 `db:"id,pk" `
+	ConnectionID int32 `db:"connection_id" `
+	// Hash of the schema snapshot
+	SchemaHash string `db:"schema_hash" `
+	// Normalized schema JSON
 	SliceJSON      types.JSON[json.RawMessage] `db:"slice_json" `
 	Status         string                      `db:"status" `
 	ErrorMessage   null.Val[string]            `db:"error_message" `
@@ -52,20 +53,18 @@ type SchemaSnapshotsQuery = *psql.ViewQuery[*SchemaSnapshot, SchemaSnapshotSlice
 
 // schemaSnapshotR is where relationships are stored.
 type schemaSnapshotR struct {
-	SnapshotSchemaChunks         SchemaChunkSlice     // schema_chunks.schema_chunks_snapshot_id_fkey
-	Connection                   *Connection          // schema_snapshots.schema_snapshots_connection_id_fkey
-	NamespaceConnectionNamespace *ConnectionNamespace // schema_snapshots.schema_snapshots_namespace_id_fkey
+	SnapshotSchemaChunks SchemaChunkSlice // schema_chunks.schema_chunks_snapshot_id_fkey
+	Connection           *Connection      // schema_snapshots.schema_snapshots_connection_id_fkey
 }
 
 func buildSchemaSnapshotColumns(alias string) schemaSnapshotColumns {
 	return schemaSnapshotColumns{
 		ColumnsExpr: expr.NewColumnsExpr(
-			"id", "connection_id", "namespace_id", "schema_hash", "slice_json", "status", "error_message", "introspected_at",
+			"id", "connection_id", "schema_hash", "slice_json", "status", "error_message", "introspected_at",
 		).WithParent("schema_snapshots"),
 		tableAlias:     alias,
 		ID:             psql.Quote(alias, "id"),
 		ConnectionID:   psql.Quote(alias, "connection_id"),
-		NamespaceID:    psql.Quote(alias, "namespace_id"),
 		SchemaHash:     psql.Quote(alias, "schema_hash"),
 		SliceJSON:      psql.Quote(alias, "slice_json"),
 		Status:         psql.Quote(alias, "status"),
@@ -79,7 +78,6 @@ type schemaSnapshotColumns struct {
 	tableAlias     string
 	ID             psql.Expression
 	ConnectionID   psql.Expression
-	NamespaceID    psql.Expression
 	SchemaHash     psql.Expression
 	SliceJSON      psql.Expression
 	Status         psql.Expression
@@ -101,7 +99,6 @@ func (schemaSnapshotColumns) AliasedAs(alias string) schemaSnapshotColumns {
 type SchemaSnapshotSetter struct {
 	ID             omit.Val[int32]                       `db:"id,pk" `
 	ConnectionID   omit.Val[int32]                       `db:"connection_id" `
-	NamespaceID    omit.Val[int32]                       `db:"namespace_id" `
 	SchemaHash     omit.Val[string]                      `db:"schema_hash" `
 	SliceJSON      omit.Val[types.JSON[json.RawMessage]] `db:"slice_json" `
 	Status         omit.Val[string]                      `db:"status" `
@@ -110,15 +107,12 @@ type SchemaSnapshotSetter struct {
 }
 
 func (s SchemaSnapshotSetter) SetColumns() []string {
-	vals := make([]string, 0, 8)
+	vals := make([]string, 0, 7)
 	if s.ID.IsValue() {
 		vals = append(vals, "id")
 	}
 	if s.ConnectionID.IsValue() {
 		vals = append(vals, "connection_id")
-	}
-	if s.NamespaceID.IsValue() {
-		vals = append(vals, "namespace_id")
 	}
 	if s.SchemaHash.IsValue() {
 		vals = append(vals, "schema_hash")
@@ -145,9 +139,6 @@ func (s SchemaSnapshotSetter) Overwrite(t *SchemaSnapshot) {
 	if s.ConnectionID.IsValue() {
 		t.ConnectionID = s.ConnectionID.MustGet()
 	}
-	if s.NamespaceID.IsValue() {
-		t.NamespaceID = s.NamespaceID.MustGet()
-	}
 	if s.SchemaHash.IsValue() {
 		t.SchemaHash = s.SchemaHash.MustGet()
 	}
@@ -171,7 +162,7 @@ func (s *SchemaSnapshotSetter) Apply(q *dialect.InsertQuery) {
 	})
 
 	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
-		vals := make([]bob.Expression, 8)
+		vals := make([]bob.Expression, 7)
 		if s.ID.IsValue() {
 			vals[0] = psql.Arg(s.ID.MustGet())
 		} else {
@@ -184,40 +175,34 @@ func (s *SchemaSnapshotSetter) Apply(q *dialect.InsertQuery) {
 			vals[1] = psql.Raw("DEFAULT")
 		}
 
-		if s.NamespaceID.IsValue() {
-			vals[2] = psql.Arg(s.NamespaceID.MustGet())
+		if s.SchemaHash.IsValue() {
+			vals[2] = psql.Arg(s.SchemaHash.MustGet())
 		} else {
 			vals[2] = psql.Raw("DEFAULT")
 		}
 
-		if s.SchemaHash.IsValue() {
-			vals[3] = psql.Arg(s.SchemaHash.MustGet())
+		if s.SliceJSON.IsValue() {
+			vals[3] = psql.Arg(s.SliceJSON.MustGet())
 		} else {
 			vals[3] = psql.Raw("DEFAULT")
 		}
 
-		if s.SliceJSON.IsValue() {
-			vals[4] = psql.Arg(s.SliceJSON.MustGet())
+		if s.Status.IsValue() {
+			vals[4] = psql.Arg(s.Status.MustGet())
 		} else {
 			vals[4] = psql.Raw("DEFAULT")
 		}
 
-		if s.Status.IsValue() {
-			vals[5] = psql.Arg(s.Status.MustGet())
+		if !s.ErrorMessage.IsUnset() {
+			vals[5] = psql.Arg(s.ErrorMessage.MustGetNull())
 		} else {
 			vals[5] = psql.Raw("DEFAULT")
 		}
 
-		if !s.ErrorMessage.IsUnset() {
-			vals[6] = psql.Arg(s.ErrorMessage.MustGetNull())
+		if s.IntrospectedAt.IsValue() {
+			vals[6] = psql.Arg(s.IntrospectedAt.MustGet())
 		} else {
 			vals[6] = psql.Raw("DEFAULT")
-		}
-
-		if s.IntrospectedAt.IsValue() {
-			vals[7] = psql.Arg(s.IntrospectedAt.MustGet())
-		} else {
-			vals[7] = psql.Raw("DEFAULT")
 		}
 
 		return bob.ExpressSlice(ctx, w, d, start, vals, "", ", ", "")
@@ -229,7 +214,7 @@ func (s SchemaSnapshotSetter) UpdateMod() bob.Mod[*dialect.UpdateQuery] {
 }
 
 func (s SchemaSnapshotSetter) Expressions(prefix ...string) []bob.Expression {
-	exprs := make([]bob.Expression, 0, 8)
+	exprs := make([]bob.Expression, 0, 7)
 
 	if s.ID.IsValue() {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
@@ -242,13 +227,6 @@ func (s SchemaSnapshotSetter) Expressions(prefix ...string) []bob.Expression {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "connection_id")...),
 			psql.Arg(s.ConnectionID),
-		}})
-	}
-
-	if s.NamespaceID.IsValue() {
-		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
-			psql.Quote(append(prefix, "namespace_id")...),
-			psql.Arg(s.NamespaceID),
 		}})
 	}
 
@@ -561,30 +539,6 @@ func (os SchemaSnapshotSlice) Connection(mods ...bob.Mod[*dialect.SelectQuery]) 
 	)...)
 }
 
-// NamespaceConnectionNamespace starts a query for related objects on connection_namespaces
-func (o *SchemaSnapshot) NamespaceConnectionNamespace(mods ...bob.Mod[*dialect.SelectQuery]) ConnectionNamespacesQuery {
-	return ConnectionNamespaces.Query(append(mods,
-		sm.Where(ConnectionNamespaces.Columns.ID.EQ(psql.Arg(o.NamespaceID))),
-	)...)
-}
-
-func (os SchemaSnapshotSlice) NamespaceConnectionNamespace(mods ...bob.Mod[*dialect.SelectQuery]) ConnectionNamespacesQuery {
-	pkNamespaceID := make(pgtypes.Array[int32], 0, len(os))
-	for _, o := range os {
-		if o == nil {
-			continue
-		}
-		pkNamespaceID = append(pkNamespaceID, o.NamespaceID)
-	}
-	PKArgExpr := psql.Select(sm.Columns(
-		psql.F("unnest", psql.Cast(psql.Arg(pkNamespaceID), "integer[]")),
-	))
-
-	return ConnectionNamespaces.Query(append(mods,
-		sm.Where(psql.Group(ConnectionNamespaces.Columns.ID).OP("IN", PKArgExpr)),
-	)...)
-}
-
 func insertSchemaSnapshotSnapshotSchemaChunks0(ctx context.Context, exec bob.Executor, schemaChunks1 []*SchemaChunkSetter, schemaSnapshot0 *SchemaSnapshot) (SchemaChunkSlice, error) {
 	for i := range schemaChunks1 {
 		schemaChunks1[i].SnapshotID = omit.From(schemaSnapshot0.ID)
@@ -690,54 +644,9 @@ func (schemaSnapshot0 *SchemaSnapshot) AttachConnection(ctx context.Context, exe
 	return nil
 }
 
-func attachSchemaSnapshotNamespaceConnectionNamespace0(ctx context.Context, exec bob.Executor, count int, schemaSnapshot0 *SchemaSnapshot, connectionNamespace1 *ConnectionNamespace) (*SchemaSnapshot, error) {
-	setter := &SchemaSnapshotSetter{
-		NamespaceID: omit.From(connectionNamespace1.ID),
-	}
-
-	err := schemaSnapshot0.Update(ctx, exec, setter)
-	if err != nil {
-		return nil, fmt.Errorf("attachSchemaSnapshotNamespaceConnectionNamespace0: %w", err)
-	}
-
-	return schemaSnapshot0, nil
-}
-
-func (schemaSnapshot0 *SchemaSnapshot) InsertNamespaceConnectionNamespace(ctx context.Context, exec bob.Executor, related *ConnectionNamespaceSetter) error {
-	var err error
-
-	connectionNamespace1, err := ConnectionNamespaces.Insert(related).One(ctx, exec)
-	if err != nil {
-		return fmt.Errorf("inserting related objects: %w", err)
-	}
-
-	_, err = attachSchemaSnapshotNamespaceConnectionNamespace0(ctx, exec, 1, schemaSnapshot0, connectionNamespace1)
-	if err != nil {
-		return err
-	}
-
-	schemaSnapshot0.R.NamespaceConnectionNamespace = connectionNamespace1
-
-	return nil
-}
-
-func (schemaSnapshot0 *SchemaSnapshot) AttachNamespaceConnectionNamespace(ctx context.Context, exec bob.Executor, connectionNamespace1 *ConnectionNamespace) error {
-	var err error
-
-	_, err = attachSchemaSnapshotNamespaceConnectionNamespace0(ctx, exec, 1, schemaSnapshot0, connectionNamespace1)
-	if err != nil {
-		return err
-	}
-
-	schemaSnapshot0.R.NamespaceConnectionNamespace = connectionNamespace1
-
-	return nil
-}
-
 type schemaSnapshotWhere[Q psql.Filterable] struct {
 	ID             psql.WhereMod[Q, int32]
 	ConnectionID   psql.WhereMod[Q, int32]
-	NamespaceID    psql.WhereMod[Q, int32]
 	SchemaHash     psql.WhereMod[Q, string]
 	SliceJSON      psql.WhereMod[Q, types.JSON[json.RawMessage]]
 	Status         psql.WhereMod[Q, string]
@@ -753,7 +662,6 @@ func buildSchemaSnapshotWhere[Q psql.Filterable](cols schemaSnapshotColumns) sch
 	return schemaSnapshotWhere[Q]{
 		ID:             psql.Where[Q, int32](cols.ID),
 		ConnectionID:   psql.Where[Q, int32](cols.ConnectionID),
-		NamespaceID:    psql.Where[Q, int32](cols.NamespaceID),
 		SchemaHash:     psql.Where[Q, string](cols.SchemaHash),
 		SliceJSON:      psql.Where[Q, types.JSON[json.RawMessage]](cols.SliceJSON),
 		Status:         psql.Where[Q, string](cols.Status),
@@ -786,23 +694,13 @@ func (o *SchemaSnapshot) Preload(name string, retrieved any) error {
 		o.R.Connection = rel
 
 		return nil
-	case "NamespaceConnectionNamespace":
-		rel, ok := retrieved.(*ConnectionNamespace)
-		if !ok {
-			return fmt.Errorf("schemaSnapshot cannot load %T as %q", retrieved, name)
-		}
-
-		o.R.NamespaceConnectionNamespace = rel
-
-		return nil
 	default:
 		return fmt.Errorf("schemaSnapshot has no relationship %q", name)
 	}
 }
 
 type schemaSnapshotPreloader struct {
-	Connection                   func(...psql.PreloadOption) psql.Preloader
-	NamespaceConnectionNamespace func(...psql.PreloadOption) psql.Preloader
+	Connection func(...psql.PreloadOption) psql.Preloader
 }
 
 func buildSchemaSnapshotPreloader() schemaSnapshotPreloader {
@@ -820,26 +718,12 @@ func buildSchemaSnapshotPreloader() schemaSnapshotPreloader {
 				},
 			}, Connections.Columns.Names(), opts...)
 		},
-		NamespaceConnectionNamespace: func(opts ...psql.PreloadOption) psql.Preloader {
-			return psql.Preload[*ConnectionNamespace, ConnectionNamespaceSlice](psql.PreloadRel{
-				Name: "NamespaceConnectionNamespace",
-				Sides: []psql.PreloadSide{
-					{
-						From:        SchemaSnapshots,
-						To:          ConnectionNamespaces,
-						FromColumns: []string{"namespace_id"},
-						ToColumns:   []string{"id"},
-					},
-				},
-			}, ConnectionNamespaces.Columns.Names(), opts...)
-		},
 	}
 }
 
 type schemaSnapshotThenLoader[Q orm.Loadable] struct {
-	SnapshotSchemaChunks         func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	Connection                   func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	NamespaceConnectionNamespace func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	SnapshotSchemaChunks func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	Connection           func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 }
 
 func buildSchemaSnapshotThenLoader[Q orm.Loadable]() schemaSnapshotThenLoader[Q] {
@@ -848,9 +732,6 @@ func buildSchemaSnapshotThenLoader[Q orm.Loadable]() schemaSnapshotThenLoader[Q]
 	}
 	type ConnectionLoadInterface interface {
 		LoadConnection(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
-	}
-	type NamespaceConnectionNamespaceLoadInterface interface {
-		LoadNamespaceConnectionNamespace(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 
 	return schemaSnapshotThenLoader[Q]{
@@ -864,12 +745,6 @@ func buildSchemaSnapshotThenLoader[Q orm.Loadable]() schemaSnapshotThenLoader[Q]
 			"Connection",
 			func(ctx context.Context, exec bob.Executor, retrieved ConnectionLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
 				return retrieved.LoadConnection(ctx, exec, mods...)
-			},
-		),
-		NamespaceConnectionNamespace: thenLoadBuilder[Q](
-			"NamespaceConnectionNamespace",
-			func(ctx context.Context, exec bob.Executor, retrieved NamespaceConnectionNamespaceLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
-				return retrieved.LoadNamespaceConnectionNamespace(ctx, exec, mods...)
 			},
 		),
 	}
@@ -978,59 +853,10 @@ func (os SchemaSnapshotSlice) LoadConnection(ctx context.Context, exec bob.Execu
 	return nil
 }
 
-// LoadNamespaceConnectionNamespace loads the schemaSnapshot's NamespaceConnectionNamespace into the .R struct
-func (o *SchemaSnapshot) LoadNamespaceConnectionNamespace(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
-	if o == nil {
-		return nil
-	}
-
-	// Reset the relationship
-	o.R.NamespaceConnectionNamespace = nil
-
-	related, err := o.NamespaceConnectionNamespace(mods...).One(ctx, exec)
-	if err != nil {
-		return err
-	}
-
-	o.R.NamespaceConnectionNamespace = related
-	return nil
-}
-
-// LoadNamespaceConnectionNamespace loads the schemaSnapshot's NamespaceConnectionNamespace into the .R struct
-func (os SchemaSnapshotSlice) LoadNamespaceConnectionNamespace(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
-	if len(os) == 0 {
-		return nil
-	}
-
-	connectionNamespaces, err := os.NamespaceConnectionNamespace(mods...).All(ctx, exec)
-	if err != nil {
-		return err
-	}
-
-	for _, o := range os {
-		if o == nil {
-			continue
-		}
-
-		for _, rel := range connectionNamespaces {
-
-			if !(o.NamespaceID == rel.ID) {
-				continue
-			}
-
-			o.R.NamespaceConnectionNamespace = rel
-			break
-		}
-	}
-
-	return nil
-}
-
 type schemaSnapshotJoins[Q dialect.Joinable] struct {
-	typ                          string
-	SnapshotSchemaChunks         modAs[Q, schemaChunkColumns]
-	Connection                   modAs[Q, connectionColumns]
-	NamespaceConnectionNamespace modAs[Q, connectionNamespaceColumns]
+	typ                  string
+	SnapshotSchemaChunks modAs[Q, schemaChunkColumns]
+	Connection           modAs[Q, connectionColumns]
 }
 
 func (j schemaSnapshotJoins[Q]) aliasedAs(alias string) schemaSnapshotJoins[Q] {
@@ -1062,20 +888,6 @@ func buildSchemaSnapshotJoins[Q dialect.Joinable](cols schemaSnapshotColumns, ty
 				{
 					mods = append(mods, dialect.Join[Q](typ, Connections.Name().As(to.Alias())).On(
 						to.ID.EQ(cols.ConnectionID),
-					))
-				}
-
-				return mods
-			},
-		},
-		NamespaceConnectionNamespace: modAs[Q, connectionNamespaceColumns]{
-			c: ConnectionNamespaces.Columns,
-			f: func(to connectionNamespaceColumns) bob.Mod[Q] {
-				mods := make(mods.QueryMods[Q], 0, 1)
-
-				{
-					mods = append(mods, dialect.Join[Q](typ, ConnectionNamespaces.Name().As(to.Alias())).On(
-						to.ID.EQ(cols.NamespaceID),
 					))
 				}
 

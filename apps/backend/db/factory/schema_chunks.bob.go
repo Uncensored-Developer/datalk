@@ -43,7 +43,6 @@ type SchemaChunkTemplate struct {
 	ID           func() int64
 	SnapshotID   func() int32
 	ConnectionID func() int32
-	NamespaceID  func() int32
 	ObjectType   func() string
 	ObjectName   func() string
 	SchemaJSON   func() types.JSON[json.RawMessage]
@@ -59,16 +58,12 @@ type SchemaChunkTemplate struct {
 }
 
 type schemaChunkR struct {
-	Connection                   *schemaChunkRConnectionR
-	NamespaceConnectionNamespace *schemaChunkRNamespaceConnectionNamespaceR
-	SnapshotSchemaSnapshot       *schemaChunkRSnapshotSchemaSnapshotR
+	Connection             *schemaChunkRConnectionR
+	SnapshotSchemaSnapshot *schemaChunkRSnapshotSchemaSnapshotR
 }
 
 type schemaChunkRConnectionR struct {
 	o *ConnectionTemplate
-}
-type schemaChunkRNamespaceConnectionNamespaceR struct {
-	o *ConnectionNamespaceTemplate
 }
 type schemaChunkRSnapshotSchemaSnapshotR struct {
 	o *SchemaSnapshotTemplate
@@ -88,12 +83,6 @@ func (t SchemaChunkTemplate) setModelRels(o *models.SchemaChunk) {
 		rel := t.r.Connection.o.Build()
 		o.ConnectionID = rel.ID // h2
 		o.R.Connection = rel
-	}
-
-	if t.r.NamespaceConnectionNamespace != nil {
-		rel := t.r.NamespaceConnectionNamespace.o.Build()
-		o.NamespaceID = rel.ID // h2
-		o.R.NamespaceConnectionNamespace = rel
 	}
 
 	if t.r.SnapshotSchemaSnapshot != nil {
@@ -119,10 +108,6 @@ func (o SchemaChunkTemplate) BuildSetter() *models.SchemaChunkSetter {
 	if o.ConnectionID != nil {
 		val := o.ConnectionID()
 		m.ConnectionID = omit.From(val)
-	}
-	if o.NamespaceID != nil {
-		val := o.NamespaceID()
-		m.NamespaceID = omit.From(val)
 	}
 	if o.ObjectType != nil {
 		val := o.ObjectType()
@@ -183,9 +168,6 @@ func (o SchemaChunkTemplate) Build() *models.SchemaChunk {
 	if o.ConnectionID != nil {
 		m.ConnectionID = o.ConnectionID()
 	}
-	if o.NamespaceID != nil {
-		m.NamespaceID = o.NamespaceID()
-	}
 	if o.ObjectType != nil {
 		m.ObjectType = o.ObjectType()
 	}
@@ -234,10 +216,6 @@ func ensureCreatableSchemaChunk(m *models.SchemaChunkSetter) {
 	if !(m.ConnectionID.IsValue()) {
 		val := random_int32(nil)
 		m.ConnectionID = omit.From(val)
-	}
-	if !(m.NamespaceID.IsValue()) {
-		val := random_int32(nil)
-		m.NamespaceID = omit.From(val)
 	}
 	if !(m.ObjectType.IsValue()) {
 		val := random_string(nil)
@@ -290,39 +268,22 @@ func (o *SchemaChunkTemplate) Create(ctx context.Context, exec bob.Executor) (*m
 
 	opt.ConnectionID = omit.From(rel0.ID)
 
-	if o.r.NamespaceConnectionNamespace == nil {
-		SchemaChunkMods.WithNewNamespaceConnectionNamespace().Apply(ctx, o)
-	}
-
-	var rel1 *models.ConnectionNamespace
-
-	if o.r.NamespaceConnectionNamespace.o.alreadyPersisted {
-		rel1 = o.r.NamespaceConnectionNamespace.o.Build()
-	} else {
-		rel1, err = o.r.NamespaceConnectionNamespace.o.Create(ctx, exec)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	opt.NamespaceID = omit.From(rel1.ID)
-
 	if o.r.SnapshotSchemaSnapshot == nil {
 		SchemaChunkMods.WithNewSnapshotSchemaSnapshot().Apply(ctx, o)
 	}
 
-	var rel2 *models.SchemaSnapshot
+	var rel1 *models.SchemaSnapshot
 
 	if o.r.SnapshotSchemaSnapshot.o.alreadyPersisted {
-		rel2 = o.r.SnapshotSchemaSnapshot.o.Build()
+		rel1 = o.r.SnapshotSchemaSnapshot.o.Build()
 	} else {
-		rel2, err = o.r.SnapshotSchemaSnapshot.o.Create(ctx, exec)
+		rel1, err = o.r.SnapshotSchemaSnapshot.o.Create(ctx, exec)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	opt.SnapshotID = omit.From(rel2.ID)
+	opt.SnapshotID = omit.From(rel1.ID)
 
 	m, err := models.SchemaChunks.Insert(opt).One(ctx, exec)
 	if err != nil {
@@ -330,8 +291,7 @@ func (o *SchemaChunkTemplate) Create(ctx context.Context, exec bob.Executor) (*m
 	}
 
 	m.R.Connection = rel0
-	m.R.NamespaceConnectionNamespace = rel1
-	m.R.SnapshotSchemaSnapshot = rel2
+	m.R.SnapshotSchemaSnapshot = rel1
 
 	if err := o.insertOptRels(ctx, exec, m); err != nil {
 		return nil, err
@@ -413,7 +373,6 @@ func (m schemaChunkMods) RandomizeAllColumns(f *faker.Faker) SchemaChunkMod {
 		SchemaChunkMods.RandomID(f),
 		SchemaChunkMods.RandomSnapshotID(f),
 		SchemaChunkMods.RandomConnectionID(f),
-		SchemaChunkMods.RandomNamespaceID(f),
 		SchemaChunkMods.RandomObjectType(f),
 		SchemaChunkMods.RandomObjectName(f),
 		SchemaChunkMods.RandomSchemaJSON(f),
@@ -512,37 +471,6 @@ func (m schemaChunkMods) UnsetConnectionID() SchemaChunkMod {
 func (m schemaChunkMods) RandomConnectionID(f *faker.Faker) SchemaChunkMod {
 	return SchemaChunkModFunc(func(_ context.Context, o *SchemaChunkTemplate) {
 		o.ConnectionID = func() int32 {
-			return random_int32(f)
-		}
-	})
-}
-
-// Set the model columns to this value
-func (m schemaChunkMods) NamespaceID(val int32) SchemaChunkMod {
-	return SchemaChunkModFunc(func(_ context.Context, o *SchemaChunkTemplate) {
-		o.NamespaceID = func() int32 { return val }
-	})
-}
-
-// Set the Column from the function
-func (m schemaChunkMods) NamespaceIDFunc(f func() int32) SchemaChunkMod {
-	return SchemaChunkModFunc(func(_ context.Context, o *SchemaChunkTemplate) {
-		o.NamespaceID = f
-	})
-}
-
-// Clear any values for the column
-func (m schemaChunkMods) UnsetNamespaceID() SchemaChunkMod {
-	return SchemaChunkModFunc(func(_ context.Context, o *SchemaChunkTemplate) {
-		o.NamespaceID = nil
-	})
-}
-
-// Generates a random value for the column using the given faker
-// if faker is nil, a default faker is used
-func (m schemaChunkMods) RandomNamespaceID(f *faker.Faker) SchemaChunkMod {
-	return SchemaChunkModFunc(func(_ context.Context, o *SchemaChunkTemplate) {
-		o.NamespaceID = func() int32 {
 			return random_int32(f)
 		}
 	})
@@ -800,11 +728,6 @@ func (m schemaChunkMods) WithParentsCascading() SchemaChunkMod {
 		}
 		{
 
-			related := o.f.NewConnectionNamespaceWithContext(ctx, ConnectionNamespaceMods.WithParentsCascading())
-			m.WithNamespaceConnectionNamespace(related).Apply(ctx, o)
-		}
-		{
-
 			related := o.f.NewSchemaSnapshotWithContext(ctx, SchemaSnapshotMods.WithParentsCascading())
 			m.WithSnapshotSchemaSnapshot(related).Apply(ctx, o)
 		}
@@ -838,36 +761,6 @@ func (m schemaChunkMods) WithExistingConnection(em *models.Connection) SchemaChu
 func (m schemaChunkMods) WithoutConnection() SchemaChunkMod {
 	return SchemaChunkModFunc(func(ctx context.Context, o *SchemaChunkTemplate) {
 		o.r.Connection = nil
-	})
-}
-
-func (m schemaChunkMods) WithNamespaceConnectionNamespace(rel *ConnectionNamespaceTemplate) SchemaChunkMod {
-	return SchemaChunkModFunc(func(ctx context.Context, o *SchemaChunkTemplate) {
-		o.r.NamespaceConnectionNamespace = &schemaChunkRNamespaceConnectionNamespaceR{
-			o: rel,
-		}
-	})
-}
-
-func (m schemaChunkMods) WithNewNamespaceConnectionNamespace(mods ...ConnectionNamespaceMod) SchemaChunkMod {
-	return SchemaChunkModFunc(func(ctx context.Context, o *SchemaChunkTemplate) {
-		related := o.f.NewConnectionNamespaceWithContext(ctx, mods...)
-
-		m.WithNamespaceConnectionNamespace(related).Apply(ctx, o)
-	})
-}
-
-func (m schemaChunkMods) WithExistingNamespaceConnectionNamespace(em *models.ConnectionNamespace) SchemaChunkMod {
-	return SchemaChunkModFunc(func(ctx context.Context, o *SchemaChunkTemplate) {
-		o.r.NamespaceConnectionNamespace = &schemaChunkRNamespaceConnectionNamespaceR{
-			o: o.f.FromExistingConnectionNamespace(em),
-		}
-	})
-}
-
-func (m schemaChunkMods) WithoutNamespaceConnectionNamespace() SchemaChunkMod {
-	return SchemaChunkModFunc(func(ctx context.Context, o *SchemaChunkTemplate) {
-		o.r.NamespaceConnectionNamespace = nil
 	})
 }
 

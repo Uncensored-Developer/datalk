@@ -33,20 +33,11 @@ var SchemaSnapshots = Table[
 			Generated: false,
 			AutoIncr:  false,
 		},
-		NamespaceID: column{
-			Name:      "namespace_id",
-			DBType:    "integer",
-			Default:   "",
-			Comment:   "",
-			Nullable:  false,
-			Generated: false,
-			AutoIncr:  false,
-		},
 		SchemaHash: column{
 			Name:      "schema_hash",
 			DBType:    "text",
 			Default:   "",
-			Comment:   "",
+			Comment:   "Hash of the schema snapshot",
 			Nullable:  false,
 			Generated: false,
 			AutoIncr:  false,
@@ -55,7 +46,7 @@ var SchemaSnapshots = Table[
 			Name:      "slice_json",
 			DBType:    "jsonb",
 			Default:   "",
-			Comment:   "",
+			Comment:   "Normalized schema JSON",
 			Nullable:  false,
 			Generated: false,
 			AutoIncr:  false,
@@ -138,11 +129,6 @@ var SchemaSnapshots = Table[
 					IsExpression: false,
 				},
 				{
-					Name:         "namespace_id",
-					Desc:         null.FromCond(false, true),
-					IsExpression: false,
-				},
-				{
 					Name:         "introspected_at",
 					Desc:         null.FromCond(true, true),
 					IsExpression: false,
@@ -150,9 +136,9 @@ var SchemaSnapshots = Table[
 			},
 			Unique:        false,
 			Comment:       "",
-			NullsFirst:    []bool{false, false, true},
+			NullsFirst:    []bool{false, true},
 			NullsDistinct: false,
-			Where:         "(status = 'completed'::text)",
+			Where:         "(status = 'COMPLETED'::text)",
 			Include:       []string{},
 		},
 	},
@@ -171,15 +157,6 @@ var SchemaSnapshots = Table[
 			ForeignTable:   "connections",
 			ForeignColumns: []string{"id"},
 		},
-		SchemaSnapshotsSchemaSnapshotsNamespaceIDFkey: foreignKey{
-			constraint: constraint{
-				Name:    "schema_snapshots.schema_snapshots_namespace_id_fkey",
-				Columns: []string{"namespace_id"},
-				Comment: "",
-			},
-			ForeignTable:   "connection_namespaces",
-			ForeignColumns: []string{"id"},
-		},
 	},
 	Uniques: schemaSnapshotUniques{
 		SchemaSnapshotsConnectionIDSchemaHashKey: constraint{
@@ -195,16 +172,15 @@ var SchemaSnapshots = Table[
 				Columns: []string{"status"},
 				Comment: "",
 			},
-			Expression: "(status = ANY (ARRAY['started'::text, 'completed'::text, 'failed'::text]))",
+			Expression: "(status = ANY (ARRAY['STARTED'::text, 'COMPLETED'::text, 'FAILED'::text]))",
 		},
 	},
-	Comment: "",
+	Comment: "Stores schema snapshot versions",
 }
 
 type schemaSnapshotColumns struct {
 	ID             column
 	ConnectionID   column
-	NamespaceID    column
 	SchemaHash     column
 	SliceJSON      column
 	Status         column
@@ -214,7 +190,7 @@ type schemaSnapshotColumns struct {
 
 func (c schemaSnapshotColumns) AsSlice() []column {
 	return []column{
-		c.ID, c.ConnectionID, c.NamespaceID, c.SchemaHash, c.SliceJSON, c.Status, c.ErrorMessage, c.IntrospectedAt,
+		c.ID, c.ConnectionID, c.SchemaHash, c.SliceJSON, c.Status, c.ErrorMessage, c.IntrospectedAt,
 	}
 }
 
@@ -232,12 +208,11 @@ func (i schemaSnapshotIndexes) AsSlice() []index {
 
 type schemaSnapshotForeignKeys struct {
 	SchemaSnapshotsSchemaSnapshotsConnectionIDFkey foreignKey
-	SchemaSnapshotsSchemaSnapshotsNamespaceIDFkey  foreignKey
 }
 
 func (f schemaSnapshotForeignKeys) AsSlice() []foreignKey {
 	return []foreignKey{
-		f.SchemaSnapshotsSchemaSnapshotsConnectionIDFkey, f.SchemaSnapshotsSchemaSnapshotsNamespaceIDFkey,
+		f.SchemaSnapshotsSchemaSnapshotsConnectionIDFkey,
 	}
 }
 

@@ -5,6 +5,7 @@ package factory
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/aarondl/opt/omitnull"
 	"github.com/jaswdr/faker/v2"
 	"github.com/stephenafamo/bob"
+	"github.com/stephenafamo/bob/types"
 )
 
 type ConnectionMod interface {
@@ -44,6 +46,7 @@ type ConnectionTemplate struct {
 	IsEnabled func() bool
 	UserID    func() int32
 	CreatedAt func() time.Time
+	Metadata  func() types.JSON[json.RawMessage]
 
 	r connectionR
 	f *Factory
@@ -52,20 +55,15 @@ type ConnectionTemplate struct {
 }
 
 type connectionR struct {
-	ConnectionAccesses   []*connectionRConnectionAccessesR
-	ConnectionNamespaces []*connectionRConnectionNamespacesR
-	User                 *connectionRUserR
-	SchemaChunks         []*connectionRSchemaChunksR
-	SchemaSnapshots      []*connectionRSchemaSnapshotsR
+	ConnectionAccesses []*connectionRConnectionAccessesR
+	User               *connectionRUserR
+	SchemaChunks       []*connectionRSchemaChunksR
+	SchemaSnapshots    []*connectionRSchemaSnapshotsR
 }
 
 type connectionRConnectionAccessesR struct {
 	number int
 	o      *ConnectionAccessTemplate
-}
-type connectionRConnectionNamespacesR struct {
-	number int
-	o      *ConnectionNamespaceTemplate
 }
 type connectionRUserR struct {
 	o *UserTemplate
@@ -99,18 +97,6 @@ func (t ConnectionTemplate) setModelRels(o *models.Connection) {
 			rel = append(rel, related...)
 		}
 		o.R.ConnectionAccesses = rel
-	}
-
-	if t.r.ConnectionNamespaces != nil {
-		rel := models.ConnectionNamespaceSlice{}
-		for _, r := range t.r.ConnectionNamespaces {
-			related := r.o.BuildMany(r.number)
-			for _, rel := range related {
-				rel.ConnectionID = o.ID // h2
-			}
-			rel = append(rel, related...)
-		}
-		o.R.ConnectionNamespaces = rel
 	}
 
 	if t.r.User != nil {
@@ -177,6 +163,10 @@ func (o ConnectionTemplate) BuildSetter() *models.ConnectionSetter {
 		val := o.CreatedAt()
 		m.CreatedAt = omit.From(val)
 	}
+	if o.Metadata != nil {
+		val := o.Metadata()
+		m.Metadata = omit.From(val)
+	}
 
 	return m
 }
@@ -219,6 +209,9 @@ func (o ConnectionTemplate) Build() *models.Connection {
 	}
 	if o.CreatedAt != nil {
 		m.CreatedAt = o.CreatedAt()
+	}
+	if o.Metadata != nil {
+		m.Metadata = o.Metadata()
 	}
 
 	o.setModelRels(m)
@@ -280,26 +273,6 @@ func (o *ConnectionTemplate) insertOptRels(ctx context.Context, exec bob.Executo
 		}
 	}
 
-	isConnectionNamespacesDone, _ := connectionRelConnectionNamespacesCtx.Value(ctx)
-	if !isConnectionNamespacesDone && o.r.ConnectionNamespaces != nil {
-		ctx = connectionRelConnectionNamespacesCtx.WithValue(ctx, true)
-		for _, r := range o.r.ConnectionNamespaces {
-			if r.o.alreadyPersisted {
-				m.R.ConnectionNamespaces = append(m.R.ConnectionNamespaces, r.o.Build())
-			} else {
-				rel1, err := r.o.CreateMany(ctx, exec, r.number)
-				if err != nil {
-					return err
-				}
-
-				err = m.AttachConnectionNamespaces(ctx, exec, rel1...)
-				if err != nil {
-					return err
-				}
-			}
-		}
-	}
-
 	isSchemaChunksDone, _ := connectionRelSchemaChunksCtx.Value(ctx)
 	if !isSchemaChunksDone && o.r.SchemaChunks != nil {
 		ctx = connectionRelSchemaChunksCtx.WithValue(ctx, true)
@@ -307,12 +280,12 @@ func (o *ConnectionTemplate) insertOptRels(ctx context.Context, exec bob.Executo
 			if r.o.alreadyPersisted {
 				m.R.SchemaChunks = append(m.R.SchemaChunks, r.o.Build())
 			} else {
-				rel3, err := r.o.CreateMany(ctx, exec, r.number)
+				rel2, err := r.o.CreateMany(ctx, exec, r.number)
 				if err != nil {
 					return err
 				}
 
-				err = m.AttachSchemaChunks(ctx, exec, rel3...)
+				err = m.AttachSchemaChunks(ctx, exec, rel2...)
 				if err != nil {
 					return err
 				}
@@ -327,12 +300,12 @@ func (o *ConnectionTemplate) insertOptRels(ctx context.Context, exec bob.Executo
 			if r.o.alreadyPersisted {
 				m.R.SchemaSnapshots = append(m.R.SchemaSnapshots, r.o.Build())
 			} else {
-				rel4, err := r.o.CreateMany(ctx, exec, r.number)
+				rel3, err := r.o.CreateMany(ctx, exec, r.number)
 				if err != nil {
 					return err
 				}
 
-				err = m.AttachSchemaSnapshots(ctx, exec, rel4...)
+				err = m.AttachSchemaSnapshots(ctx, exec, rel3...)
 				if err != nil {
 					return err
 				}
@@ -354,25 +327,25 @@ func (o *ConnectionTemplate) Create(ctx context.Context, exec bob.Executor) (*mo
 		ConnectionMods.WithNewUser().Apply(ctx, o)
 	}
 
-	var rel2 *models.User
+	var rel1 *models.User
 
 	if o.r.User.o.alreadyPersisted {
-		rel2 = o.r.User.o.Build()
+		rel1 = o.r.User.o.Build()
 	} else {
-		rel2, err = o.r.User.o.Create(ctx, exec)
+		rel1, err = o.r.User.o.Create(ctx, exec)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	opt.UserID = omit.From(rel2.ID)
+	opt.UserID = omit.From(rel1.ID)
 
 	m, err := models.Connections.Insert(opt).One(ctx, exec)
 	if err != nil {
 		return nil, err
 	}
 
-	m.R.User = rel2
+	m.R.User = rel1
 
 	if err := o.insertOptRels(ctx, exec, m); err != nil {
 		return nil, err
@@ -458,6 +431,7 @@ func (m connectionMods) RandomizeAllColumns(f *faker.Faker) ConnectionMod {
 		ConnectionMods.RandomIsEnabled(f),
 		ConnectionMods.RandomUserID(f),
 		ConnectionMods.RandomCreatedAt(f),
+		ConnectionMods.RandomMetadata(f),
 	}
 }
 
@@ -700,6 +674,37 @@ func (m connectionMods) RandomCreatedAt(f *faker.Faker) ConnectionMod {
 	})
 }
 
+// Set the model columns to this value
+func (m connectionMods) Metadata(val types.JSON[json.RawMessage]) ConnectionMod {
+	return ConnectionModFunc(func(_ context.Context, o *ConnectionTemplate) {
+		o.Metadata = func() types.JSON[json.RawMessage] { return val }
+	})
+}
+
+// Set the Column from the function
+func (m connectionMods) MetadataFunc(f func() types.JSON[json.RawMessage]) ConnectionMod {
+	return ConnectionModFunc(func(_ context.Context, o *ConnectionTemplate) {
+		o.Metadata = f
+	})
+}
+
+// Clear any values for the column
+func (m connectionMods) UnsetMetadata() ConnectionMod {
+	return ConnectionModFunc(func(_ context.Context, o *ConnectionTemplate) {
+		o.Metadata = nil
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+func (m connectionMods) RandomMetadata(f *faker.Faker) ConnectionMod {
+	return ConnectionModFunc(func(_ context.Context, o *ConnectionTemplate) {
+		o.Metadata = func() types.JSON[json.RawMessage] {
+			return random_types_JSON_json_RawMessage_(f)
+		}
+	})
+}
+
 func (m connectionMods) WithParentsCascading() ConnectionMod {
 	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
 		if isDone, _ := connectionWithParentsCascadingCtx.Value(ctx); isDone {
@@ -789,54 +794,6 @@ func (m connectionMods) AddExistingConnectionAccesses(existingModels ...*models.
 func (m connectionMods) WithoutConnectionAccesses() ConnectionMod {
 	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
 		o.r.ConnectionAccesses = nil
-	})
-}
-
-func (m connectionMods) WithConnectionNamespaces(number int, related *ConnectionNamespaceTemplate) ConnectionMod {
-	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
-		o.r.ConnectionNamespaces = []*connectionRConnectionNamespacesR{{
-			number: number,
-			o:      related,
-		}}
-	})
-}
-
-func (m connectionMods) WithNewConnectionNamespaces(number int, mods ...ConnectionNamespaceMod) ConnectionMod {
-	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
-		related := o.f.NewConnectionNamespaceWithContext(ctx, mods...)
-		m.WithConnectionNamespaces(number, related).Apply(ctx, o)
-	})
-}
-
-func (m connectionMods) AddConnectionNamespaces(number int, related *ConnectionNamespaceTemplate) ConnectionMod {
-	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
-		o.r.ConnectionNamespaces = append(o.r.ConnectionNamespaces, &connectionRConnectionNamespacesR{
-			number: number,
-			o:      related,
-		})
-	})
-}
-
-func (m connectionMods) AddNewConnectionNamespaces(number int, mods ...ConnectionNamespaceMod) ConnectionMod {
-	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
-		related := o.f.NewConnectionNamespaceWithContext(ctx, mods...)
-		m.AddConnectionNamespaces(number, related).Apply(ctx, o)
-	})
-}
-
-func (m connectionMods) AddExistingConnectionNamespaces(existingModels ...*models.ConnectionNamespace) ConnectionMod {
-	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
-		for _, em := range existingModels {
-			o.r.ConnectionNamespaces = append(o.r.ConnectionNamespaces, &connectionRConnectionNamespacesR{
-				o: o.f.FromExistingConnectionNamespace(em),
-			})
-		}
-	})
-}
-
-func (m connectionMods) WithoutConnectionNamespaces() ConnectionMod {
-	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
-		o.r.ConnectionNamespaces = nil
 	})
 }
 

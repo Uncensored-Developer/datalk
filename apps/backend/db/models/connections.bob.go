@@ -5,6 +5,7 @@ package models
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"time"
@@ -21,18 +22,20 @@ import (
 	"github.com/stephenafamo/bob/expr"
 	"github.com/stephenafamo/bob/mods"
 	"github.com/stephenafamo/bob/orm"
+	"github.com/stephenafamo/bob/types"
 	"github.com/stephenafamo/bob/types/pgtypes"
 )
 
 // Connection is an object representing the database table.
 type Connection struct {
-	ID        int32            `db:"id,pk" `
-	Name      string           `db:"name" `
-	Kind      string           `db:"kind" `
-	DSN       null.Val[string] `db:"dsn" `
-	IsEnabled bool             `db:"is_enabled" `
-	UserID    int32            `db:"user_id" `
-	CreatedAt time.Time        `db:"created_at" `
+	ID        int32                       `db:"id,pk" `
+	Name      string                      `db:"name" `
+	Kind      string                      `db:"kind" `
+	DSN       null.Val[string]            `db:"dsn" `
+	IsEnabled bool                        `db:"is_enabled" `
+	UserID    int32                       `db:"user_id" `
+	CreatedAt time.Time                   `db:"created_at" `
+	Metadata  types.JSON[json.RawMessage] `db:"metadata" `
 
 	R connectionR `db:"-" `
 }
@@ -49,17 +52,16 @@ type ConnectionsQuery = *psql.ViewQuery[*Connection, ConnectionSlice]
 
 // connectionR is where relationships are stored.
 type connectionR struct {
-	ConnectionAccesses   ConnectionAccessSlice    // connection_access.connection_access_connection_id_fkey
-	ConnectionNamespaces ConnectionNamespaceSlice // connection_namespaces.connection_namespaces_connection_id_fkey
-	User                 *User                    // connections.connections_user_id_fkey
-	SchemaChunks         SchemaChunkSlice         // schema_chunks.schema_chunks_connection_id_fkey
-	SchemaSnapshots      SchemaSnapshotSlice      // schema_snapshots.schema_snapshots_connection_id_fkey
+	ConnectionAccesses ConnectionAccessSlice // connection_access.connection_access_connection_id_fkey
+	User               *User                 // connections.connections_user_id_fkey
+	SchemaChunks       SchemaChunkSlice      // schema_chunks.schema_chunks_connection_id_fkey
+	SchemaSnapshots    SchemaSnapshotSlice   // schema_snapshots.schema_snapshots_connection_id_fkey
 }
 
 func buildConnectionColumns(alias string) connectionColumns {
 	return connectionColumns{
 		ColumnsExpr: expr.NewColumnsExpr(
-			"id", "name", "kind", "dsn", "is_enabled", "user_id", "created_at",
+			"id", "name", "kind", "dsn", "is_enabled", "user_id", "created_at", "metadata",
 		).WithParent("connections"),
 		tableAlias: alias,
 		ID:         psql.Quote(alias, "id"),
@@ -69,6 +71,7 @@ func buildConnectionColumns(alias string) connectionColumns {
 		IsEnabled:  psql.Quote(alias, "is_enabled"),
 		UserID:     psql.Quote(alias, "user_id"),
 		CreatedAt:  psql.Quote(alias, "created_at"),
+		Metadata:   psql.Quote(alias, "metadata"),
 	}
 }
 
@@ -82,6 +85,7 @@ type connectionColumns struct {
 	IsEnabled  psql.Expression
 	UserID     psql.Expression
 	CreatedAt  psql.Expression
+	Metadata   psql.Expression
 }
 
 func (c connectionColumns) Alias() string {
@@ -96,17 +100,18 @@ func (connectionColumns) AliasedAs(alias string) connectionColumns {
 // All values are optional, and do not have to be set
 // Generated columns are not included
 type ConnectionSetter struct {
-	ID        omit.Val[int32]      `db:"id,pk" `
-	Name      omit.Val[string]     `db:"name" `
-	Kind      omit.Val[string]     `db:"kind" `
-	DSN       omitnull.Val[string] `db:"dsn" `
-	IsEnabled omit.Val[bool]       `db:"is_enabled" `
-	UserID    omit.Val[int32]      `db:"user_id" `
-	CreatedAt omit.Val[time.Time]  `db:"created_at" `
+	ID        omit.Val[int32]                       `db:"id,pk" `
+	Name      omit.Val[string]                      `db:"name" `
+	Kind      omit.Val[string]                      `db:"kind" `
+	DSN       omitnull.Val[string]                  `db:"dsn" `
+	IsEnabled omit.Val[bool]                        `db:"is_enabled" `
+	UserID    omit.Val[int32]                       `db:"user_id" `
+	CreatedAt omit.Val[time.Time]                   `db:"created_at" `
+	Metadata  omit.Val[types.JSON[json.RawMessage]] `db:"metadata" `
 }
 
 func (s ConnectionSetter) SetColumns() []string {
-	vals := make([]string, 0, 7)
+	vals := make([]string, 0, 8)
 	if s.ID.IsValue() {
 		vals = append(vals, "id")
 	}
@@ -127,6 +132,9 @@ func (s ConnectionSetter) SetColumns() []string {
 	}
 	if s.CreatedAt.IsValue() {
 		vals = append(vals, "created_at")
+	}
+	if s.Metadata.IsValue() {
+		vals = append(vals, "metadata")
 	}
 	return vals
 }
@@ -153,6 +161,9 @@ func (s ConnectionSetter) Overwrite(t *Connection) {
 	if s.CreatedAt.IsValue() {
 		t.CreatedAt = s.CreatedAt.MustGet()
 	}
+	if s.Metadata.IsValue() {
+		t.Metadata = s.Metadata.MustGet()
+	}
 }
 
 func (s *ConnectionSetter) Apply(q *dialect.InsertQuery) {
@@ -161,7 +172,7 @@ func (s *ConnectionSetter) Apply(q *dialect.InsertQuery) {
 	})
 
 	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
-		vals := make([]bob.Expression, 7)
+		vals := make([]bob.Expression, 8)
 		if s.ID.IsValue() {
 			vals[0] = psql.Arg(s.ID.MustGet())
 		} else {
@@ -204,6 +215,12 @@ func (s *ConnectionSetter) Apply(q *dialect.InsertQuery) {
 			vals[6] = psql.Raw("DEFAULT")
 		}
 
+		if s.Metadata.IsValue() {
+			vals[7] = psql.Arg(s.Metadata.MustGet())
+		} else {
+			vals[7] = psql.Raw("DEFAULT")
+		}
+
 		return bob.ExpressSlice(ctx, w, d, start, vals, "", ", ", "")
 	}))
 }
@@ -213,7 +230,7 @@ func (s ConnectionSetter) UpdateMod() bob.Mod[*dialect.UpdateQuery] {
 }
 
 func (s ConnectionSetter) Expressions(prefix ...string) []bob.Expression {
-	exprs := make([]bob.Expression, 0, 7)
+	exprs := make([]bob.Expression, 0, 8)
 
 	if s.ID.IsValue() {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
@@ -261,6 +278,13 @@ func (s ConnectionSetter) Expressions(prefix ...string) []bob.Expression {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "created_at")...),
 			psql.Arg(s.CreatedAt),
+		}})
+	}
+
+	if s.Metadata.IsValue() {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "metadata")...),
+			psql.Arg(s.Metadata),
 		}})
 	}
 
@@ -514,30 +538,6 @@ func (os ConnectionSlice) ConnectionAccesses(mods ...bob.Mod[*dialect.SelectQuer
 	)...)
 }
 
-// ConnectionNamespaces starts a query for related objects on connection_namespaces
-func (o *Connection) ConnectionNamespaces(mods ...bob.Mod[*dialect.SelectQuery]) ConnectionNamespacesQuery {
-	return ConnectionNamespaces.Query(append(mods,
-		sm.Where(ConnectionNamespaces.Columns.ConnectionID.EQ(psql.Arg(o.ID))),
-	)...)
-}
-
-func (os ConnectionSlice) ConnectionNamespaces(mods ...bob.Mod[*dialect.SelectQuery]) ConnectionNamespacesQuery {
-	pkID := make(pgtypes.Array[int32], 0, len(os))
-	for _, o := range os {
-		if o == nil {
-			continue
-		}
-		pkID = append(pkID, o.ID)
-	}
-	PKArgExpr := psql.Select(sm.Columns(
-		psql.F("unnest", psql.Cast(psql.Arg(pkID), "integer[]")),
-	))
-
-	return ConnectionNamespaces.Query(append(mods,
-		sm.Where(psql.Group(ConnectionNamespaces.Columns.ConnectionID).OP("IN", PKArgExpr)),
-	)...)
-}
-
 // User starts a query for related objects on users
 func (o *Connection) User(mods ...bob.Mod[*dialect.SelectQuery]) UsersQuery {
 	return Users.Query(append(mods,
@@ -667,67 +667,6 @@ func (connection0 *Connection) AttachConnectionAccesses(ctx context.Context, exe
 	}
 
 	connection0.R.ConnectionAccesses = append(connection0.R.ConnectionAccesses, connectionAccesses1...)
-
-	return nil
-}
-
-func insertConnectionConnectionNamespaces0(ctx context.Context, exec bob.Executor, connectionNamespaces1 []*ConnectionNamespaceSetter, connection0 *Connection) (ConnectionNamespaceSlice, error) {
-	for i := range connectionNamespaces1 {
-		connectionNamespaces1[i].ConnectionID = omit.From(connection0.ID)
-	}
-
-	ret, err := ConnectionNamespaces.Insert(bob.ToMods(connectionNamespaces1...)).All(ctx, exec)
-	if err != nil {
-		return ret, fmt.Errorf("insertConnectionConnectionNamespaces0: %w", err)
-	}
-
-	return ret, nil
-}
-
-func attachConnectionConnectionNamespaces0(ctx context.Context, exec bob.Executor, count int, connectionNamespaces1 ConnectionNamespaceSlice, connection0 *Connection) (ConnectionNamespaceSlice, error) {
-	setter := &ConnectionNamespaceSetter{
-		ConnectionID: omit.From(connection0.ID),
-	}
-
-	err := connectionNamespaces1.UpdateAll(ctx, exec, *setter)
-	if err != nil {
-		return nil, fmt.Errorf("attachConnectionConnectionNamespaces0: %w", err)
-	}
-
-	return connectionNamespaces1, nil
-}
-
-func (connection0 *Connection) InsertConnectionNamespaces(ctx context.Context, exec bob.Executor, related ...*ConnectionNamespaceSetter) error {
-	if len(related) == 0 {
-		return nil
-	}
-
-	var err error
-
-	connectionNamespaces1, err := insertConnectionConnectionNamespaces0(ctx, exec, related, connection0)
-	if err != nil {
-		return err
-	}
-
-	connection0.R.ConnectionNamespaces = append(connection0.R.ConnectionNamespaces, connectionNamespaces1...)
-
-	return nil
-}
-
-func (connection0 *Connection) AttachConnectionNamespaces(ctx context.Context, exec bob.Executor, related ...*ConnectionNamespace) error {
-	if len(related) == 0 {
-		return nil
-	}
-
-	var err error
-	connectionNamespaces1 := ConnectionNamespaceSlice(related)
-
-	_, err = attachConnectionConnectionNamespaces0(ctx, exec, len(related), connectionNamespaces1, connection0)
-	if err != nil {
-		return err
-	}
-
-	connection0.R.ConnectionNamespaces = append(connection0.R.ConnectionNamespaces, connectionNamespaces1...)
 
 	return nil
 }
@@ -906,6 +845,7 @@ type connectionWhere[Q psql.Filterable] struct {
 	IsEnabled psql.WhereMod[Q, bool]
 	UserID    psql.WhereMod[Q, int32]
 	CreatedAt psql.WhereMod[Q, time.Time]
+	Metadata  psql.WhereMod[Q, types.JSON[json.RawMessage]]
 }
 
 func (connectionWhere[Q]) AliasedAs(alias string) connectionWhere[Q] {
@@ -921,6 +861,7 @@ func buildConnectionWhere[Q psql.Filterable](cols connectionColumns) connectionW
 		IsEnabled: psql.Where[Q, bool](cols.IsEnabled),
 		UserID:    psql.Where[Q, int32](cols.UserID),
 		CreatedAt: psql.Where[Q, time.Time](cols.CreatedAt),
+		Metadata:  psql.Where[Q, types.JSON[json.RawMessage]](cols.Metadata),
 	}
 }
 
@@ -937,15 +878,6 @@ func (o *Connection) Preload(name string, retrieved any) error {
 		}
 
 		o.R.ConnectionAccesses = rels
-
-		return nil
-	case "ConnectionNamespaces":
-		rels, ok := retrieved.(ConnectionNamespaceSlice)
-		if !ok {
-			return fmt.Errorf("connection cannot load %T as %q", retrieved, name)
-		}
-
-		o.R.ConnectionNamespaces = rels
 
 		return nil
 	case "User":
@@ -1003,19 +935,15 @@ func buildConnectionPreloader() connectionPreloader {
 }
 
 type connectionThenLoader[Q orm.Loadable] struct {
-	ConnectionAccesses   func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	ConnectionNamespaces func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	User                 func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	SchemaChunks         func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	SchemaSnapshots      func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	ConnectionAccesses func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	User               func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	SchemaChunks       func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	SchemaSnapshots    func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 }
 
 func buildConnectionThenLoader[Q orm.Loadable]() connectionThenLoader[Q] {
 	type ConnectionAccessesLoadInterface interface {
 		LoadConnectionAccesses(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
-	}
-	type ConnectionNamespacesLoadInterface interface {
-		LoadConnectionNamespaces(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 	type UserLoadInterface interface {
 		LoadUser(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
@@ -1032,12 +960,6 @@ func buildConnectionThenLoader[Q orm.Loadable]() connectionThenLoader[Q] {
 			"ConnectionAccesses",
 			func(ctx context.Context, exec bob.Executor, retrieved ConnectionAccessesLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
 				return retrieved.LoadConnectionAccesses(ctx, exec, mods...)
-			},
-		),
-		ConnectionNamespaces: thenLoadBuilder[Q](
-			"ConnectionNamespaces",
-			func(ctx context.Context, exec bob.Executor, retrieved ConnectionNamespacesLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
-				return retrieved.LoadConnectionNamespaces(ctx, exec, mods...)
 			},
 		),
 		User: thenLoadBuilder[Q](
@@ -1110,61 +1032,6 @@ func (os ConnectionSlice) LoadConnectionAccesses(ctx context.Context, exec bob.E
 			}
 
 			o.R.ConnectionAccesses = append(o.R.ConnectionAccesses, rel)
-		}
-	}
-
-	return nil
-}
-
-// LoadConnectionNamespaces loads the connection's ConnectionNamespaces into the .R struct
-func (o *Connection) LoadConnectionNamespaces(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
-	if o == nil {
-		return nil
-	}
-
-	// Reset the relationship
-	o.R.ConnectionNamespaces = nil
-
-	related, err := o.ConnectionNamespaces(mods...).All(ctx, exec)
-	if err != nil {
-		return err
-	}
-
-	o.R.ConnectionNamespaces = related
-	return nil
-}
-
-// LoadConnectionNamespaces loads the connection's ConnectionNamespaces into the .R struct
-func (os ConnectionSlice) LoadConnectionNamespaces(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
-	if len(os) == 0 {
-		return nil
-	}
-
-	connectionNamespaces, err := os.ConnectionNamespaces(mods...).All(ctx, exec)
-	if err != nil {
-		return err
-	}
-
-	for _, o := range os {
-		if o == nil {
-			continue
-		}
-
-		o.R.ConnectionNamespaces = nil
-	}
-
-	for _, o := range os {
-		if o == nil {
-			continue
-		}
-
-		for _, rel := range connectionNamespaces {
-
-			if !(o.ID == rel.ConnectionID) {
-				continue
-			}
-
-			o.R.ConnectionNamespaces = append(o.R.ConnectionNamespaces, rel)
 		}
 	}
 
@@ -1330,12 +1197,11 @@ func (os ConnectionSlice) LoadSchemaSnapshots(ctx context.Context, exec bob.Exec
 }
 
 type connectionJoins[Q dialect.Joinable] struct {
-	typ                  string
-	ConnectionAccesses   modAs[Q, connectionAccessColumns]
-	ConnectionNamespaces modAs[Q, connectionNamespaceColumns]
-	User                 modAs[Q, userColumns]
-	SchemaChunks         modAs[Q, schemaChunkColumns]
-	SchemaSnapshots      modAs[Q, schemaSnapshotColumns]
+	typ                string
+	ConnectionAccesses modAs[Q, connectionAccessColumns]
+	User               modAs[Q, userColumns]
+	SchemaChunks       modAs[Q, schemaChunkColumns]
+	SchemaSnapshots    modAs[Q, schemaSnapshotColumns]
 }
 
 func (j connectionJoins[Q]) aliasedAs(alias string) connectionJoins[Q] {
@@ -1352,20 +1218,6 @@ func buildConnectionJoins[Q dialect.Joinable](cols connectionColumns, typ string
 
 				{
 					mods = append(mods, dialect.Join[Q](typ, ConnectionAccesses.Name().As(to.Alias())).On(
-						to.ConnectionID.EQ(cols.ID),
-					))
-				}
-
-				return mods
-			},
-		},
-		ConnectionNamespaces: modAs[Q, connectionNamespaceColumns]{
-			c: ConnectionNamespaces.Columns,
-			f: func(to connectionNamespaceColumns) bob.Mod[Q] {
-				mods := make(mods.QueryMods[Q], 0, 1)
-
-				{
-					mods = append(mods, dialect.Join[Q](typ, ConnectionNamespaces.Name().As(to.Alias())).On(
 						to.ConnectionID.EQ(cols.ID),
 					))
 				}

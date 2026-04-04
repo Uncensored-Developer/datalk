@@ -32,7 +32,6 @@ type SchemaChunk struct {
 	ID           int64                       `db:"id,pk" `
 	SnapshotID   int32                       `db:"snapshot_id" `
 	ConnectionID int32                       `db:"connection_id" `
-	NamespaceID  int32                       `db:"namespace_id" `
 	ObjectType   string                      `db:"object_type" `
 	ObjectName   string                      `db:"object_name" `
 	SchemaJSON   types.JSON[json.RawMessage] `db:"schema_json" `
@@ -56,21 +55,19 @@ type SchemaChunksQuery = *psql.ViewQuery[*SchemaChunk, SchemaChunkSlice]
 
 // schemaChunkR is where relationships are stored.
 type schemaChunkR struct {
-	Connection                   *Connection          // schema_chunks.schema_chunks_connection_id_fkey
-	NamespaceConnectionNamespace *ConnectionNamespace // schema_chunks.schema_chunks_namespace_id_fkey
-	SnapshotSchemaSnapshot       *SchemaSnapshot      // schema_chunks.schema_chunks_snapshot_id_fkey
+	Connection             *Connection     // schema_chunks.schema_chunks_connection_id_fkey
+	SnapshotSchemaSnapshot *SchemaSnapshot // schema_chunks.schema_chunks_snapshot_id_fkey
 }
 
 func buildSchemaChunkColumns(alias string) schemaChunkColumns {
 	return schemaChunkColumns{
 		ColumnsExpr: expr.NewColumnsExpr(
-			"id", "snapshot_id", "connection_id", "namespace_id", "object_type", "object_name", "schema_json", "content", "embedding", "metadata", "created_at",
+			"id", "snapshot_id", "connection_id", "object_type", "object_name", "schema_json", "content", "embedding", "metadata", "created_at",
 		).WithParent("schema_chunks"),
 		tableAlias:   alias,
 		ID:           psql.Quote(alias, "id"),
 		SnapshotID:   psql.Quote(alias, "snapshot_id"),
 		ConnectionID: psql.Quote(alias, "connection_id"),
-		NamespaceID:  psql.Quote(alias, "namespace_id"),
 		ObjectType:   psql.Quote(alias, "object_type"),
 		ObjectName:   psql.Quote(alias, "object_name"),
 		SchemaJSON:   psql.Quote(alias, "schema_json"),
@@ -87,7 +84,6 @@ type schemaChunkColumns struct {
 	ID           psql.Expression
 	SnapshotID   psql.Expression
 	ConnectionID psql.Expression
-	NamespaceID  psql.Expression
 	ObjectType   psql.Expression
 	ObjectName   psql.Expression
 	SchemaJSON   psql.Expression
@@ -112,7 +108,6 @@ type SchemaChunkSetter struct {
 	ID           omit.Val[int64]                       `db:"id,pk" `
 	SnapshotID   omit.Val[int32]                       `db:"snapshot_id" `
 	ConnectionID omit.Val[int32]                       `db:"connection_id" `
-	NamespaceID  omit.Val[int32]                       `db:"namespace_id" `
 	ObjectType   omit.Val[string]                      `db:"object_type" `
 	ObjectName   omit.Val[string]                      `db:"object_name" `
 	SchemaJSON   omit.Val[types.JSON[json.RawMessage]] `db:"schema_json" `
@@ -123,7 +118,7 @@ type SchemaChunkSetter struct {
 }
 
 func (s SchemaChunkSetter) SetColumns() []string {
-	vals := make([]string, 0, 11)
+	vals := make([]string, 0, 10)
 	if s.ID.IsValue() {
 		vals = append(vals, "id")
 	}
@@ -132,9 +127,6 @@ func (s SchemaChunkSetter) SetColumns() []string {
 	}
 	if s.ConnectionID.IsValue() {
 		vals = append(vals, "connection_id")
-	}
-	if s.NamespaceID.IsValue() {
-		vals = append(vals, "namespace_id")
 	}
 	if s.ObjectType.IsValue() {
 		vals = append(vals, "object_type")
@@ -170,9 +162,6 @@ func (s SchemaChunkSetter) Overwrite(t *SchemaChunk) {
 	if s.ConnectionID.IsValue() {
 		t.ConnectionID = s.ConnectionID.MustGet()
 	}
-	if s.NamespaceID.IsValue() {
-		t.NamespaceID = s.NamespaceID.MustGet()
-	}
 	if s.ObjectType.IsValue() {
 		t.ObjectType = s.ObjectType.MustGet()
 	}
@@ -202,7 +191,7 @@ func (s *SchemaChunkSetter) Apply(q *dialect.InsertQuery) {
 	})
 
 	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
-		vals := make([]bob.Expression, 11)
+		vals := make([]bob.Expression, 10)
 		if s.ID.IsValue() {
 			vals[0] = psql.Arg(s.ID.MustGet())
 		} else {
@@ -221,52 +210,46 @@ func (s *SchemaChunkSetter) Apply(q *dialect.InsertQuery) {
 			vals[2] = psql.Raw("DEFAULT")
 		}
 
-		if s.NamespaceID.IsValue() {
-			vals[3] = psql.Arg(s.NamespaceID.MustGet())
+		if s.ObjectType.IsValue() {
+			vals[3] = psql.Arg(s.ObjectType.MustGet())
 		} else {
 			vals[3] = psql.Raw("DEFAULT")
 		}
 
-		if s.ObjectType.IsValue() {
-			vals[4] = psql.Arg(s.ObjectType.MustGet())
+		if s.ObjectName.IsValue() {
+			vals[4] = psql.Arg(s.ObjectName.MustGet())
 		} else {
 			vals[4] = psql.Raw("DEFAULT")
 		}
 
-		if s.ObjectName.IsValue() {
-			vals[5] = psql.Arg(s.ObjectName.MustGet())
+		if s.SchemaJSON.IsValue() {
+			vals[5] = psql.Arg(s.SchemaJSON.MustGet())
 		} else {
 			vals[5] = psql.Raw("DEFAULT")
 		}
 
-		if s.SchemaJSON.IsValue() {
-			vals[6] = psql.Arg(s.SchemaJSON.MustGet())
+		if s.Content.IsValue() {
+			vals[6] = psql.Arg(s.Content.MustGet())
 		} else {
 			vals[6] = psql.Raw("DEFAULT")
 		}
 
-		if s.Content.IsValue() {
-			vals[7] = psql.Arg(s.Content.MustGet())
+		if !s.Embedding.IsUnset() {
+			vals[7] = psql.Arg(s.Embedding.MustGetNull())
 		} else {
 			vals[7] = psql.Raw("DEFAULT")
 		}
 
-		if !s.Embedding.IsUnset() {
-			vals[8] = psql.Arg(s.Embedding.MustGetNull())
+		if s.Metadata.IsValue() {
+			vals[8] = psql.Arg(s.Metadata.MustGet())
 		} else {
 			vals[8] = psql.Raw("DEFAULT")
 		}
 
-		if s.Metadata.IsValue() {
-			vals[9] = psql.Arg(s.Metadata.MustGet())
+		if s.CreatedAt.IsValue() {
+			vals[9] = psql.Arg(s.CreatedAt.MustGet())
 		} else {
 			vals[9] = psql.Raw("DEFAULT")
-		}
-
-		if s.CreatedAt.IsValue() {
-			vals[10] = psql.Arg(s.CreatedAt.MustGet())
-		} else {
-			vals[10] = psql.Raw("DEFAULT")
 		}
 
 		return bob.ExpressSlice(ctx, w, d, start, vals, "", ", ", "")
@@ -278,7 +261,7 @@ func (s SchemaChunkSetter) UpdateMod() bob.Mod[*dialect.UpdateQuery] {
 }
 
 func (s SchemaChunkSetter) Expressions(prefix ...string) []bob.Expression {
-	exprs := make([]bob.Expression, 0, 11)
+	exprs := make([]bob.Expression, 0, 10)
 
 	if s.ID.IsValue() {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
@@ -298,13 +281,6 @@ func (s SchemaChunkSetter) Expressions(prefix ...string) []bob.Expression {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "connection_id")...),
 			psql.Arg(s.ConnectionID),
-		}})
-	}
-
-	if s.NamespaceID.IsValue() {
-		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
-			psql.Quote(append(prefix, "namespace_id")...),
-			psql.Arg(s.NamespaceID),
 		}})
 	}
 
@@ -607,30 +583,6 @@ func (os SchemaChunkSlice) Connection(mods ...bob.Mod[*dialect.SelectQuery]) Con
 	)...)
 }
 
-// NamespaceConnectionNamespace starts a query for related objects on connection_namespaces
-func (o *SchemaChunk) NamespaceConnectionNamespace(mods ...bob.Mod[*dialect.SelectQuery]) ConnectionNamespacesQuery {
-	return ConnectionNamespaces.Query(append(mods,
-		sm.Where(ConnectionNamespaces.Columns.ID.EQ(psql.Arg(o.NamespaceID))),
-	)...)
-}
-
-func (os SchemaChunkSlice) NamespaceConnectionNamespace(mods ...bob.Mod[*dialect.SelectQuery]) ConnectionNamespacesQuery {
-	pkNamespaceID := make(pgtypes.Array[int32], 0, len(os))
-	for _, o := range os {
-		if o == nil {
-			continue
-		}
-		pkNamespaceID = append(pkNamespaceID, o.NamespaceID)
-	}
-	PKArgExpr := psql.Select(sm.Columns(
-		psql.F("unnest", psql.Cast(psql.Arg(pkNamespaceID), "integer[]")),
-	))
-
-	return ConnectionNamespaces.Query(append(mods,
-		sm.Where(psql.Group(ConnectionNamespaces.Columns.ID).OP("IN", PKArgExpr)),
-	)...)
-}
-
 // SnapshotSchemaSnapshot starts a query for related objects on schema_snapshots
 func (o *SchemaChunk) SnapshotSchemaSnapshot(mods ...bob.Mod[*dialect.SelectQuery]) SchemaSnapshotsQuery {
 	return SchemaSnapshots.Query(append(mods,
@@ -699,50 +651,6 @@ func (schemaChunk0 *SchemaChunk) AttachConnection(ctx context.Context, exec bob.
 	return nil
 }
 
-func attachSchemaChunkNamespaceConnectionNamespace0(ctx context.Context, exec bob.Executor, count int, schemaChunk0 *SchemaChunk, connectionNamespace1 *ConnectionNamespace) (*SchemaChunk, error) {
-	setter := &SchemaChunkSetter{
-		NamespaceID: omit.From(connectionNamespace1.ID),
-	}
-
-	err := schemaChunk0.Update(ctx, exec, setter)
-	if err != nil {
-		return nil, fmt.Errorf("attachSchemaChunkNamespaceConnectionNamespace0: %w", err)
-	}
-
-	return schemaChunk0, nil
-}
-
-func (schemaChunk0 *SchemaChunk) InsertNamespaceConnectionNamespace(ctx context.Context, exec bob.Executor, related *ConnectionNamespaceSetter) error {
-	var err error
-
-	connectionNamespace1, err := ConnectionNamespaces.Insert(related).One(ctx, exec)
-	if err != nil {
-		return fmt.Errorf("inserting related objects: %w", err)
-	}
-
-	_, err = attachSchemaChunkNamespaceConnectionNamespace0(ctx, exec, 1, schemaChunk0, connectionNamespace1)
-	if err != nil {
-		return err
-	}
-
-	schemaChunk0.R.NamespaceConnectionNamespace = connectionNamespace1
-
-	return nil
-}
-
-func (schemaChunk0 *SchemaChunk) AttachNamespaceConnectionNamespace(ctx context.Context, exec bob.Executor, connectionNamespace1 *ConnectionNamespace) error {
-	var err error
-
-	_, err = attachSchemaChunkNamespaceConnectionNamespace0(ctx, exec, 1, schemaChunk0, connectionNamespace1)
-	if err != nil {
-		return err
-	}
-
-	schemaChunk0.R.NamespaceConnectionNamespace = connectionNamespace1
-
-	return nil
-}
-
 func attachSchemaChunkSnapshotSchemaSnapshot0(ctx context.Context, exec bob.Executor, count int, schemaChunk0 *SchemaChunk, schemaSnapshot1 *SchemaSnapshot) (*SchemaChunk, error) {
 	setter := &SchemaChunkSetter{
 		SnapshotID: omit.From(schemaSnapshot1.ID),
@@ -791,7 +699,6 @@ type schemaChunkWhere[Q psql.Filterable] struct {
 	ID           psql.WhereMod[Q, int64]
 	SnapshotID   psql.WhereMod[Q, int32]
 	ConnectionID psql.WhereMod[Q, int32]
-	NamespaceID  psql.WhereMod[Q, int32]
 	ObjectType   psql.WhereMod[Q, string]
 	ObjectName   psql.WhereMod[Q, string]
 	SchemaJSON   psql.WhereMod[Q, types.JSON[json.RawMessage]]
@@ -810,7 +717,6 @@ func buildSchemaChunkWhere[Q psql.Filterable](cols schemaChunkColumns) schemaChu
 		ID:           psql.Where[Q, int64](cols.ID),
 		SnapshotID:   psql.Where[Q, int32](cols.SnapshotID),
 		ConnectionID: psql.Where[Q, int32](cols.ConnectionID),
-		NamespaceID:  psql.Where[Q, int32](cols.NamespaceID),
 		ObjectType:   psql.Where[Q, string](cols.ObjectType),
 		ObjectName:   psql.Where[Q, string](cols.ObjectName),
 		SchemaJSON:   psql.Where[Q, types.JSON[json.RawMessage]](cols.SchemaJSON),
@@ -836,15 +742,6 @@ func (o *SchemaChunk) Preload(name string, retrieved any) error {
 		o.R.Connection = rel
 
 		return nil
-	case "NamespaceConnectionNamespace":
-		rel, ok := retrieved.(*ConnectionNamespace)
-		if !ok {
-			return fmt.Errorf("schemaChunk cannot load %T as %q", retrieved, name)
-		}
-
-		o.R.NamespaceConnectionNamespace = rel
-
-		return nil
 	case "SnapshotSchemaSnapshot":
 		rel, ok := retrieved.(*SchemaSnapshot)
 		if !ok {
@@ -860,9 +757,8 @@ func (o *SchemaChunk) Preload(name string, retrieved any) error {
 }
 
 type schemaChunkPreloader struct {
-	Connection                   func(...psql.PreloadOption) psql.Preloader
-	NamespaceConnectionNamespace func(...psql.PreloadOption) psql.Preloader
-	SnapshotSchemaSnapshot       func(...psql.PreloadOption) psql.Preloader
+	Connection             func(...psql.PreloadOption) psql.Preloader
+	SnapshotSchemaSnapshot func(...psql.PreloadOption) psql.Preloader
 }
 
 func buildSchemaChunkPreloader() schemaChunkPreloader {
@@ -879,19 +775,6 @@ func buildSchemaChunkPreloader() schemaChunkPreloader {
 					},
 				},
 			}, Connections.Columns.Names(), opts...)
-		},
-		NamespaceConnectionNamespace: func(opts ...psql.PreloadOption) psql.Preloader {
-			return psql.Preload[*ConnectionNamespace, ConnectionNamespaceSlice](psql.PreloadRel{
-				Name: "NamespaceConnectionNamespace",
-				Sides: []psql.PreloadSide{
-					{
-						From:        SchemaChunks,
-						To:          ConnectionNamespaces,
-						FromColumns: []string{"namespace_id"},
-						ToColumns:   []string{"id"},
-					},
-				},
-			}, ConnectionNamespaces.Columns.Names(), opts...)
 		},
 		SnapshotSchemaSnapshot: func(opts ...psql.PreloadOption) psql.Preloader {
 			return psql.Preload[*SchemaSnapshot, SchemaSnapshotSlice](psql.PreloadRel{
@@ -910,17 +793,13 @@ func buildSchemaChunkPreloader() schemaChunkPreloader {
 }
 
 type schemaChunkThenLoader[Q orm.Loadable] struct {
-	Connection                   func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	NamespaceConnectionNamespace func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	SnapshotSchemaSnapshot       func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	Connection             func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	SnapshotSchemaSnapshot func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 }
 
 func buildSchemaChunkThenLoader[Q orm.Loadable]() schemaChunkThenLoader[Q] {
 	type ConnectionLoadInterface interface {
 		LoadConnection(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
-	}
-	type NamespaceConnectionNamespaceLoadInterface interface {
-		LoadNamespaceConnectionNamespace(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 	type SnapshotSchemaSnapshotLoadInterface interface {
 		LoadSnapshotSchemaSnapshot(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
@@ -931,12 +810,6 @@ func buildSchemaChunkThenLoader[Q orm.Loadable]() schemaChunkThenLoader[Q] {
 			"Connection",
 			func(ctx context.Context, exec bob.Executor, retrieved ConnectionLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
 				return retrieved.LoadConnection(ctx, exec, mods...)
-			},
-		),
-		NamespaceConnectionNamespace: thenLoadBuilder[Q](
-			"NamespaceConnectionNamespace",
-			func(ctx context.Context, exec bob.Executor, retrieved NamespaceConnectionNamespaceLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
-				return retrieved.LoadNamespaceConnectionNamespace(ctx, exec, mods...)
 			},
 		),
 		SnapshotSchemaSnapshot: thenLoadBuilder[Q](
@@ -996,54 +869,6 @@ func (os SchemaChunkSlice) LoadConnection(ctx context.Context, exec bob.Executor
 	return nil
 }
 
-// LoadNamespaceConnectionNamespace loads the schemaChunk's NamespaceConnectionNamespace into the .R struct
-func (o *SchemaChunk) LoadNamespaceConnectionNamespace(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
-	if o == nil {
-		return nil
-	}
-
-	// Reset the relationship
-	o.R.NamespaceConnectionNamespace = nil
-
-	related, err := o.NamespaceConnectionNamespace(mods...).One(ctx, exec)
-	if err != nil {
-		return err
-	}
-
-	o.R.NamespaceConnectionNamespace = related
-	return nil
-}
-
-// LoadNamespaceConnectionNamespace loads the schemaChunk's NamespaceConnectionNamespace into the .R struct
-func (os SchemaChunkSlice) LoadNamespaceConnectionNamespace(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
-	if len(os) == 0 {
-		return nil
-	}
-
-	connectionNamespaces, err := os.NamespaceConnectionNamespace(mods...).All(ctx, exec)
-	if err != nil {
-		return err
-	}
-
-	for _, o := range os {
-		if o == nil {
-			continue
-		}
-
-		for _, rel := range connectionNamespaces {
-
-			if !(o.NamespaceID == rel.ID) {
-				continue
-			}
-
-			o.R.NamespaceConnectionNamespace = rel
-			break
-		}
-	}
-
-	return nil
-}
-
 // LoadSnapshotSchemaSnapshot loads the schemaChunk's SnapshotSchemaSnapshot into the .R struct
 func (o *SchemaChunk) LoadSnapshotSchemaSnapshot(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
 	if o == nil {
@@ -1093,10 +918,9 @@ func (os SchemaChunkSlice) LoadSnapshotSchemaSnapshot(ctx context.Context, exec 
 }
 
 type schemaChunkJoins[Q dialect.Joinable] struct {
-	typ                          string
-	Connection                   modAs[Q, connectionColumns]
-	NamespaceConnectionNamespace modAs[Q, connectionNamespaceColumns]
-	SnapshotSchemaSnapshot       modAs[Q, schemaSnapshotColumns]
+	typ                    string
+	Connection             modAs[Q, connectionColumns]
+	SnapshotSchemaSnapshot modAs[Q, schemaSnapshotColumns]
 }
 
 func (j schemaChunkJoins[Q]) aliasedAs(alias string) schemaChunkJoins[Q] {
@@ -1114,20 +938,6 @@ func buildSchemaChunkJoins[Q dialect.Joinable](cols schemaChunkColumns, typ stri
 				{
 					mods = append(mods, dialect.Join[Q](typ, Connections.Name().As(to.Alias())).On(
 						to.ID.EQ(cols.ConnectionID),
-					))
-				}
-
-				return mods
-			},
-		},
-		NamespaceConnectionNamespace: modAs[Q, connectionNamespaceColumns]{
-			c: ConnectionNamespaces.Columns,
-			f: func(to connectionNamespaceColumns) bob.Mod[Q] {
-				mods := make(mods.QueryMods[Q], 0, 1)
-
-				{
-					mods = append(mods, dialect.Join[Q](typ, ConnectionNamespaces.Name().As(to.Alias())).On(
-						to.ID.EQ(cols.NamespaceID),
 					))
 				}
 
