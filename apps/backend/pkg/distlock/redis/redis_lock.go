@@ -75,53 +75,18 @@ func (r *DistributedLocker) Healthy(ctx context.Context) bool {
 	return r.client.Ping(ctx).Err() == nil
 }
 
-// TryLock attempts to acquire locks immediately for the given resources.
-// Returns an error if any resource is already locked.
-func (r *DistributedLocker) TryLock(ctx context.Context, resources []string, expiration time.Duration) (distlock.LockedResources, error) {
-	sorted := r.sortedKeys(resources)
-	locked := make([]string, 0, len(sorted))
-
-	now := time.Now()
-	for _, res := range sorted {
-		select {
-		case <-ctx.Done():
-			// Release any acquired locks on context cancellation.
-			r.releasePartial(locked)
-			return nil, ctx.Err()
-		default:
-		}
-
-		// SET NX with EX to assign a TTL, ensuring stale locks eventually expire.
-		ok, err := r.client.SetNX(ctx, res, res, expiration).Result()
-		if err != nil {
-
-			r.releasePartial(locked)
-			return nil, err
-		}
-		if !ok {
-			r.releasePartial(locked)
-			return nil, errors.ErrFailedToAcquireLock
-		}
-
-		locked = append(locked, res)
-	}
-
-	return &LockedResources{
-		ctx:       ctx,
-		resources: resources,
-		client:    r.client,
-		createdAt: now,
-		expiresAt: now.Add(expiration),
-	}, nil
-}
-
-// WaitLock blocks until all locks on the given resources are acquired or timeout expires.
-func (r *DistributedLocker) WaitLock(ctx context.Context, resources []string, expiration time.Duration) (distlock.LockedResources, error) {
+// Lock blocks until all locks on the given resources are acquired or timeout expires.
+func (r *DistributedLocker) Lock(ctx context.Context, resources []string, opts distlock.LockOptions) (distlock.LockedResources, error) {
 	sorted := r.sortedKeys(resources)
 
 	// Use backoff with jitter to avoid thundering herd.
 	baseDelay := 50 * time.Millisecond
 	maxDelay := 500 * time.Millisecond
+
+	TTL := time.Duration(0)
+	if opts.TTL != nil {
+		TTL = *opts.TTL
+	}
 
 	now := time.Now()
 	for attempt := 0; ; attempt++ {
@@ -134,38 +99,62 @@ func (r *DistributedLocker) WaitLock(ctx context.Context, resources []string, ex
 		var locked []string
 		success := true
 		for _, res := range sorted {
-			ok, err := r.client.SetNX(ctx, res, res, expiration).Result()
-			if err != nil || !ok {
-				success = false
-				break
+			ok, err := r.client.SetNX(ctx, res, res, TTL).Result()
+			if opts.Wait {
+				if err != nil || !ok {
+					success = false
+					break
+				}
+			} else {
+				if err != nil {
+
+					r.releasePartial(locked)
+					return nil, err
+				}
+				if !ok {
+					r.releasePartial(locked)
+					return nil, errors.ErrFailedToAcquireLock
+				}
 			}
 			locked = append(locked, res)
 		}
-		if success {
+		if opts.Wait {
+			if success {
+				return &LockedResources{
+					ctx:       ctx,
+					resources: resources,
+					client:    r.client,
+					createdAt: now,
+					expiresAt: now.Add(TTL),
+				}, nil
+			}
+			// Release partial locks before retrying.
+			r.releasePartial(locked)
+			// Exponential backoff with jitter.
+			delay := time.Duration(float64(baseDelay) * math.Pow(2, float64(attempt)))
+			if delay > maxDelay {
+				delay = maxDelay
+			}
+			// Add up to ±25% jitter to spread retries.
+			jitter := time.Duration((rand.Float64()*0.5 + 0.75) * float64(delay))
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(jitter):
+			}
+		} else {
 			return &LockedResources{
 				ctx:       ctx,
 				resources: resources,
 				client:    r.client,
 				createdAt: now,
-				expiresAt: now.Add(expiration),
+				expiresAt: now.Add(TTL),
 			}, nil
-		}
-		// Release partial locks before retrying.
-		r.releasePartial(locked)
-		// Exponential backoff with jitter.
-		delay := time.Duration(float64(baseDelay) * math.Pow(2, float64(attempt)))
-		if delay > maxDelay {
-			delay = maxDelay
-		}
-		// Add up to ±25% jitter to spread retries.
-		jitter := time.Duration((rand.Float64()*0.5 + 0.75) * float64(delay))
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(jitter):
 		}
 	}
 }
+
+func (r *DistributedLocker) SupportsLeases() bool { return true }
 
 // releasePartial deletes keys for resources in the slice
 func (r *DistributedLocker) releasePartial(resources []string) {

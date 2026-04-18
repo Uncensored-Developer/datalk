@@ -46,21 +46,16 @@ func (dl *DummyDistributedLocker) DefaultTimeout() time.Duration { return dl.def
 
 func (dl *DummyDistributedLocker) Stop() error { return nil }
 
-func (dl *DummyDistributedLocker) WaitLock(ctx context.Context, resources []string, expiration time.Duration) (distlock.LockedResources, error) {
+func (dl *DummyDistributedLocker) Lock(ctx context.Context, resources []string, opts distlock.LockOptions) (distlock.LockedResources, error) {
 	return &DummyLockedResources{
 		resources: resources,
 		expiry:    time.Now().Add(dl.DefaultTimeout()),
 	}, nil
 }
+
+func (dl *DummyDistributedLocker) SupportsLeases() bool { return false }
 
 func (dl *DummyDistributedLocker) Type() string { return "dummy" }
-
-func (dl *DummyDistributedLocker) TryLock(ctx context.Context, resources []string, expiration time.Duration) (distlock.LockedResources, error) {
-	return &DummyLockedResources{
-		resources: resources,
-		expiry:    time.Now().Add(dl.DefaultTimeout()),
-	}, nil
-}
 
 func (dl *DummyDistributedLocker) Healthy(ctx context.Context) bool {
 	return true
