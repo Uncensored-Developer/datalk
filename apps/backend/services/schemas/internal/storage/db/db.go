@@ -6,8 +6,11 @@ import (
 
 	"github.com/Uncensored-Developer/datalk/apps/backend/db/common"
 	"github.com/Uncensored-Developer/datalk/apps/backend/db/models"
+	"github.com/Uncensored-Developer/datalk/apps/backend/services/schemas/internal/storage"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/schemas/pkg/schemas"
 	"github.com/mdobak/go-xerrors"
+	"github.com/stephenafamo/bob"
+	"github.com/stephenafamo/bob/dialect/psql/dialect"
 )
 
 type Storage struct {
@@ -36,20 +39,33 @@ func (s *Storage) InsertSnapshot(ctx context.Context, snapshot *schemas.Snapshot
 	return nil
 }
 
-func (s *Storage) GetSnapshot(ctx context.Context, snapshotID int32) (schemas.Snapshot, error) {
-	dbSnapshot, err := models.SchemaSnapshots.Query(
-		models.SelectWhere.SchemaSnapshots.ID.EQ(snapshotID),
-	).One(ctx, s.Executor(ctx))
-	if err != nil {
-		return schemas.Snapshot{}, err
+func (s *Storage) ListSnapshots(ctx context.Context, filter storage.SnapshotsFilter) ([]*schemas.Snapshot, error) {
+	var queryMods []bob.Mod[*dialect.SelectQuery]
+
+	if len(filter.ConnectionID) > 0 {
+		queryMods = append(queryMods, models.SelectWhere.SchemaSnapshots.ConnectionID.In(filter.ConnectionID...))
 	}
 
-	fetchedSnapshot, err := snapshotFromDB(dbSnapshot)
+	queryMods = append(
+		queryMods,
+		common.PaginationToBobMods(filter.Pagination)...,
+	)
+
+	orderingMods, err := common.OrderingToBobMods(
+		filter.Ordering,
+		listSnapshotsOrderingExpr,
+	)
 	if err != nil {
-		return schemas.Snapshot{}, xerrors.Newf("failed to map db snapshot: %w", err)
+		return nil, xerrors.Newf("invalid list snapshots filter: %w", err)
+	}
+	queryMods = append(queryMods, orderingMods...)
+
+	dbSnapshots, err := models.SchemaSnapshots.Query(queryMods...).All(ctx, s.Executor(ctx))
+	if err := common.Err.HandleIgnoreNoRows(err); err != nil {
+		return nil, xerrors.Newf("failed to fetch snapshots: %w", err)
 	}
 
-	return *fetchedSnapshot, nil
+	return snapshotsFromDB(dbSnapshots)
 }
 
 func (s *Storage) InsertChunk(ctx context.Context, chunk *schemas.Chunk) error {
@@ -66,4 +82,13 @@ func (s *Storage) InsertChunk(ctx context.Context, chunk *schemas.Chunk) error {
 
 	*chunk = *insertedChunk
 	return nil
+}
+
+func listSnapshotsOrderingExpr(field storage.SnapshotOrdering) (bob.Expression, error) {
+	switch field {
+	case storage.SnapshotOrderingID:
+		return models.SchemaSnapshots.Columns.ID, nil
+	default:
+		return nil, xerrors.Newf("unsupported snapshots ordering: %v", field)
+	}
 }
