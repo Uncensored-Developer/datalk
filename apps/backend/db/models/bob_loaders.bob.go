@@ -17,20 +17,22 @@ import (
 var Preload = getPreloaders()
 
 type preloaders struct {
-	ConnectionAccess connectionAccessPreloader
-	Connection       connectionPreloader
-	SchemaChunk      schemaChunkPreloader
-	SchemaSnapshot   schemaSnapshotPreloader
-	User             userPreloader
+	ConnectionAccess   connectionAccessPreloader
+	Connection         connectionPreloader
+	SchemaChunk        schemaChunkPreloader
+	SchemaEmbeddingJob schemaEmbeddingJobPreloader
+	SchemaSnapshot     schemaSnapshotPreloader
+	User               userPreloader
 }
 
 func getPreloaders() preloaders {
 	return preloaders{
-		ConnectionAccess: buildConnectionAccessPreloader(),
-		Connection:       buildConnectionPreloader(),
-		SchemaChunk:      buildSchemaChunkPreloader(),
-		SchemaSnapshot:   buildSchemaSnapshotPreloader(),
-		User:             buildUserPreloader(),
+		ConnectionAccess:   buildConnectionAccessPreloader(),
+		Connection:         buildConnectionPreloader(),
+		SchemaChunk:        buildSchemaChunkPreloader(),
+		SchemaEmbeddingJob: buildSchemaEmbeddingJobPreloader(),
+		SchemaSnapshot:     buildSchemaSnapshotPreloader(),
+		User:               buildUserPreloader(),
 	}
 }
 
@@ -41,20 +43,22 @@ var (
 )
 
 type thenLoaders[Q orm.Loadable] struct {
-	ConnectionAccess connectionAccessThenLoader[Q]
-	Connection       connectionThenLoader[Q]
-	SchemaChunk      schemaChunkThenLoader[Q]
-	SchemaSnapshot   schemaSnapshotThenLoader[Q]
-	User             userThenLoader[Q]
+	ConnectionAccess   connectionAccessThenLoader[Q]
+	Connection         connectionThenLoader[Q]
+	SchemaChunk        schemaChunkThenLoader[Q]
+	SchemaEmbeddingJob schemaEmbeddingJobThenLoader[Q]
+	SchemaSnapshot     schemaSnapshotThenLoader[Q]
+	User               userThenLoader[Q]
 }
 
 func getThenLoaders[Q orm.Loadable]() thenLoaders[Q] {
 	return thenLoaders[Q]{
-		ConnectionAccess: buildConnectionAccessThenLoader[Q](),
-		Connection:       buildConnectionThenLoader[Q](),
-		SchemaChunk:      buildSchemaChunkThenLoader[Q](),
-		SchemaSnapshot:   buildSchemaSnapshotThenLoader[Q](),
-		User:             buildUserThenLoader[Q](),
+		ConnectionAccess:   buildConnectionAccessThenLoader[Q](),
+		Connection:         buildConnectionThenLoader[Q](),
+		SchemaChunk:        buildSchemaChunkThenLoader[Q](),
+		SchemaEmbeddingJob: buildSchemaEmbeddingJobThenLoader[Q](),
+		SchemaSnapshot:     buildSchemaSnapshotThenLoader[Q](),
+		User:               buildUserThenLoader[Q](),
 	}
 }
 

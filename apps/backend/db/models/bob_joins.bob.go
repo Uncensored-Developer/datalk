@@ -32,11 +32,12 @@ func (j joinSet[Q]) AliasedAs(alias string) joinSet[Q] {
 }
 
 type joins[Q dialect.Joinable] struct {
-	ConnectionAccesses joinSet[connectionAccessJoins[Q]]
-	Connections        joinSet[connectionJoins[Q]]
-	SchemaChunks       joinSet[schemaChunkJoins[Q]]
-	SchemaSnapshots    joinSet[schemaSnapshotJoins[Q]]
-	Users              joinSet[userJoins[Q]]
+	ConnectionAccesses  joinSet[connectionAccessJoins[Q]]
+	Connections         joinSet[connectionJoins[Q]]
+	SchemaChunks        joinSet[schemaChunkJoins[Q]]
+	SchemaEmbeddingJobs joinSet[schemaEmbeddingJobJoins[Q]]
+	SchemaSnapshots     joinSet[schemaSnapshotJoins[Q]]
+	Users               joinSet[userJoins[Q]]
 }
 
 func buildJoinSet[Q interface{ aliasedAs(string) Q }, C any, F func(C, string) Q](c C, f F) joinSet[Q] {
@@ -49,11 +50,12 @@ func buildJoinSet[Q interface{ aliasedAs(string) Q }, C any, F func(C, string) Q
 
 func getJoins[Q dialect.Joinable]() joins[Q] {
 	return joins[Q]{
-		ConnectionAccesses: buildJoinSet[connectionAccessJoins[Q]](ConnectionAccesses.Columns, buildConnectionAccessJoins),
-		Connections:        buildJoinSet[connectionJoins[Q]](Connections.Columns, buildConnectionJoins),
-		SchemaChunks:       buildJoinSet[schemaChunkJoins[Q]](SchemaChunks.Columns, buildSchemaChunkJoins),
-		SchemaSnapshots:    buildJoinSet[schemaSnapshotJoins[Q]](SchemaSnapshots.Columns, buildSchemaSnapshotJoins),
-		Users:              buildJoinSet[userJoins[Q]](Users.Columns, buildUserJoins),
+		ConnectionAccesses:  buildJoinSet[connectionAccessJoins[Q]](ConnectionAccesses.Columns, buildConnectionAccessJoins),
+		Connections:         buildJoinSet[connectionJoins[Q]](Connections.Columns, buildConnectionJoins),
+		SchemaChunks:        buildJoinSet[schemaChunkJoins[Q]](SchemaChunks.Columns, buildSchemaChunkJoins),
+		SchemaEmbeddingJobs: buildJoinSet[schemaEmbeddingJobJoins[Q]](SchemaEmbeddingJobs.Columns, buildSchemaEmbeddingJobJoins),
+		SchemaSnapshots:     buildJoinSet[schemaSnapshotJoins[Q]](SchemaSnapshots.Columns, buildSchemaSnapshotJoins),
+		Users:               buildJoinSet[userJoins[Q]](Users.Columns, buildUserJoins),
 	}
 }
 

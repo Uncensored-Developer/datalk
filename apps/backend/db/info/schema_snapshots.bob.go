@@ -51,24 +51,6 @@ var SchemaSnapshots = Table[
 			Generated: false,
 			AutoIncr:  false,
 		},
-		Status: column{
-			Name:      "status",
-			DBType:    "text",
-			Default:   "",
-			Comment:   "",
-			Nullable:  false,
-			Generated: false,
-			AutoIncr:  false,
-		},
-		ErrorMessage: column{
-			Name:      "error_message",
-			DBType:    "text",
-			Default:   "NULL",
-			Comment:   "",
-			Nullable:  true,
-			Generated: false,
-			AutoIncr:  false,
-		},
 		IntrospectedAt: column{
 			Name:      "introspected_at",
 			DBType:    "timestamp with time zone",
@@ -119,28 +101,6 @@ var SchemaSnapshots = Table[
 			Where:         "",
 			Include:       []string{},
 		},
-		SchemaSnapshotsLatestCompleteIdx: index{
-			Type: "btree",
-			Name: "schema_snapshots_latest_complete_idx",
-			Columns: []indexColumn{
-				{
-					Name:         "connection_id",
-					Desc:         null.FromCond(false, true),
-					IsExpression: false,
-				},
-				{
-					Name:         "introspected_at",
-					Desc:         null.FromCond(true, true),
-					IsExpression: false,
-				},
-			},
-			Unique:        false,
-			Comment:       "",
-			NullsFirst:    []bool{false, true},
-			NullsDistinct: false,
-			Where:         "(status = 'COMPLETED'::text)",
-			Include:       []string{},
-		},
 	},
 	PrimaryKey: &constraint{
 		Name:    "schema_snapshots_pkey",
@@ -165,16 +125,7 @@ var SchemaSnapshots = Table[
 			Comment: "",
 		},
 	},
-	Checks: schemaSnapshotChecks{
-		SchemaSnapshotsStatusCheck: check{
-			constraint: constraint{
-				Name:    "schema_snapshots_status_check",
-				Columns: []string{"status"},
-				Comment: "",
-			},
-			Expression: "(status = ANY (ARRAY['STARTED'::text, 'COMPLETED'::text, 'FAILED'::text]))",
-		},
-	},
+
 	Comment: "Stores schema snapshot versions",
 }
 
@@ -183,26 +134,23 @@ type schemaSnapshotColumns struct {
 	ConnectionID   column
 	SchemaHash     column
 	SliceJSON      column
-	Status         column
-	ErrorMessage   column
 	IntrospectedAt column
 }
 
 func (c schemaSnapshotColumns) AsSlice() []column {
 	return []column{
-		c.ID, c.ConnectionID, c.SchemaHash, c.SliceJSON, c.Status, c.ErrorMessage, c.IntrospectedAt,
+		c.ID, c.ConnectionID, c.SchemaHash, c.SliceJSON, c.IntrospectedAt,
 	}
 }
 
 type schemaSnapshotIndexes struct {
 	SchemaSnapshotsPkey                      index
 	SchemaSnapshotsConnectionIDSchemaHashKey index
-	SchemaSnapshotsLatestCompleteIdx         index
 }
 
 func (i schemaSnapshotIndexes) AsSlice() []index {
 	return []index{
-		i.SchemaSnapshotsPkey, i.SchemaSnapshotsConnectionIDSchemaHashKey, i.SchemaSnapshotsLatestCompleteIdx,
+		i.SchemaSnapshotsPkey, i.SchemaSnapshotsConnectionIDSchemaHashKey,
 	}
 }
 
@@ -226,12 +174,8 @@ func (u schemaSnapshotUniques) AsSlice() []constraint {
 	}
 }
 
-type schemaSnapshotChecks struct {
-	SchemaSnapshotsStatusCheck check
-}
+type schemaSnapshotChecks struct{}
 
 func (c schemaSnapshotChecks) AsSlice() []check {
-	return []check{
-		c.SchemaSnapshotsStatusCheck,
-	}
+	return []check{}
 }

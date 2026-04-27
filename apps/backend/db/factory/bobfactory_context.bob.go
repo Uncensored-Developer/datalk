@@ -28,10 +28,15 @@ var (
 	schemaChunkRelConnectionCtx             = newContextual[bool]("connections.schema_chunks.schema_chunks.schema_chunks_connection_id_fkey")
 	schemaChunkRelSnapshotSchemaSnapshotCtx = newContextual[bool]("schema_chunks.schema_snapshots.schema_chunks.schema_chunks_snapshot_id_fkey")
 
+	// Relationship Contexts for schema_embedding_jobs
+	schemaEmbeddingJobWithParentsCascadingCtx      = newContextual[bool]("schemaEmbeddingJobWithParentsCascading")
+	schemaEmbeddingJobRelSnapshotSchemaSnapshotCtx = newContextual[bool]("schema_embedding_jobs.schema_snapshots.schema_embedding_jobs.schema_embedding_jobs_snapshot_id_fkey")
+
 	// Relationship Contexts for schema_snapshots
-	schemaSnapshotWithParentsCascadingCtx    = newContextual[bool]("schemaSnapshotWithParentsCascading")
-	schemaSnapshotRelSnapshotSchemaChunksCtx = newContextual[bool]("schema_chunks.schema_snapshots.schema_chunks.schema_chunks_snapshot_id_fkey")
-	schemaSnapshotRelConnectionCtx           = newContextual[bool]("connections.schema_snapshots.schema_snapshots.schema_snapshots_connection_id_fkey")
+	schemaSnapshotWithParentsCascadingCtx           = newContextual[bool]("schemaSnapshotWithParentsCascading")
+	schemaSnapshotRelSnapshotSchemaChunksCtx        = newContextual[bool]("schema_chunks.schema_snapshots.schema_chunks.schema_chunks_snapshot_id_fkey")
+	schemaSnapshotRelSnapshotSchemaEmbeddingJobsCtx = newContextual[bool]("schema_embedding_jobs.schema_snapshots.schema_embedding_jobs.schema_embedding_jobs_snapshot_id_fkey")
+	schemaSnapshotRelConnectionCtx                  = newContextual[bool]("connections.schema_snapshots.schema_snapshots.schema_snapshots_connection_id_fkey")
 
 	// Relationship Contexts for users
 	userWithParentsCascadingCtx  = newContextual[bool]("userWithParentsCascading")

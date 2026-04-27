@@ -10,9 +10,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/aarondl/opt/null"
 	"github.com/aarondl/opt/omit"
-	"github.com/aarondl/opt/omitnull"
 	"github.com/stephenafamo/bob"
 	"github.com/stephenafamo/bob/dialect/psql"
 	"github.com/stephenafamo/bob/dialect/psql/dialect"
@@ -34,8 +32,6 @@ type SchemaSnapshot struct {
 	SchemaHash string `db:"schema_hash" `
 	// Normalized schema JSON
 	SliceJSON      types.JSON[json.RawMessage] `db:"slice_json" `
-	Status         string                      `db:"status" `
-	ErrorMessage   null.Val[string]            `db:"error_message" `
 	IntrospectedAt time.Time                   `db:"introspected_at" `
 
 	R schemaSnapshotR `db:"-" `
@@ -53,22 +49,21 @@ type SchemaSnapshotsQuery = *psql.ViewQuery[*SchemaSnapshot, SchemaSnapshotSlice
 
 // schemaSnapshotR is where relationships are stored.
 type schemaSnapshotR struct {
-	SnapshotSchemaChunks SchemaChunkSlice // schema_chunks.schema_chunks_snapshot_id_fkey
-	Connection           *Connection      // schema_snapshots.schema_snapshots_connection_id_fkey
+	SnapshotSchemaChunks        SchemaChunkSlice        // schema_chunks.schema_chunks_snapshot_id_fkey
+	SnapshotSchemaEmbeddingJobs SchemaEmbeddingJobSlice // schema_embedding_jobs.schema_embedding_jobs_snapshot_id_fkey
+	Connection                  *Connection             // schema_snapshots.schema_snapshots_connection_id_fkey
 }
 
 func buildSchemaSnapshotColumns(alias string) schemaSnapshotColumns {
 	return schemaSnapshotColumns{
 		ColumnsExpr: expr.NewColumnsExpr(
-			"id", "connection_id", "schema_hash", "slice_json", "status", "error_message", "introspected_at",
+			"id", "connection_id", "schema_hash", "slice_json", "introspected_at",
 		).WithParent("schema_snapshots"),
 		tableAlias:     alias,
 		ID:             psql.Quote(alias, "id"),
 		ConnectionID:   psql.Quote(alias, "connection_id"),
 		SchemaHash:     psql.Quote(alias, "schema_hash"),
 		SliceJSON:      psql.Quote(alias, "slice_json"),
-		Status:         psql.Quote(alias, "status"),
-		ErrorMessage:   psql.Quote(alias, "error_message"),
 		IntrospectedAt: psql.Quote(alias, "introspected_at"),
 	}
 }
@@ -80,8 +75,6 @@ type schemaSnapshotColumns struct {
 	ConnectionID   psql.Expression
 	SchemaHash     psql.Expression
 	SliceJSON      psql.Expression
-	Status         psql.Expression
-	ErrorMessage   psql.Expression
 	IntrospectedAt psql.Expression
 }
 
@@ -101,13 +94,11 @@ type SchemaSnapshotSetter struct {
 	ConnectionID   omit.Val[int32]                       `db:"connection_id" `
 	SchemaHash     omit.Val[string]                      `db:"schema_hash" `
 	SliceJSON      omit.Val[types.JSON[json.RawMessage]] `db:"slice_json" `
-	Status         omit.Val[string]                      `db:"status" `
-	ErrorMessage   omitnull.Val[string]                  `db:"error_message" `
 	IntrospectedAt omit.Val[time.Time]                   `db:"introspected_at" `
 }
 
 func (s SchemaSnapshotSetter) SetColumns() []string {
-	vals := make([]string, 0, 7)
+	vals := make([]string, 0, 5)
 	if s.ID.IsValue() {
 		vals = append(vals, "id")
 	}
@@ -119,12 +110,6 @@ func (s SchemaSnapshotSetter) SetColumns() []string {
 	}
 	if s.SliceJSON.IsValue() {
 		vals = append(vals, "slice_json")
-	}
-	if s.Status.IsValue() {
-		vals = append(vals, "status")
-	}
-	if !s.ErrorMessage.IsUnset() {
-		vals = append(vals, "error_message")
 	}
 	if s.IntrospectedAt.IsValue() {
 		vals = append(vals, "introspected_at")
@@ -145,12 +130,6 @@ func (s SchemaSnapshotSetter) Overwrite(t *SchemaSnapshot) {
 	if s.SliceJSON.IsValue() {
 		t.SliceJSON = s.SliceJSON.MustGet()
 	}
-	if s.Status.IsValue() {
-		t.Status = s.Status.MustGet()
-	}
-	if !s.ErrorMessage.IsUnset() {
-		t.ErrorMessage = s.ErrorMessage.MustGetNull()
-	}
 	if s.IntrospectedAt.IsValue() {
 		t.IntrospectedAt = s.IntrospectedAt.MustGet()
 	}
@@ -162,7 +141,7 @@ func (s *SchemaSnapshotSetter) Apply(q *dialect.InsertQuery) {
 	})
 
 	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
-		vals := make([]bob.Expression, 7)
+		vals := make([]bob.Expression, 5)
 		if s.ID.IsValue() {
 			vals[0] = psql.Arg(s.ID.MustGet())
 		} else {
@@ -187,22 +166,10 @@ func (s *SchemaSnapshotSetter) Apply(q *dialect.InsertQuery) {
 			vals[3] = psql.Raw("DEFAULT")
 		}
 
-		if s.Status.IsValue() {
-			vals[4] = psql.Arg(s.Status.MustGet())
+		if s.IntrospectedAt.IsValue() {
+			vals[4] = psql.Arg(s.IntrospectedAt.MustGet())
 		} else {
 			vals[4] = psql.Raw("DEFAULT")
-		}
-
-		if !s.ErrorMessage.IsUnset() {
-			vals[5] = psql.Arg(s.ErrorMessage.MustGetNull())
-		} else {
-			vals[5] = psql.Raw("DEFAULT")
-		}
-
-		if s.IntrospectedAt.IsValue() {
-			vals[6] = psql.Arg(s.IntrospectedAt.MustGet())
-		} else {
-			vals[6] = psql.Raw("DEFAULT")
 		}
 
 		return bob.ExpressSlice(ctx, w, d, start, vals, "", ", ", "")
@@ -214,7 +181,7 @@ func (s SchemaSnapshotSetter) UpdateMod() bob.Mod[*dialect.UpdateQuery] {
 }
 
 func (s SchemaSnapshotSetter) Expressions(prefix ...string) []bob.Expression {
-	exprs := make([]bob.Expression, 0, 7)
+	exprs := make([]bob.Expression, 0, 5)
 
 	if s.ID.IsValue() {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
@@ -241,20 +208,6 @@ func (s SchemaSnapshotSetter) Expressions(prefix ...string) []bob.Expression {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "slice_json")...),
 			psql.Arg(s.SliceJSON),
-		}})
-	}
-
-	if s.Status.IsValue() {
-		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
-			psql.Quote(append(prefix, "status")...),
-			psql.Arg(s.Status),
-		}})
-	}
-
-	if !s.ErrorMessage.IsUnset() {
-		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
-			psql.Quote(append(prefix, "error_message")...),
-			psql.Arg(s.ErrorMessage),
 		}})
 	}
 
@@ -515,6 +468,30 @@ func (os SchemaSnapshotSlice) SnapshotSchemaChunks(mods ...bob.Mod[*dialect.Sele
 	)...)
 }
 
+// SnapshotSchemaEmbeddingJobs starts a query for related objects on schema_embedding_jobs
+func (o *SchemaSnapshot) SnapshotSchemaEmbeddingJobs(mods ...bob.Mod[*dialect.SelectQuery]) SchemaEmbeddingJobsQuery {
+	return SchemaEmbeddingJobs.Query(append(mods,
+		sm.Where(SchemaEmbeddingJobs.Columns.SnapshotID.EQ(psql.Arg(o.ID))),
+	)...)
+}
+
+func (os SchemaSnapshotSlice) SnapshotSchemaEmbeddingJobs(mods ...bob.Mod[*dialect.SelectQuery]) SchemaEmbeddingJobsQuery {
+	pkID := make(pgtypes.Array[int32], 0, len(os))
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+		pkID = append(pkID, o.ID)
+	}
+	PKArgExpr := psql.Select(sm.Columns(
+		psql.F("unnest", psql.Cast(psql.Arg(pkID), "integer[]")),
+	))
+
+	return SchemaEmbeddingJobs.Query(append(mods,
+		sm.Where(psql.Group(SchemaEmbeddingJobs.Columns.SnapshotID).OP("IN", PKArgExpr)),
+	)...)
+}
+
 // Connection starts a query for related objects on connections
 func (o *SchemaSnapshot) Connection(mods ...bob.Mod[*dialect.SelectQuery]) ConnectionsQuery {
 	return Connections.Query(append(mods,
@@ -649,8 +626,6 @@ type schemaSnapshotWhere[Q psql.Filterable] struct {
 	ConnectionID   psql.WhereMod[Q, int32]
 	SchemaHash     psql.WhereMod[Q, string]
 	SliceJSON      psql.WhereMod[Q, types.JSON[json.RawMessage]]
-	Status         psql.WhereMod[Q, string]
-	ErrorMessage   psql.WhereNullMod[Q, string]
 	IntrospectedAt psql.WhereMod[Q, time.Time]
 }
 
@@ -664,8 +639,6 @@ func buildSchemaSnapshotWhere[Q psql.Filterable](cols schemaSnapshotColumns) sch
 		ConnectionID:   psql.Where[Q, int32](cols.ConnectionID),
 		SchemaHash:     psql.Where[Q, string](cols.SchemaHash),
 		SliceJSON:      psql.Where[Q, types.JSON[json.RawMessage]](cols.SliceJSON),
-		Status:         psql.Where[Q, string](cols.Status),
-		ErrorMessage:   psql.WhereNull[Q, string](cols.ErrorMessage),
 		IntrospectedAt: psql.Where[Q, time.Time](cols.IntrospectedAt),
 	}
 }
@@ -683,6 +656,15 @@ func (o *SchemaSnapshot) Preload(name string, retrieved any) error {
 		}
 
 		o.R.SnapshotSchemaChunks = rels
+
+		return nil
+	case "SnapshotSchemaEmbeddingJobs":
+		rels, ok := retrieved.(SchemaEmbeddingJobSlice)
+		if !ok {
+			return fmt.Errorf("schemaSnapshot cannot load %T as %q", retrieved, name)
+		}
+
+		o.R.SnapshotSchemaEmbeddingJobs = rels
 
 		return nil
 	case "Connection":
@@ -722,13 +704,17 @@ func buildSchemaSnapshotPreloader() schemaSnapshotPreloader {
 }
 
 type schemaSnapshotThenLoader[Q orm.Loadable] struct {
-	SnapshotSchemaChunks func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	Connection           func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	SnapshotSchemaChunks        func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	SnapshotSchemaEmbeddingJobs func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	Connection                  func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 }
 
 func buildSchemaSnapshotThenLoader[Q orm.Loadable]() schemaSnapshotThenLoader[Q] {
 	type SnapshotSchemaChunksLoadInterface interface {
 		LoadSnapshotSchemaChunks(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	}
+	type SnapshotSchemaEmbeddingJobsLoadInterface interface {
+		LoadSnapshotSchemaEmbeddingJobs(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 	type ConnectionLoadInterface interface {
 		LoadConnection(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
@@ -739,6 +725,12 @@ func buildSchemaSnapshotThenLoader[Q orm.Loadable]() schemaSnapshotThenLoader[Q]
 			"SnapshotSchemaChunks",
 			func(ctx context.Context, exec bob.Executor, retrieved SnapshotSchemaChunksLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
 				return retrieved.LoadSnapshotSchemaChunks(ctx, exec, mods...)
+			},
+		),
+		SnapshotSchemaEmbeddingJobs: thenLoadBuilder[Q](
+			"SnapshotSchemaEmbeddingJobs",
+			func(ctx context.Context, exec bob.Executor, retrieved SnapshotSchemaEmbeddingJobsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadSnapshotSchemaEmbeddingJobs(ctx, exec, mods...)
 			},
 		),
 		Connection: thenLoadBuilder[Q](
@@ -805,6 +797,61 @@ func (os SchemaSnapshotSlice) LoadSnapshotSchemaChunks(ctx context.Context, exec
 	return nil
 }
 
+// LoadSnapshotSchemaEmbeddingJobs loads the schemaSnapshot's SnapshotSchemaEmbeddingJobs into the .R struct
+func (o *SchemaSnapshot) LoadSnapshotSchemaEmbeddingJobs(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if o == nil {
+		return nil
+	}
+
+	// Reset the relationship
+	o.R.SnapshotSchemaEmbeddingJobs = nil
+
+	related, err := o.SnapshotSchemaEmbeddingJobs(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	o.R.SnapshotSchemaEmbeddingJobs = related
+	return nil
+}
+
+// LoadSnapshotSchemaEmbeddingJobs loads the schemaSnapshot's SnapshotSchemaEmbeddingJobs into the .R struct
+func (os SchemaSnapshotSlice) LoadSnapshotSchemaEmbeddingJobs(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if len(os) == 0 {
+		return nil
+	}
+
+	schemaEmbeddingJobs, err := os.SnapshotSchemaEmbeddingJobs(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+
+		o.R.SnapshotSchemaEmbeddingJobs = nil
+	}
+
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+
+		for _, rel := range schemaEmbeddingJobs {
+
+			if !(o.ID == rel.SnapshotID) {
+				continue
+			}
+
+			o.R.SnapshotSchemaEmbeddingJobs = append(o.R.SnapshotSchemaEmbeddingJobs, rel)
+		}
+	}
+
+	return nil
+}
+
 // LoadConnection loads the schemaSnapshot's Connection into the .R struct
 func (o *SchemaSnapshot) LoadConnection(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
 	if o == nil {
@@ -854,9 +901,10 @@ func (os SchemaSnapshotSlice) LoadConnection(ctx context.Context, exec bob.Execu
 }
 
 type schemaSnapshotJoins[Q dialect.Joinable] struct {
-	typ                  string
-	SnapshotSchemaChunks modAs[Q, schemaChunkColumns]
-	Connection           modAs[Q, connectionColumns]
+	typ                         string
+	SnapshotSchemaChunks        modAs[Q, schemaChunkColumns]
+	SnapshotSchemaEmbeddingJobs modAs[Q, schemaEmbeddingJobColumns]
+	Connection                  modAs[Q, connectionColumns]
 }
 
 func (j schemaSnapshotJoins[Q]) aliasedAs(alias string) schemaSnapshotJoins[Q] {
@@ -873,6 +921,20 @@ func buildSchemaSnapshotJoins[Q dialect.Joinable](cols schemaSnapshotColumns, ty
 
 				{
 					mods = append(mods, dialect.Join[Q](typ, SchemaChunks.Name().As(to.Alias())).On(
+						to.SnapshotID.EQ(cols.ID),
+					))
+				}
+
+				return mods
+			},
+		},
+		SnapshotSchemaEmbeddingJobs: modAs[Q, schemaEmbeddingJobColumns]{
+			c: SchemaEmbeddingJobs.Columns,
+			f: func(to schemaEmbeddingJobColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, SchemaEmbeddingJobs.Name().As(to.Alias())).On(
 						to.SnapshotID.EQ(cols.ID),
 					))
 				}

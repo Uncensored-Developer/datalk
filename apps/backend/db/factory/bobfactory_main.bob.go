@@ -15,12 +15,13 @@ import (
 )
 
 type Factory struct {
-	baseConnectionAccessMods ConnectionAccessModSlice
-	baseConnectionMods       ConnectionModSlice
-	baseOrganizationMods     OrganizationModSlice
-	baseSchemaChunkMods      SchemaChunkModSlice
-	baseSchemaSnapshotMods   SchemaSnapshotModSlice
-	baseUserMods             UserModSlice
+	baseConnectionAccessMods   ConnectionAccessModSlice
+	baseConnectionMods         ConnectionModSlice
+	baseOrganizationMods       OrganizationModSlice
+	baseSchemaChunkMods        SchemaChunkModSlice
+	baseSchemaEmbeddingJobMods SchemaEmbeddingJobModSlice
+	baseSchemaSnapshotMods     SchemaSnapshotModSlice
+	baseUserMods               UserModSlice
 }
 
 func New() *Factory {
@@ -177,6 +178,40 @@ func (f *Factory) FromExistingSchemaChunk(m *models.SchemaChunk) *SchemaChunkTem
 	return o
 }
 
+func (f *Factory) NewSchemaEmbeddingJob(mods ...SchemaEmbeddingJobMod) *SchemaEmbeddingJobTemplate {
+	return f.NewSchemaEmbeddingJobWithContext(context.Background(), mods...)
+}
+
+func (f *Factory) NewSchemaEmbeddingJobWithContext(ctx context.Context, mods ...SchemaEmbeddingJobMod) *SchemaEmbeddingJobTemplate {
+	o := &SchemaEmbeddingJobTemplate{f: f}
+
+	if f != nil {
+		f.baseSchemaEmbeddingJobMods.Apply(ctx, o)
+	}
+
+	SchemaEmbeddingJobModSlice(mods).Apply(ctx, o)
+
+	return o
+}
+
+func (f *Factory) FromExistingSchemaEmbeddingJob(m *models.SchemaEmbeddingJob) *SchemaEmbeddingJobTemplate {
+	o := &SchemaEmbeddingJobTemplate{f: f, alreadyPersisted: true}
+
+	o.SnapshotID = func() int32 { return m.SnapshotID }
+	o.Status = func() string { return m.Status }
+	o.ErrorMessage = func() null.Val[string] { return m.ErrorMessage }
+	o.RetryCount = func() int32 { return m.RetryCount }
+	o.StartedAt = func() time.Time { return m.StartedAt }
+	o.CompletedAt = func() null.Val[time.Time] { return m.CompletedAt }
+
+	ctx := context.Background()
+	if m.R.SnapshotSchemaSnapshot != nil {
+		SchemaEmbeddingJobMods.WithExistingSnapshotSchemaSnapshot(m.R.SnapshotSchemaSnapshot).Apply(ctx, o)
+	}
+
+	return o
+}
+
 func (f *Factory) NewSchemaSnapshot(mods ...SchemaSnapshotMod) *SchemaSnapshotTemplate {
 	return f.NewSchemaSnapshotWithContext(context.Background(), mods...)
 }
@@ -200,13 +235,14 @@ func (f *Factory) FromExistingSchemaSnapshot(m *models.SchemaSnapshot) *SchemaSn
 	o.ConnectionID = func() int32 { return m.ConnectionID }
 	o.SchemaHash = func() string { return m.SchemaHash }
 	o.SliceJSON = func() types.JSON[json.RawMessage] { return m.SliceJSON }
-	o.Status = func() string { return m.Status }
-	o.ErrorMessage = func() null.Val[string] { return m.ErrorMessage }
 	o.IntrospectedAt = func() time.Time { return m.IntrospectedAt }
 
 	ctx := context.Background()
 	if len(m.R.SnapshotSchemaChunks) > 0 {
 		SchemaSnapshotMods.AddExistingSnapshotSchemaChunks(m.R.SnapshotSchemaChunks...).Apply(ctx, o)
+	}
+	if len(m.R.SnapshotSchemaEmbeddingJobs) > 0 {
+		SchemaSnapshotMods.AddExistingSnapshotSchemaEmbeddingJobs(m.R.SnapshotSchemaEmbeddingJobs...).Apply(ctx, o)
 	}
 	if m.R.Connection != nil {
 		SchemaSnapshotMods.WithExistingConnection(m.R.Connection).Apply(ctx, o)
@@ -284,6 +320,14 @@ func (f *Factory) ClearBaseSchemaChunkMods() {
 
 func (f *Factory) AddBaseSchemaChunkMod(mods ...SchemaChunkMod) {
 	f.baseSchemaChunkMods = append(f.baseSchemaChunkMods, mods...)
+}
+
+func (f *Factory) ClearBaseSchemaEmbeddingJobMods() {
+	f.baseSchemaEmbeddingJobMods = nil
+}
+
+func (f *Factory) AddBaseSchemaEmbeddingJobMod(mods ...SchemaEmbeddingJobMod) {
+	f.baseSchemaEmbeddingJobMods = append(f.baseSchemaEmbeddingJobMods, mods...)
 }
 
 func (f *Factory) ClearBaseSchemaSnapshotMods() {

@@ -10,9 +10,7 @@ import (
 	"time"
 
 	models "github.com/Uncensored-Developer/datalk/apps/backend/db/models"
-	"github.com/aarondl/opt/null"
 	"github.com/aarondl/opt/omit"
-	"github.com/aarondl/opt/omitnull"
 	"github.com/jaswdr/faker/v2"
 	"github.com/stephenafamo/bob"
 	"github.com/stephenafamo/bob/types"
@@ -43,8 +41,6 @@ type SchemaSnapshotTemplate struct {
 	ConnectionID   func() int32
 	SchemaHash     func() string
 	SliceJSON      func() types.JSON[json.RawMessage]
-	Status         func() string
-	ErrorMessage   func() null.Val[string]
 	IntrospectedAt func() time.Time
 
 	r schemaSnapshotR
@@ -54,13 +50,18 @@ type SchemaSnapshotTemplate struct {
 }
 
 type schemaSnapshotR struct {
-	SnapshotSchemaChunks []*schemaSnapshotRSnapshotSchemaChunksR
-	Connection           *schemaSnapshotRConnectionR
+	SnapshotSchemaChunks        []*schemaSnapshotRSnapshotSchemaChunksR
+	SnapshotSchemaEmbeddingJobs []*schemaSnapshotRSnapshotSchemaEmbeddingJobsR
+	Connection                  *schemaSnapshotRConnectionR
 }
 
 type schemaSnapshotRSnapshotSchemaChunksR struct {
 	number int
 	o      *SchemaChunkTemplate
+}
+type schemaSnapshotRSnapshotSchemaEmbeddingJobsR struct {
+	number int
+	o      *SchemaEmbeddingJobTemplate
 }
 type schemaSnapshotRConnectionR struct {
 	o *ConnectionTemplate
@@ -86,6 +87,18 @@ func (t SchemaSnapshotTemplate) setModelRels(o *models.SchemaSnapshot) {
 			rel = append(rel, related...)
 		}
 		o.R.SnapshotSchemaChunks = rel
+	}
+
+	if t.r.SnapshotSchemaEmbeddingJobs != nil {
+		rel := models.SchemaEmbeddingJobSlice{}
+		for _, r := range t.r.SnapshotSchemaEmbeddingJobs {
+			related := r.o.BuildMany(r.number)
+			for _, rel := range related {
+				rel.SnapshotID = o.ID // h2
+			}
+			rel = append(rel, related...)
+		}
+		o.R.SnapshotSchemaEmbeddingJobs = rel
 	}
 
 	if t.r.Connection != nil {
@@ -115,14 +128,6 @@ func (o SchemaSnapshotTemplate) BuildSetter() *models.SchemaSnapshotSetter {
 	if o.SliceJSON != nil {
 		val := o.SliceJSON()
 		m.SliceJSON = omit.From(val)
-	}
-	if o.Status != nil {
-		val := o.Status()
-		m.Status = omit.From(val)
-	}
-	if o.ErrorMessage != nil {
-		val := o.ErrorMessage()
-		m.ErrorMessage = omitnull.FromNull(val)
 	}
 	if o.IntrospectedAt != nil {
 		val := o.IntrospectedAt()
@@ -162,12 +167,6 @@ func (o SchemaSnapshotTemplate) Build() *models.SchemaSnapshot {
 	if o.SliceJSON != nil {
 		m.SliceJSON = o.SliceJSON()
 	}
-	if o.Status != nil {
-		m.Status = o.Status()
-	}
-	if o.ErrorMessage != nil {
-		m.ErrorMessage = o.ErrorMessage()
-	}
 	if o.IntrospectedAt != nil {
 		m.IntrospectedAt = o.IntrospectedAt()
 	}
@@ -202,10 +201,6 @@ func ensureCreatableSchemaSnapshot(m *models.SchemaSnapshotSetter) {
 	if !(m.SliceJSON.IsValue()) {
 		val := random_types_JSON_json_RawMessage_(nil)
 		m.SliceJSON = omit.From(val)
-	}
-	if !(m.Status.IsValue()) {
-		val := random_string(nil)
-		m.Status = omit.From(val)
 	}
 }
 
@@ -249,25 +244,25 @@ func (o *SchemaSnapshotTemplate) Create(ctx context.Context, exec bob.Executor) 
 		SchemaSnapshotMods.WithNewConnection().Apply(ctx, o)
 	}
 
-	var rel1 *models.Connection
+	var rel2 *models.Connection
 
 	if o.r.Connection.o.alreadyPersisted {
-		rel1 = o.r.Connection.o.Build()
+		rel2 = o.r.Connection.o.Build()
 	} else {
-		rel1, err = o.r.Connection.o.Create(ctx, exec)
+		rel2, err = o.r.Connection.o.Create(ctx, exec)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	opt.ConnectionID = omit.From(rel1.ID)
+	opt.ConnectionID = omit.From(rel2.ID)
 
 	m, err := models.SchemaSnapshots.Insert(opt).One(ctx, exec)
 	if err != nil {
 		return nil, err
 	}
 
-	m.R.Connection = rel1
+	m.R.Connection = rel2
 
 	if err := o.insertOptRels(ctx, exec, m); err != nil {
 		return nil, err
@@ -350,8 +345,6 @@ func (m schemaSnapshotMods) RandomizeAllColumns(f *faker.Faker) SchemaSnapshotMo
 		SchemaSnapshotMods.RandomConnectionID(f),
 		SchemaSnapshotMods.RandomSchemaHash(f),
 		SchemaSnapshotMods.RandomSliceJSON(f),
-		SchemaSnapshotMods.RandomStatus(f),
-		SchemaSnapshotMods.RandomErrorMessage(f),
 		SchemaSnapshotMods.RandomIntrospectedAt(f),
 	}
 }
@@ -481,90 +474,6 @@ func (m schemaSnapshotMods) RandomSliceJSON(f *faker.Faker) SchemaSnapshotMod {
 }
 
 // Set the model columns to this value
-func (m schemaSnapshotMods) Status(val string) SchemaSnapshotMod {
-	return SchemaSnapshotModFunc(func(_ context.Context, o *SchemaSnapshotTemplate) {
-		o.Status = func() string { return val }
-	})
-}
-
-// Set the Column from the function
-func (m schemaSnapshotMods) StatusFunc(f func() string) SchemaSnapshotMod {
-	return SchemaSnapshotModFunc(func(_ context.Context, o *SchemaSnapshotTemplate) {
-		o.Status = f
-	})
-}
-
-// Clear any values for the column
-func (m schemaSnapshotMods) UnsetStatus() SchemaSnapshotMod {
-	return SchemaSnapshotModFunc(func(_ context.Context, o *SchemaSnapshotTemplate) {
-		o.Status = nil
-	})
-}
-
-// Generates a random value for the column using the given faker
-// if faker is nil, a default faker is used
-func (m schemaSnapshotMods) RandomStatus(f *faker.Faker) SchemaSnapshotMod {
-	return SchemaSnapshotModFunc(func(_ context.Context, o *SchemaSnapshotTemplate) {
-		o.Status = func() string {
-			return random_string(f)
-		}
-	})
-}
-
-// Set the model columns to this value
-func (m schemaSnapshotMods) ErrorMessage(val null.Val[string]) SchemaSnapshotMod {
-	return SchemaSnapshotModFunc(func(_ context.Context, o *SchemaSnapshotTemplate) {
-		o.ErrorMessage = func() null.Val[string] { return val }
-	})
-}
-
-// Set the Column from the function
-func (m schemaSnapshotMods) ErrorMessageFunc(f func() null.Val[string]) SchemaSnapshotMod {
-	return SchemaSnapshotModFunc(func(_ context.Context, o *SchemaSnapshotTemplate) {
-		o.ErrorMessage = f
-	})
-}
-
-// Clear any values for the column
-func (m schemaSnapshotMods) UnsetErrorMessage() SchemaSnapshotMod {
-	return SchemaSnapshotModFunc(func(_ context.Context, o *SchemaSnapshotTemplate) {
-		o.ErrorMessage = nil
-	})
-}
-
-// Generates a random value for the column using the given faker
-// if faker is nil, a default faker is used
-// The generated value is sometimes null
-func (m schemaSnapshotMods) RandomErrorMessage(f *faker.Faker) SchemaSnapshotMod {
-	return SchemaSnapshotModFunc(func(_ context.Context, o *SchemaSnapshotTemplate) {
-		o.ErrorMessage = func() null.Val[string] {
-			if f == nil {
-				f = &defaultFaker
-			}
-
-			val := random_string(f)
-			return null.From(val)
-		}
-	})
-}
-
-// Generates a random value for the column using the given faker
-// if faker is nil, a default faker is used
-// The generated value is never null
-func (m schemaSnapshotMods) RandomErrorMessageNotNull(f *faker.Faker) SchemaSnapshotMod {
-	return SchemaSnapshotModFunc(func(_ context.Context, o *SchemaSnapshotTemplate) {
-		o.ErrorMessage = func() null.Val[string] {
-			if f == nil {
-				f = &defaultFaker
-			}
-
-			val := random_string(f)
-			return null.From(val)
-		}
-	})
-}
-
-// Set the model columns to this value
 func (m schemaSnapshotMods) IntrospectedAt(val time.Time) SchemaSnapshotMod {
 	return SchemaSnapshotModFunc(func(_ context.Context, o *SchemaSnapshotTemplate) {
 		o.IntrospectedAt = func() time.Time { return val }
@@ -684,5 +593,53 @@ func (m schemaSnapshotMods) AddExistingSnapshotSchemaChunks(existingModels ...*m
 func (m schemaSnapshotMods) WithoutSnapshotSchemaChunks() SchemaSnapshotMod {
 	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
 		o.r.SnapshotSchemaChunks = nil
+	})
+}
+
+func (m schemaSnapshotMods) WithSnapshotSchemaEmbeddingJobs(number int, related *SchemaEmbeddingJobTemplate) SchemaSnapshotMod {
+	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
+		o.r.SnapshotSchemaEmbeddingJobs = []*schemaSnapshotRSnapshotSchemaEmbeddingJobsR{{
+			number: number,
+			o:      related,
+		}}
+	})
+}
+
+func (m schemaSnapshotMods) WithNewSnapshotSchemaEmbeddingJobs(number int, mods ...SchemaEmbeddingJobMod) SchemaSnapshotMod {
+	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
+		related := o.f.NewSchemaEmbeddingJobWithContext(ctx, mods...)
+		m.WithSnapshotSchemaEmbeddingJobs(number, related).Apply(ctx, o)
+	})
+}
+
+func (m schemaSnapshotMods) AddSnapshotSchemaEmbeddingJobs(number int, related *SchemaEmbeddingJobTemplate) SchemaSnapshotMod {
+	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
+		o.r.SnapshotSchemaEmbeddingJobs = append(o.r.SnapshotSchemaEmbeddingJobs, &schemaSnapshotRSnapshotSchemaEmbeddingJobsR{
+			number: number,
+			o:      related,
+		})
+	})
+}
+
+func (m schemaSnapshotMods) AddNewSnapshotSchemaEmbeddingJobs(number int, mods ...SchemaEmbeddingJobMod) SchemaSnapshotMod {
+	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
+		related := o.f.NewSchemaEmbeddingJobWithContext(ctx, mods...)
+		m.AddSnapshotSchemaEmbeddingJobs(number, related).Apply(ctx, o)
+	})
+}
+
+func (m schemaSnapshotMods) AddExistingSnapshotSchemaEmbeddingJobs(existingModels ...*models.SchemaEmbeddingJob) SchemaSnapshotMod {
+	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
+		for _, em := range existingModels {
+			o.r.SnapshotSchemaEmbeddingJobs = append(o.r.SnapshotSchemaEmbeddingJobs, &schemaSnapshotRSnapshotSchemaEmbeddingJobsR{
+				o: o.f.FromExistingSchemaEmbeddingJob(em),
+			})
+		}
+	})
+}
+
+func (m schemaSnapshotMods) WithoutSnapshotSchemaEmbeddingJobs() SchemaSnapshotMod {
+	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
+		o.r.SnapshotSchemaEmbeddingJobs = nil
 	})
 }

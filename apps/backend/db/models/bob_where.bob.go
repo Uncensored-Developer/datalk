@@ -17,26 +17,29 @@ var (
 )
 
 func Where[Q psql.Filterable]() struct {
-	ConnectionAccesses connectionAccessWhere[Q]
-	Connections        connectionWhere[Q]
-	Organizations      organizationWhere[Q]
-	SchemaChunks       schemaChunkWhere[Q]
-	SchemaSnapshots    schemaSnapshotWhere[Q]
-	Users              userWhere[Q]
+	ConnectionAccesses  connectionAccessWhere[Q]
+	Connections         connectionWhere[Q]
+	Organizations       organizationWhere[Q]
+	SchemaChunks        schemaChunkWhere[Q]
+	SchemaEmbeddingJobs schemaEmbeddingJobWhere[Q]
+	SchemaSnapshots     schemaSnapshotWhere[Q]
+	Users               userWhere[Q]
 } {
 	return struct {
-		ConnectionAccesses connectionAccessWhere[Q]
-		Connections        connectionWhere[Q]
-		Organizations      organizationWhere[Q]
-		SchemaChunks       schemaChunkWhere[Q]
-		SchemaSnapshots    schemaSnapshotWhere[Q]
-		Users              userWhere[Q]
+		ConnectionAccesses  connectionAccessWhere[Q]
+		Connections         connectionWhere[Q]
+		Organizations       organizationWhere[Q]
+		SchemaChunks        schemaChunkWhere[Q]
+		SchemaEmbeddingJobs schemaEmbeddingJobWhere[Q]
+		SchemaSnapshots     schemaSnapshotWhere[Q]
+		Users               userWhere[Q]
 	}{
-		ConnectionAccesses: buildConnectionAccessWhere[Q](ConnectionAccesses.Columns),
-		Connections:        buildConnectionWhere[Q](Connections.Columns),
-		Organizations:      buildOrganizationWhere[Q](Organizations.Columns),
-		SchemaChunks:       buildSchemaChunkWhere[Q](SchemaChunks.Columns),
-		SchemaSnapshots:    buildSchemaSnapshotWhere[Q](SchemaSnapshots.Columns),
-		Users:              buildUserWhere[Q](Users.Columns),
+		ConnectionAccesses:  buildConnectionAccessWhere[Q](ConnectionAccesses.Columns),
+		Connections:         buildConnectionWhere[Q](Connections.Columns),
+		Organizations:       buildOrganizationWhere[Q](Organizations.Columns),
+		SchemaChunks:        buildSchemaChunkWhere[Q](SchemaChunks.Columns),
+		SchemaEmbeddingJobs: buildSchemaEmbeddingJobWhere[Q](SchemaEmbeddingJobs.Columns),
+		SchemaSnapshots:     buildSchemaSnapshotWhere[Q](SchemaSnapshots.Columns),
+		Users:               buildUserWhere[Q](Users.Columns),
 	}
 }
