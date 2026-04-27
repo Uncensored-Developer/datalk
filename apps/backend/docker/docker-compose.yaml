@@ -1,6 +1,14 @@
 version: "3.8"
 services:
 
+  datalk-redis:
+    container_name: datalk_redis
+    image: redis:latest
+    ports:
+      - 6382:6379
+    volumes:
+      - "datalk-redis-data:/data"
+
   datalk-postgres:
     container_name: datalk_db
     image: "pgvector/pgvector:pg15"
@@ -96,3 +104,4 @@ services:
 
 volumes:
   datalk-postgres-data:
+  datalk-redis-data:

@@ -26,6 +26,7 @@ type Config struct {
 	DBSSLMode      string `env:"DB_SSLMODE"`
 	DBSchema       string `env:"DB_SCHEMA"`
 	GoMigrateTable string `env:"GO_MIGRATE_TABLE"`
+	RedisURL       string `env:"REDIS_URL"`
 }
 
 func MustLoad() Config {

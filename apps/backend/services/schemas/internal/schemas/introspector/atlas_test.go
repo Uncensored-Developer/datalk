@@ -3,6 +3,7 @@ package introspector
 import (
 	_ "embed"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,6 +28,10 @@ func TestNewPostgres(t *testing.T) {
 			IncludeIndexes:     true,
 		})
 		require.NoError(t, err)
+
+		jsonCatalog, err := json.Marshal(catalog)
+		require.NoError(t, err)
+		fmt.Println(string(jsonCatalog))
 
 		require.Equal(t, DBPostgres, catalog.Kind)
 		require.Len(t, catalog.Namespaces, 1)
