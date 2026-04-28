@@ -15,8 +15,8 @@ type Users struct {
 
 func New(cfg config.Config, conn *sql.DB) Users {
 	logger := pkglogger.SetupLogger(cfg)
-	usersApi := users.NewService(conn, logger)
+	usersApi := users.NewService(conn, logger, cfg)
 	return Users{
-		API: api.New(logger, usersApi),
+		API: api.New(logger, cfg, usersApi),
 	}
 }

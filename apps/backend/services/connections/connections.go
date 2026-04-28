@@ -15,8 +15,8 @@ type Connections struct {
 
 func New(cfg config.Config, conn *sql.DB) Connections {
 	logger := pkglogger.SetupLogger(cfg)
-	connectionsService := connections.NewService(conn, logger)
+	connectionsService := connections.NewService(conn, cfg, logger)
 	return Connections{
-		API: api.New(logger, connectionsService),
+		API: api.New(logger, cfg, connectionsService),
 	}
 }

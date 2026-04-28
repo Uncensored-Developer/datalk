@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/Uncensored-Developer/datalk/apps/backend/config"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/base"
 	connectionsservice "github.com/Uncensored-Developer/datalk/apps/backend/services/connections/internal/connections"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/connections/pkg/connections"
@@ -22,9 +23,9 @@ type Api struct {
 	service Service
 }
 
-func New(logger *slog.Logger, service Service) *Api {
+func New(logger *slog.Logger, cfg config.Config, service Service) *Api {
 	return &Api{
-		Base:    base.NewBase("connections", logger),
+		Base:    base.NewBase("connections", logger, cfg),
 		service: service,
 	}
 }
