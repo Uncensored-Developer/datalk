@@ -1,0 +1,30 @@
+database_kind: postgres
+namespace: testatlas_storage
+object_type: table
+object_name: schema_snapshots
+qualified_name: testatlas_storage.schema_snapshots
+
+comment: Stores schema snapshot versions
+
+primary_key: id
+
+columns:
+1. id | type=serial | nullable=false
+2. connection_id | type=integer | nullable=false
+3. namespace_id | type=integer | nullable=false
+4. schema_hash | type=text | nullable=false | comment="Hash of the schema snapshot"
+5. slice_json | type=jsonb | nullable=false | comment="Normalized schema JSON"
+6. status | type=text | nullable=false
+7. error_message | type=text | nullable=true
+8. introspected_at | type=timestamp with time zone | nullable=false
+
+foreign_keys:
+- columns=connection_id | references=testatlas_storage.connections(id)
+- columns=namespace_id | references=testatlas_storage.connection_namespaces(id)
+
+indexes:
+- name=schema_snapshots_connection_id_schema_hash_key | unique=true | method=btree | columns=connection_id,schema_hash
+- name=schema_snapshots_latest_complete_idx | unique=false | method=btree | columns=connection_id,namespace_id,introspected_at
+
+Purpose Hints:
+- Stores schema snapshot versions

@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:embed schema_snapshots_introspect.json
+//go:embed testdata/schema_snapshots_introspect.json
 var schemaSnapshotJSONByte []byte
 
 func TestNewPostgres(t *testing.T) {
