@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Uncensored-Developer/datalk/apps/backend/config"
 	"github.com/Uncensored-Developer/datalk/apps/backend/pkg/distlock/dummy"
 	"github.com/Uncensored-Developer/datalk/apps/backend/pkg/ordering"
 	"github.com/Uncensored-Developer/datalk/apps/backend/pkg/pagination"
@@ -28,6 +29,8 @@ import (
 )
 
 func TestService_RefreshSchemaSnapshot(t *testing.T) {
+	t.Parallel()
+
 	connectionID := int32(42)
 	connection := connectiontypes.Connection{
 		ID:       connectionID,
@@ -99,11 +102,14 @@ func TestService_RefreshSchemaSnapshot(t *testing.T) {
 				mockFactory.On("ForConnection", ctx, connection).Return(mockIntrospector, nil)
 				mockIntrospector.On("Introspect", ctx, toIntrospectOptions(connection.Metadata)).Return(catalog, nil)
 				mockStorage.On("InsertSnapshot", ctx, mock.MatchedBy(func(snapshot *schematypes.Snapshot) bool {
-					return snapshot != nil &&
-						snapshot.ConnectionID == connectionID &&
-						snapshot.SchemaHash == schemaHash &&
-						string(snapshot.SchemaJSON) == string(schemaJSON) &&
-						!snapshot.IntrospectedAt.IsZero()
+					if snapshot == nil {
+						return false
+					}
+					assert.Equal(t, connectionID, snapshot.ConnectionID)
+					assert.Equal(t, schemaHash, snapshot.SchemaHash)
+					assert.Equal(t, string(schemaJSON), string(snapshot.SchemaJSON))
+					assert.False(t, snapshot.IntrospectedAt.IsZero())
+					return true
 				})).Return(errors.New("insert failed"))
 			},
 			expectError: "failed to insert snapshot",
@@ -118,14 +124,13 @@ func TestService_RefreshSchemaSnapshot(t *testing.T) {
 				mockFactory.On("ForConnection", ctx, connection).Return(mockIntrospector, nil)
 				mockIntrospector.On("Introspect", ctx, toIntrospectOptions(connection.Metadata)).Return(catalog, nil)
 				mockStorage.On("InsertSnapshot", ctx, mock.MatchedBy(func(snapshot *schematypes.Snapshot) bool {
-					if snapshot == nil {
-						return false
-					}
+					require.NotNil(t, snapshot)
 					snapshot.ID = 99
-					return snapshot.ConnectionID == connectionID &&
-						snapshot.SchemaHash == schemaHash &&
-						string(snapshot.SchemaJSON) == string(schemaJSON) &&
-						!snapshot.IntrospectedAt.IsZero()
+					assert.Equal(t, connectionID, snapshot.ConnectionID)
+					assert.Equal(t, schemaHash, snapshot.SchemaHash)
+					assert.Equal(t, string(schemaJSON), string(snapshot.SchemaJSON))
+					assert.False(t, snapshot.IntrospectedAt.IsZero())
+					return true
 				})).Return(nil)
 			},
 		},
@@ -144,6 +149,7 @@ func TestService_RefreshSchemaSnapshot(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			ctx := t.Context()
 
 			mockGetter := schematesting.NewConnectionGetter(t)
@@ -200,5 +206,5 @@ func hashSchema(payload []byte) string {
 
 func newTestBase() *base.Base {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return base.NewBase("schemas-core", logger)
+	return base.NewBase("schemas-core", logger, config.Config{})
 }

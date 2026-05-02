@@ -5,9 +5,11 @@ import (
 	"database/sql"
 	"log/slog"
 
+	"github.com/Uncensored-Developer/datalk/apps/backend/config"
 	"github.com/Uncensored-Developer/datalk/apps/backend/pkg/distlock"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/base"
 	connectiontypes "github.com/Uncensored-Developer/datalk/apps/backend/services/connections/pkg/connections"
+	"github.com/Uncensored-Developer/datalk/apps/backend/services/schemas/internal/schemas/embedding"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/schemas/internal/schemas/introspector"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/schemas/internal/storage"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/schemas/internal/storage/db"
@@ -23,8 +25,6 @@ type IntrospectorFactory interface {
 	ForConnection(ctx context.Context, connection connectiontypes.Connection) (introspector.Introspector, error)
 }
 
-type IntrospectorRegistry map[introspector.DBKind]introspector.Introspector
-
 type Service struct {
 	*base.Base
 
@@ -32,13 +32,15 @@ type Service struct {
 	connectionGetter    ConnectionGetter
 	storage             storage.Storage
 	introspectorFactory IntrospectorFactory
+	embeddingClient     embedding.Client
 }
 
-func NewService(conn *sql.DB, logger *slog.Logger, connectionGetter ConnectionGetter, locker distlock.DistributedLocker) *Service {
+func NewService(conn *sql.DB, cfg config.Config, logger *slog.Logger, connectionGetter ConnectionGetter, locker distlock.DistributedLocker, embeddingClient embedding.Client) *Service {
 	return &Service{
-		Base:             base.NewBase("schemas-core", logger),
+		Base:             base.NewBase("schemas-core", logger, cfg),
 		storage:          db.NewStorage(conn),
 		connectionGetter: connectionGetter,
 		locker:           locker,
+		embeddingClient:  embeddingClient,
 	}
 }

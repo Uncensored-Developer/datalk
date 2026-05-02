@@ -2,6 +2,7 @@ package config
 
 import (
 	"log"
+	"time"
 
 	"github.com/caarlos0/env/v11"
 )
@@ -27,6 +28,13 @@ type Config struct {
 	DBSchema       string `env:"DB_SCHEMA"`
 	GoMigrateTable string `env:"GO_MIGRATE_TABLE"`
 	RedisURL       string `env:"REDIS_URL"`
+
+	EmbeddingEnabled     bool          `env:"EMBEDDING_ENABLED" envDefault:"true"`
+	OllamaBaseURL        string        `env:"OLLAMA_BASE_URL" envDefault:"http://localhost:11434"`
+	EmbeddingBatchSize   int           `env:"EMBEDDING_BATCH_SIZE" envDefault:"16"`
+	EmbeddingTimeout     time.Duration `env:"EMBEDDING_TIMEOUT" envDefault:"30s"`
+	EmbeddingMaxRetries  int           `env:"EMBEDDING_MAX_RETRIES" envDefault:"3"`
+	EmbeddingConcurrency int           `env:"EMBEDDING_CONCURRENCY" envDefault:"1"`
 }
 
 func MustLoad() Config {
