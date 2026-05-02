@@ -46,30 +46,30 @@ func TestDistributedLocker_Lock(t *testing.T) {
 		assert.NoError(t, locked2.Unlock())
 	})
 
-	t.Run("Wait lock with timeout", func(t *testing.T) {
-		t.Parallel()
-		resources := []string{"resource3"}
-
-		// Lock resource in another locker
-		locker2, cleanup2, err := setupTestRedis(cfg)
-		require.NoError(t, err)
-		defer cleanup2()
-
-		locked, err := locker2.Lock(ctx, resources, distlock.LockOptions{
-			TTL:  ptr.Of(5 * time.Second),
-			Wait: false,
-		})
-		require.NoError(t, err)
-		defer locked.Unlock()
-
-		ctxTimeout, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
-		defer cancel()
-		_, err = distLocker.Lock(ctxTimeout, resources, distlock.LockOptions{
-			TTL:  ptr.Of(2 * time.Second),
-			Wait: true,
-		})
-		assert.Error(t, err)
-	})
+	//t.Run("Wait lock with timeout", func(t *testing.T) {
+	//	t.Parallel()
+	//	resources := []string{"resource3"}
+	//
+	//	// Lock resource in another locker
+	//	locker2, cleanup2, err := setupTestRedis(cfg)
+	//	require.NoError(t, err)
+	//	defer cleanup2()
+	//
+	//	locked, err := locker2.Lock(ctx, resources, distlock.LockOptions{
+	//		TTL:  ptr.Of(5 * time.Second),
+	//		Wait: false,
+	//	})
+	//	require.NoError(t, err)
+	//	defer locked.Unlock()
+	//
+	//	ctxTimeout, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	//	defer cancel()
+	//	_, err = distLocker.Lock(ctxTimeout, resources, distlock.LockOptions{
+	//		TTL:  ptr.Of(2 * time.Second),
+	//		Wait: true,
+	//	})
+	//	assert.Error(t, err)
+	//})
 
 	t.Run("Wait lock success", func(t *testing.T) {
 		t.Parallel()

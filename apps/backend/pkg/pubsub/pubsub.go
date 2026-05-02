@@ -33,6 +33,10 @@ func NewMessage(topic, key string, content any) (*Message, error) {
 	}, nil
 }
 
+func (m *Message) DecodeBody(output any) error {
+	return json.Unmarshal(m.Body, output)
+}
+
 //go:generate go tool with-modfile mockery --name Publisher --outpkg testing --output ./testing --filename generated__publisher_mocks.go
 type Publisher interface {
 	Publish(ctx context.Context, topic string, msg Message) error
