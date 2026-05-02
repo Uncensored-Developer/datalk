@@ -20,6 +20,7 @@ const (
 
 type SnapshotsFilter struct {
 	ConnectionID []int32
+	ID           []int32
 	Pagination   pagination.LimitOffsetPagination
 	Ordering     ordering.Orderings[SnapshotOrdering]
 }
@@ -31,4 +32,10 @@ type Storage interface {
 	ListSnapshots(ctx context.Context, filter SnapshotsFilter) ([]*schemas.Snapshot, error)
 
 	InsertChunk(ctx context.Context, snapshot *schemas.Chunk) error
+
+	ReplaceChunks(ctx context.Context, snapshotID int32, chunks []*schemas.Chunk) error
+
+	GetEmbeddingJob(ctx context.Context, snapshotID int32) (*schemas.EmbeddingJob, error)
+
+	UpsertEmbeddingJob(ctx context.Context, job *schemas.EmbeddingJob) error
 }

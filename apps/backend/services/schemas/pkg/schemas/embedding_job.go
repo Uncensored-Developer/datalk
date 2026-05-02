@@ -2,6 +2,13 @@ package schemas
 
 import "time"
 
+const (
+	EmbeddingJobStatusPending    = "PENDING"
+	EmbeddingJobStatusProcessing = "PROCESSING"
+	EmbeddingJobStatusCompleted  = "COMPLETED"
+	EmbeddingJobStatusFailed     = "FAILED"
+)
+
 type EmbeddingJob struct {
 	SnapshotID   int32
 	Status       string

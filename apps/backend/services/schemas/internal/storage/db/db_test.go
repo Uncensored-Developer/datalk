@@ -123,7 +123,7 @@ func TestStorage_InsertChunk(t *testing.T) {
 	err := s.InsertSnapshot(t.Context(), snapshot)
 	require.NoError(t, err)
 
-	embedding := make([]float32, 1536)
+	embedding := make([]float32, 768)
 	embedding[0] = 0.1
 	embedding[1] = 0.2
 	embedding[2] = 0.3
@@ -161,6 +161,94 @@ func TestStorage_InsertChunk(t *testing.T) {
 	assert.Equal(t, chunk.Content, got.Content)
 	assert.Equal(t, chunk.Embedding, got.Embedding)
 	assert.JSONEq(t, string(chunk.Metadata), string(got.Metadata))
+}
+
+func TestStorage_UpsertAndGetEmbeddingJob(t *testing.T) {
+	t.Parallel()
+
+	createdConn := createConnection(t, "embedding-job-connection")
+	snapshot := insertSnapshot(t, createdConn.ID, "hash-job")
+
+	job := &schemas.EmbeddingJob{
+		SnapshotID: snapshot.ID,
+		Status:     schemas.EmbeddingJobStatusProcessing,
+		RetryCount: 1,
+		StartedAt:  time.Now().UTC().Truncate(time.Second),
+	}
+
+	err := s.UpsertEmbeddingJob(t.Context(), job)
+	require.NoError(t, err)
+
+	got, err := s.GetEmbeddingJob(t.Context(), snapshot.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, job.SnapshotID, got.SnapshotID)
+	assert.Equal(t, job.Status, got.Status)
+	assert.Equal(t, job.RetryCount, got.RetryCount)
+
+	now := time.Now().UTC().Truncate(time.Second)
+	message := "embed failed"
+	job = &schemas.EmbeddingJob{
+		SnapshotID:   snapshot.ID,
+		Status:       schemas.EmbeddingJobStatusFailed,
+		RetryCount:   2,
+		StartedAt:    job.StartedAt,
+		CompletedAt:  &now,
+		ErrorMessage: &message,
+	}
+
+	err = s.UpsertEmbeddingJob(t.Context(), job)
+	require.NoError(t, err)
+
+	got, err = s.GetEmbeddingJob(t.Context(), snapshot.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, schemas.EmbeddingJobStatusFailed, got.Status)
+	assert.Equal(t, int32(2), got.RetryCount)
+	require.NotNil(t, got.ErrorMessage)
+	assert.Equal(t, message, *got.ErrorMessage)
+	require.NotNil(t, got.CompletedAt)
+}
+
+func TestStorage_ReplaceChunks(t *testing.T) {
+	t.Parallel()
+
+	createdConn := createConnection(t, "replace-chunks-connection")
+	snapshot := insertSnapshot(t, createdConn.ID, "hash-replace")
+
+	initialChunk := &schemas.Chunk{
+		SnapshotID:   snapshot.ID,
+		ConnectionID: snapshot.ConnectionID,
+		ObjectType:   "table",
+		ObjectName:   "public.users",
+		SchemaJSON:   json.RawMessage(`{"table":"users"}`),
+		Content:      "users table",
+		Embedding:    testEmbeddingVector(0.1),
+		Metadata:     []byte(`{"qualified_name":"public.users"}`),
+	}
+	require.NoError(t, s.InsertChunk(t.Context(), initialChunk))
+
+	replacementChunks := []*schemas.Chunk{
+		{
+			SnapshotID:   snapshot.ID,
+			ConnectionID: snapshot.ConnectionID,
+			ObjectType:   "table",
+			ObjectName:   "public.orders",
+			SchemaJSON:   json.RawMessage(`{"table":"orders"}`),
+			Content:      "orders table",
+			Embedding:    testEmbeddingVector(0.2),
+			Metadata:     []byte(`{"qualified_name":"public.orders"}`),
+		},
+	}
+
+	require.NoError(t, s.ReplaceChunks(t.Context(), snapshot.ID, replacementChunks))
+
+	dbChunks, err := models.SchemaChunks.Query(
+		models.SelectWhere.SchemaChunks.SnapshotID.EQ(snapshot.ID),
+	).All(t.Context(), runner.BobConn)
+	require.NoError(t, err)
+	require.Len(t, dbChunks, 1)
+	assert.Equal(t, "public.orders", dbChunks[0].ObjectName)
 }
 
 func createConnection(t *testing.T, name string) *models.Connection {
@@ -203,4 +291,12 @@ func snapshotIDs(snapshots []*schemas.Snapshot) []int32 {
 	}
 
 	return ids
+}
+
+func testEmbeddingVector(value float32) []float32 {
+	vector := make([]float32, 768)
+	for i := range vector {
+		vector[i] = value
+	}
+	return vector
 }

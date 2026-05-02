@@ -43,8 +43,12 @@ func snapshotsFromDB(dbSnapshots []*models.SchemaSnapshot) ([]*schemas.Snapshot,
 
 func chunkToDB(chunk *schemas.Chunk) *models.SchemaChunkSetter {
 	var embedding omitnull.Val[pgvector.Vector]
+	var createdAt omit.Val[time.Time]
 	if len(chunk.Embedding) > 0 {
 		embedding = omitnull.From(pgvector.NewVector(chunk.Embedding))
+	}
+	if !chunk.CreatedAt.IsZero() {
+		createdAt = omit.From(chunk.CreatedAt)
 	}
 
 	metadata := chunk.Metadata
@@ -61,7 +65,7 @@ func chunkToDB(chunk *schemas.Chunk) *models.SchemaChunkSetter {
 		Content:      omit.From(chunk.Content),
 		Embedding:    embedding,
 		Metadata:     omit.From(types.NewJSON(json.RawMessage(metadata))),
-		CreatedAt:    omit.From(chunk.CreatedAt),
+		CreatedAt:    createdAt,
 	}
 }
 
@@ -94,4 +98,25 @@ func embeddingJobToDB(job *schemas.EmbeddingJob) *models.SchemaEmbeddingJobSette
 		StartedAt:    omit.From(job.StartedAt),
 		CompletedAt:  omitnull.FromPtr(job.CompletedAt),
 	}
+}
+
+func embeddingJobFromDB(dbJob *models.SchemaEmbeddingJob) (*schemas.EmbeddingJob, error) {
+	var errorMessage *string
+	if v, ok := dbJob.ErrorMessage.Get(); ok {
+		errorMessage = &v
+	}
+
+	var completedAt *time.Time
+	if v, ok := dbJob.CompletedAt.Get(); ok {
+		completedAt = &v
+	}
+
+	return &schemas.EmbeddingJob{
+		SnapshotID:   dbJob.SnapshotID,
+		Status:       dbJob.Status,
+		ErrorMessage: errorMessage,
+		RetryCount:   dbJob.RetryCount,
+		StartedAt:    dbJob.StartedAt,
+		CompletedAt:  completedAt,
+	}, nil
 }

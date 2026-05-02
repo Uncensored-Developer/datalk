@@ -9,7 +9,6 @@ type Chunk struct {
 	ID           int64
 	SnapshotID   int32
 	ConnectionID int32
-	NamespaceID  int32
 	ObjectType   string
 	ObjectName   string
 	SchemaJSON   json.RawMessage

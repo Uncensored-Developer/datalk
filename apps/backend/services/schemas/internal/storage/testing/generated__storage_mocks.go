@@ -15,6 +15,36 @@ type Storage struct {
 	mock.Mock
 }
 
+// GetEmbeddingJob provides a mock function with given fields: ctx, snapshotID
+func (_m *Storage) GetEmbeddingJob(ctx context.Context, snapshotID int32) (*schemas.EmbeddingJob, error) {
+	ret := _m.Called(ctx, snapshotID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetEmbeddingJob")
+	}
+
+	var r0 *schemas.EmbeddingJob
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32) (*schemas.EmbeddingJob, error)); ok {
+		return rf(ctx, snapshotID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int32) *schemas.EmbeddingJob); ok {
+		r0 = rf(ctx, snapshotID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*schemas.EmbeddingJob)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
+		r1 = rf(ctx, snapshotID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // InsertChunk provides a mock function with given fields: ctx, snapshot
 func (_m *Storage) InsertChunk(ctx context.Context, snapshot *schemas.Chunk) error {
 	ret := _m.Called(ctx, snapshot)
@@ -79,6 +109,42 @@ func (_m *Storage) ListSnapshots(ctx context.Context, filter storage.SnapshotsFi
 	}
 
 	return r0, r1
+}
+
+// ReplaceChunks provides a mock function with given fields: ctx, snapshotID, chunks
+func (_m *Storage) ReplaceChunks(ctx context.Context, snapshotID int32, chunks []*schemas.Chunk) error {
+	ret := _m.Called(ctx, snapshotID, chunks)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ReplaceChunks")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32, []*schemas.Chunk) error); ok {
+		r0 = rf(ctx, snapshotID, chunks)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// UpsertEmbeddingJob provides a mock function with given fields: ctx, job
+func (_m *Storage) UpsertEmbeddingJob(ctx context.Context, job *schemas.EmbeddingJob) error {
+	ret := _m.Called(ctx, job)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpsertEmbeddingJob")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *schemas.EmbeddingJob) error); ok {
+		r0 = rf(ctx, job)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
 }
 
 // NewStorage creates a new instance of Storage. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
