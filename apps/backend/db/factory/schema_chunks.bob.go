@@ -631,7 +631,7 @@ func (m schemaChunkMods) RandomEmbedding(f *faker.Faker) SchemaChunkMod {
 				f = &defaultFaker
 			}
 
-			val := random_pgvector_Vector(f, "1536")
+			val := random_pgvector_Vector(f, "768")
 			return null.From(val)
 		}
 	})
@@ -647,7 +647,7 @@ func (m schemaChunkMods) RandomEmbeddingNotNull(f *faker.Faker) SchemaChunkMod {
 				f = &defaultFaker
 			}
 
-			val := random_pgvector_Vector(f, "1536")
+			val := random_pgvector_Vector(f, "768")
 			return null.From(val)
 		}
 	})

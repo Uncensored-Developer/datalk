@@ -241,8 +241,8 @@ func (f *Factory) FromExistingSchemaSnapshot(m *models.SchemaSnapshot) *SchemaSn
 	if len(m.R.SnapshotSchemaChunks) > 0 {
 		SchemaSnapshotMods.AddExistingSnapshotSchemaChunks(m.R.SnapshotSchemaChunks...).Apply(ctx, o)
 	}
-	if len(m.R.SnapshotSchemaEmbeddingJobs) > 0 {
-		SchemaSnapshotMods.AddExistingSnapshotSchemaEmbeddingJobs(m.R.SnapshotSchemaEmbeddingJobs...).Apply(ctx, o)
+	if m.R.SnapshotSchemaEmbeddingJob != nil {
+		SchemaSnapshotMods.WithExistingSnapshotSchemaEmbeddingJob(m.R.SnapshotSchemaEmbeddingJob).Apply(ctx, o)
 	}
 	if m.R.Connection != nil {
 		SchemaSnapshotMods.WithExistingConnection(m.R.Connection).Apply(ctx, o)

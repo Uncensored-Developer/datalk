@@ -3,6 +3,8 @@
 
 package info
 
+import "github.com/aarondl/opt/null"
+
 var SchemaEmbeddingJobs = Table[
 	schemaEmbeddingJobColumns,
 	schemaEmbeddingJobIndexes,
@@ -68,6 +70,25 @@ var SchemaEmbeddingJobs = Table[
 			AutoIncr:  false,
 		},
 	},
+	Indexes: schemaEmbeddingJobIndexes{
+		SchemaEmbeddingJobsSnapshotIDKey: index{
+			Type: "btree",
+			Name: "schema_embedding_jobs_snapshot_id_key",
+			Columns: []indexColumn{
+				{
+					Name:         "snapshot_id",
+					Desc:         null.FromCond(false, true),
+					IsExpression: false,
+				},
+			},
+			Unique:        true,
+			Comment:       "",
+			NullsFirst:    []bool{false},
+			NullsDistinct: false,
+			Where:         "",
+			Include:       []string{},
+		},
+	},
 
 	ForeignKeys: schemaEmbeddingJobForeignKeys{
 		SchemaEmbeddingJobsSchemaEmbeddingJobsSnapshotIDFkey: foreignKey{
@@ -80,7 +101,13 @@ var SchemaEmbeddingJobs = Table[
 			ForeignColumns: []string{"id"},
 		},
 	},
-
+	Uniques: schemaEmbeddingJobUniques{
+		SchemaEmbeddingJobsSnapshotIDKey: constraint{
+			Name:    "schema_embedding_jobs_snapshot_id_key",
+			Columns: []string{"snapshot_id"},
+			Comment: "",
+		},
+	},
 	Checks: schemaEmbeddingJobChecks{
 		SchemaEmbeddingJobsStatusCheck: check{
 			constraint: constraint{
@@ -109,10 +136,14 @@ func (c schemaEmbeddingJobColumns) AsSlice() []column {
 	}
 }
 
-type schemaEmbeddingJobIndexes struct{}
+type schemaEmbeddingJobIndexes struct {
+	SchemaEmbeddingJobsSnapshotIDKey index
+}
 
 func (i schemaEmbeddingJobIndexes) AsSlice() []index {
-	return []index{}
+	return []index{
+		i.SchemaEmbeddingJobsSnapshotIDKey,
+	}
 }
 
 type schemaEmbeddingJobForeignKeys struct {
@@ -125,10 +156,14 @@ func (f schemaEmbeddingJobForeignKeys) AsSlice() []foreignKey {
 	}
 }
 
-type schemaEmbeddingJobUniques struct{}
+type schemaEmbeddingJobUniques struct {
+	SchemaEmbeddingJobsSnapshotIDKey constraint
+}
 
 func (u schemaEmbeddingJobUniques) AsSlice() []constraint {
-	return []constraint{}
+	return []constraint{
+		u.SchemaEmbeddingJobsSnapshotIDKey,
+	}
 }
 
 type schemaEmbeddingJobChecks struct {

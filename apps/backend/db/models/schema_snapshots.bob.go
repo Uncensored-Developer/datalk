@@ -49,9 +49,9 @@ type SchemaSnapshotsQuery = *psql.ViewQuery[*SchemaSnapshot, SchemaSnapshotSlice
 
 // schemaSnapshotR is where relationships are stored.
 type schemaSnapshotR struct {
-	SnapshotSchemaChunks        SchemaChunkSlice        // schema_chunks.schema_chunks_snapshot_id_fkey
-	SnapshotSchemaEmbeddingJobs SchemaEmbeddingJobSlice // schema_embedding_jobs.schema_embedding_jobs_snapshot_id_fkey
-	Connection                  *Connection             // schema_snapshots.schema_snapshots_connection_id_fkey
+	SnapshotSchemaChunks       SchemaChunkSlice    // schema_chunks.schema_chunks_snapshot_id_fkey
+	SnapshotSchemaEmbeddingJob *SchemaEmbeddingJob // schema_embedding_jobs.schema_embedding_jobs_snapshot_id_fkey
+	Connection                 *Connection         // schema_snapshots.schema_snapshots_connection_id_fkey
 }
 
 func buildSchemaSnapshotColumns(alias string) schemaSnapshotColumns {
@@ -468,14 +468,14 @@ func (os SchemaSnapshotSlice) SnapshotSchemaChunks(mods ...bob.Mod[*dialect.Sele
 	)...)
 }
 
-// SnapshotSchemaEmbeddingJobs starts a query for related objects on schema_embedding_jobs
-func (o *SchemaSnapshot) SnapshotSchemaEmbeddingJobs(mods ...bob.Mod[*dialect.SelectQuery]) SchemaEmbeddingJobsQuery {
+// SnapshotSchemaEmbeddingJob starts a query for related objects on schema_embedding_jobs
+func (o *SchemaSnapshot) SnapshotSchemaEmbeddingJob(mods ...bob.Mod[*dialect.SelectQuery]) SchemaEmbeddingJobsQuery {
 	return SchemaEmbeddingJobs.Query(append(mods,
 		sm.Where(SchemaEmbeddingJobs.Columns.SnapshotID.EQ(psql.Arg(o.ID))),
 	)...)
 }
 
-func (os SchemaSnapshotSlice) SnapshotSchemaEmbeddingJobs(mods ...bob.Mod[*dialect.SelectQuery]) SchemaEmbeddingJobsQuery {
+func (os SchemaSnapshotSlice) SnapshotSchemaEmbeddingJob(mods ...bob.Mod[*dialect.SelectQuery]) SchemaEmbeddingJobsQuery {
 	pkID := make(pgtypes.Array[int32], 0, len(os))
 	for _, o := range os {
 		if o == nil {
@@ -658,13 +658,13 @@ func (o *SchemaSnapshot) Preload(name string, retrieved any) error {
 		o.R.SnapshotSchemaChunks = rels
 
 		return nil
-	case "SnapshotSchemaEmbeddingJobs":
-		rels, ok := retrieved.(SchemaEmbeddingJobSlice)
+	case "SnapshotSchemaEmbeddingJob":
+		rel, ok := retrieved.(*SchemaEmbeddingJob)
 		if !ok {
 			return fmt.Errorf("schemaSnapshot cannot load %T as %q", retrieved, name)
 		}
 
-		o.R.SnapshotSchemaEmbeddingJobs = rels
+		o.R.SnapshotSchemaEmbeddingJob = rel
 
 		return nil
 	case "Connection":
@@ -682,11 +682,25 @@ func (o *SchemaSnapshot) Preload(name string, retrieved any) error {
 }
 
 type schemaSnapshotPreloader struct {
-	Connection func(...psql.PreloadOption) psql.Preloader
+	SnapshotSchemaEmbeddingJob func(...psql.PreloadOption) psql.Preloader
+	Connection                 func(...psql.PreloadOption) psql.Preloader
 }
 
 func buildSchemaSnapshotPreloader() schemaSnapshotPreloader {
 	return schemaSnapshotPreloader{
+		SnapshotSchemaEmbeddingJob: func(opts ...psql.PreloadOption) psql.Preloader {
+			return psql.Preload[*SchemaEmbeddingJob, SchemaEmbeddingJobSlice](psql.PreloadRel{
+				Name: "SnapshotSchemaEmbeddingJob",
+				Sides: []psql.PreloadSide{
+					{
+						From:        SchemaSnapshots,
+						To:          SchemaEmbeddingJobs,
+						FromColumns: []string{"id"},
+						ToColumns:   []string{"snapshot_id"},
+					},
+				},
+			}, SchemaEmbeddingJobs.Columns.Names(), opts...)
+		},
 		Connection: func(opts ...psql.PreloadOption) psql.Preloader {
 			return psql.Preload[*Connection, ConnectionSlice](psql.PreloadRel{
 				Name: "Connection",
@@ -704,17 +718,17 @@ func buildSchemaSnapshotPreloader() schemaSnapshotPreloader {
 }
 
 type schemaSnapshotThenLoader[Q orm.Loadable] struct {
-	SnapshotSchemaChunks        func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	SnapshotSchemaEmbeddingJobs func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	Connection                  func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	SnapshotSchemaChunks       func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	SnapshotSchemaEmbeddingJob func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	Connection                 func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 }
 
 func buildSchemaSnapshotThenLoader[Q orm.Loadable]() schemaSnapshotThenLoader[Q] {
 	type SnapshotSchemaChunksLoadInterface interface {
 		LoadSnapshotSchemaChunks(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
-	type SnapshotSchemaEmbeddingJobsLoadInterface interface {
-		LoadSnapshotSchemaEmbeddingJobs(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	type SnapshotSchemaEmbeddingJobLoadInterface interface {
+		LoadSnapshotSchemaEmbeddingJob(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 	type ConnectionLoadInterface interface {
 		LoadConnection(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
@@ -727,10 +741,10 @@ func buildSchemaSnapshotThenLoader[Q orm.Loadable]() schemaSnapshotThenLoader[Q]
 				return retrieved.LoadSnapshotSchemaChunks(ctx, exec, mods...)
 			},
 		),
-		SnapshotSchemaEmbeddingJobs: thenLoadBuilder[Q](
-			"SnapshotSchemaEmbeddingJobs",
-			func(ctx context.Context, exec bob.Executor, retrieved SnapshotSchemaEmbeddingJobsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
-				return retrieved.LoadSnapshotSchemaEmbeddingJobs(ctx, exec, mods...)
+		SnapshotSchemaEmbeddingJob: thenLoadBuilder[Q](
+			"SnapshotSchemaEmbeddingJob",
+			func(ctx context.Context, exec bob.Executor, retrieved SnapshotSchemaEmbeddingJobLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadSnapshotSchemaEmbeddingJob(ctx, exec, mods...)
 			},
 		),
 		Connection: thenLoadBuilder[Q](
@@ -797,41 +811,33 @@ func (os SchemaSnapshotSlice) LoadSnapshotSchemaChunks(ctx context.Context, exec
 	return nil
 }
 
-// LoadSnapshotSchemaEmbeddingJobs loads the schemaSnapshot's SnapshotSchemaEmbeddingJobs into the .R struct
-func (o *SchemaSnapshot) LoadSnapshotSchemaEmbeddingJobs(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+// LoadSnapshotSchemaEmbeddingJob loads the schemaSnapshot's SnapshotSchemaEmbeddingJob into the .R struct
+func (o *SchemaSnapshot) LoadSnapshotSchemaEmbeddingJob(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
 	if o == nil {
 		return nil
 	}
 
 	// Reset the relationship
-	o.R.SnapshotSchemaEmbeddingJobs = nil
+	o.R.SnapshotSchemaEmbeddingJob = nil
 
-	related, err := o.SnapshotSchemaEmbeddingJobs(mods...).All(ctx, exec)
+	related, err := o.SnapshotSchemaEmbeddingJob(mods...).One(ctx, exec)
 	if err != nil {
 		return err
 	}
 
-	o.R.SnapshotSchemaEmbeddingJobs = related
+	o.R.SnapshotSchemaEmbeddingJob = related
 	return nil
 }
 
-// LoadSnapshotSchemaEmbeddingJobs loads the schemaSnapshot's SnapshotSchemaEmbeddingJobs into the .R struct
-func (os SchemaSnapshotSlice) LoadSnapshotSchemaEmbeddingJobs(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+// LoadSnapshotSchemaEmbeddingJob loads the schemaSnapshot's SnapshotSchemaEmbeddingJob into the .R struct
+func (os SchemaSnapshotSlice) LoadSnapshotSchemaEmbeddingJob(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
 	if len(os) == 0 {
 		return nil
 	}
 
-	schemaEmbeddingJobs, err := os.SnapshotSchemaEmbeddingJobs(mods...).All(ctx, exec)
+	schemaEmbeddingJobs, err := os.SnapshotSchemaEmbeddingJob(mods...).All(ctx, exec)
 	if err != nil {
 		return err
-	}
-
-	for _, o := range os {
-		if o == nil {
-			continue
-		}
-
-		o.R.SnapshotSchemaEmbeddingJobs = nil
 	}
 
 	for _, o := range os {
@@ -845,7 +851,8 @@ func (os SchemaSnapshotSlice) LoadSnapshotSchemaEmbeddingJobs(ctx context.Contex
 				continue
 			}
 
-			o.R.SnapshotSchemaEmbeddingJobs = append(o.R.SnapshotSchemaEmbeddingJobs, rel)
+			o.R.SnapshotSchemaEmbeddingJob = rel
+			break
 		}
 	}
 
@@ -901,10 +908,10 @@ func (os SchemaSnapshotSlice) LoadConnection(ctx context.Context, exec bob.Execu
 }
 
 type schemaSnapshotJoins[Q dialect.Joinable] struct {
-	typ                         string
-	SnapshotSchemaChunks        modAs[Q, schemaChunkColumns]
-	SnapshotSchemaEmbeddingJobs modAs[Q, schemaEmbeddingJobColumns]
-	Connection                  modAs[Q, connectionColumns]
+	typ                        string
+	SnapshotSchemaChunks       modAs[Q, schemaChunkColumns]
+	SnapshotSchemaEmbeddingJob modAs[Q, schemaEmbeddingJobColumns]
+	Connection                 modAs[Q, connectionColumns]
 }
 
 func (j schemaSnapshotJoins[Q]) aliasedAs(alias string) schemaSnapshotJoins[Q] {
@@ -928,7 +935,7 @@ func buildSchemaSnapshotJoins[Q dialect.Joinable](cols schemaSnapshotColumns, ty
 				return mods
 			},
 		},
-		SnapshotSchemaEmbeddingJobs: modAs[Q, schemaEmbeddingJobColumns]{
+		SnapshotSchemaEmbeddingJob: modAs[Q, schemaEmbeddingJobColumns]{
 			c: SchemaEmbeddingJobs.Columns,
 			f: func(to schemaEmbeddingJobColumns) bob.Mod[Q] {
 				mods := make(mods.QueryMods[Q], 0, 1)

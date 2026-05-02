@@ -50,18 +50,17 @@ type SchemaSnapshotTemplate struct {
 }
 
 type schemaSnapshotR struct {
-	SnapshotSchemaChunks        []*schemaSnapshotRSnapshotSchemaChunksR
-	SnapshotSchemaEmbeddingJobs []*schemaSnapshotRSnapshotSchemaEmbeddingJobsR
-	Connection                  *schemaSnapshotRConnectionR
+	SnapshotSchemaChunks       []*schemaSnapshotRSnapshotSchemaChunksR
+	SnapshotSchemaEmbeddingJob *schemaSnapshotRSnapshotSchemaEmbeddingJobR
+	Connection                 *schemaSnapshotRConnectionR
 }
 
 type schemaSnapshotRSnapshotSchemaChunksR struct {
 	number int
 	o      *SchemaChunkTemplate
 }
-type schemaSnapshotRSnapshotSchemaEmbeddingJobsR struct {
-	number int
-	o      *SchemaEmbeddingJobTemplate
+type schemaSnapshotRSnapshotSchemaEmbeddingJobR struct {
+	o *SchemaEmbeddingJobTemplate
 }
 type schemaSnapshotRConnectionR struct {
 	o *ConnectionTemplate
@@ -89,16 +88,10 @@ func (t SchemaSnapshotTemplate) setModelRels(o *models.SchemaSnapshot) {
 		o.R.SnapshotSchemaChunks = rel
 	}
 
-	if t.r.SnapshotSchemaEmbeddingJobs != nil {
-		rel := models.SchemaEmbeddingJobSlice{}
-		for _, r := range t.r.SnapshotSchemaEmbeddingJobs {
-			related := r.o.BuildMany(r.number)
-			for _, rel := range related {
-				rel.SnapshotID = o.ID // h2
-			}
-			rel = append(rel, related...)
-		}
-		o.R.SnapshotSchemaEmbeddingJobs = rel
+	if t.r.SnapshotSchemaEmbeddingJob != nil {
+		rel := t.r.SnapshotSchemaEmbeddingJob.o.Build()
+		rel.SnapshotID = o.ID // h2
+		o.R.SnapshotSchemaEmbeddingJob = rel
 	}
 
 	if t.r.Connection != nil {
@@ -512,9 +505,44 @@ func (m schemaSnapshotMods) WithParentsCascading() SchemaSnapshotMod {
 		ctx = schemaSnapshotWithParentsCascadingCtx.WithValue(ctx, true)
 		{
 
+			related := o.f.NewSchemaEmbeddingJobWithContext(ctx, SchemaEmbeddingJobMods.WithParentsCascading())
+			m.WithSnapshotSchemaEmbeddingJob(related).Apply(ctx, o)
+		}
+		{
+
 			related := o.f.NewConnectionWithContext(ctx, ConnectionMods.WithParentsCascading())
 			m.WithConnection(related).Apply(ctx, o)
 		}
+	})
+}
+
+func (m schemaSnapshotMods) WithSnapshotSchemaEmbeddingJob(rel *SchemaEmbeddingJobTemplate) SchemaSnapshotMod {
+	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
+		o.r.SnapshotSchemaEmbeddingJob = &schemaSnapshotRSnapshotSchemaEmbeddingJobR{
+			o: rel,
+		}
+	})
+}
+
+func (m schemaSnapshotMods) WithNewSnapshotSchemaEmbeddingJob(mods ...SchemaEmbeddingJobMod) SchemaSnapshotMod {
+	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
+		related := o.f.NewSchemaEmbeddingJobWithContext(ctx, mods...)
+
+		m.WithSnapshotSchemaEmbeddingJob(related).Apply(ctx, o)
+	})
+}
+
+func (m schemaSnapshotMods) WithExistingSnapshotSchemaEmbeddingJob(em *models.SchemaEmbeddingJob) SchemaSnapshotMod {
+	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
+		o.r.SnapshotSchemaEmbeddingJob = &schemaSnapshotRSnapshotSchemaEmbeddingJobR{
+			o: o.f.FromExistingSchemaEmbeddingJob(em),
+		}
+	})
+}
+
+func (m schemaSnapshotMods) WithoutSnapshotSchemaEmbeddingJob() SchemaSnapshotMod {
+	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
+		o.r.SnapshotSchemaEmbeddingJob = nil
 	})
 }
 
@@ -593,53 +621,5 @@ func (m schemaSnapshotMods) AddExistingSnapshotSchemaChunks(existingModels ...*m
 func (m schemaSnapshotMods) WithoutSnapshotSchemaChunks() SchemaSnapshotMod {
 	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
 		o.r.SnapshotSchemaChunks = nil
-	})
-}
-
-func (m schemaSnapshotMods) WithSnapshotSchemaEmbeddingJobs(number int, related *SchemaEmbeddingJobTemplate) SchemaSnapshotMod {
-	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
-		o.r.SnapshotSchemaEmbeddingJobs = []*schemaSnapshotRSnapshotSchemaEmbeddingJobsR{{
-			number: number,
-			o:      related,
-		}}
-	})
-}
-
-func (m schemaSnapshotMods) WithNewSnapshotSchemaEmbeddingJobs(number int, mods ...SchemaEmbeddingJobMod) SchemaSnapshotMod {
-	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
-		related := o.f.NewSchemaEmbeddingJobWithContext(ctx, mods...)
-		m.WithSnapshotSchemaEmbeddingJobs(number, related).Apply(ctx, o)
-	})
-}
-
-func (m schemaSnapshotMods) AddSnapshotSchemaEmbeddingJobs(number int, related *SchemaEmbeddingJobTemplate) SchemaSnapshotMod {
-	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
-		o.r.SnapshotSchemaEmbeddingJobs = append(o.r.SnapshotSchemaEmbeddingJobs, &schemaSnapshotRSnapshotSchemaEmbeddingJobsR{
-			number: number,
-			o:      related,
-		})
-	})
-}
-
-func (m schemaSnapshotMods) AddNewSnapshotSchemaEmbeddingJobs(number int, mods ...SchemaEmbeddingJobMod) SchemaSnapshotMod {
-	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
-		related := o.f.NewSchemaEmbeddingJobWithContext(ctx, mods...)
-		m.AddSnapshotSchemaEmbeddingJobs(number, related).Apply(ctx, o)
-	})
-}
-
-func (m schemaSnapshotMods) AddExistingSnapshotSchemaEmbeddingJobs(existingModels ...*models.SchemaEmbeddingJob) SchemaSnapshotMod {
-	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
-		for _, em := range existingModels {
-			o.r.SnapshotSchemaEmbeddingJobs = append(o.r.SnapshotSchemaEmbeddingJobs, &schemaSnapshotRSnapshotSchemaEmbeddingJobsR{
-				o: o.f.FromExistingSchemaEmbeddingJob(em),
-			})
-		}
-	})
-}
-
-func (m schemaSnapshotMods) WithoutSnapshotSchemaEmbeddingJobs() SchemaSnapshotMod {
-	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
-		o.r.SnapshotSchemaEmbeddingJobs = nil
 	})
 }
