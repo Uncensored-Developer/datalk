@@ -8,6 +8,7 @@ import (
 	"text/template"
 
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/schemas/internal/schemas/introspector"
+	"github.com/Uncensored-Developer/datalk/apps/backend/services/schemas/internal/schemas/utils"
 	"github.com/mdobak/go-xerrors"
 )
 
@@ -62,12 +63,12 @@ func RenderCatalog(catalog *introspector.Catalog) (string, error) {
 	}
 
 	objects := make([]string, 0, len(catalog.Namespaces))
-	for _, namespace := range sortedNamespaces(catalog.Namespaces) {
-		for _, table := range sortedTables(namespace.Tables) {
-			objects = append(objects, RenderTable(catalog.Kind, namespace.Name, table))
+	for _, namespace := range utils.SortedNamespaces(catalog.Namespaces) {
+		for _, table := range utils.SortedTables(namespace.Tables) {
+			objects = append(objects, RenderTable(catalog.Kind, namespace.Name, &table))
 		}
-		for _, view := range sortedViews(namespace.Views) {
-			objects = append(objects, RenderView(catalog.Kind, namespace.Name, view))
+		for _, view := range utils.SortedViews(namespace.Views) {
+			objects = append(objects, RenderView(catalog.Kind, namespace.Name, &view))
 		}
 	}
 
@@ -79,17 +80,17 @@ func RenderCatalog(catalog *introspector.Catalog) (string, error) {
 
 func RenderNamespace(namespace introspector.Namespace, kind introspector.DBKind) string {
 	objects := make([]string, 0, len(namespace.Tables)+len(namespace.Views))
-	for _, table := range sortedTables(namespace.Tables) {
-		objects = append(objects, RenderTable(kind, namespace.Name, table))
+	for _, table := range utils.SortedTables(namespace.Tables) {
+		objects = append(objects, RenderTable(kind, namespace.Name, &table))
 	}
-	for _, view := range sortedViews(namespace.Views) {
-		objects = append(objects, RenderView(kind, namespace.Name, view))
+	for _, view := range utils.SortedViews(namespace.Views) {
+		objects = append(objects, RenderView(kind, namespace.Name, &view))
 	}
 
 	return strings.Join(objects, "\n\n")
 }
 
-func RenderTable(kind introspector.DBKind, namespace string, table introspector.Table) string {
+func RenderTable(kind introspector.DBKind, namespace string, table *introspector.Table) string {
 	rendered, err := executeTemplate(objectTemplate, buildObjectTemplateData(
 		kind,
 		namespace,
@@ -108,7 +109,7 @@ func RenderTable(kind introspector.DBKind, namespace string, table introspector.
 	return rendered
 }
 
-func RenderView(kind introspector.DBKind, namespace string, view introspector.View) string {
+func RenderView(kind introspector.DBKind, namespace string, view *introspector.View) string {
 	rendered, err := executeTemplate(objectTemplate, buildObjectTemplateData(
 		kind,
 		namespace,
@@ -243,30 +244,6 @@ func qualifiedName(namespace, objectName string) string {
 		return objectName
 	}
 	return namespace + "." + objectName
-}
-
-func sortedNamespaces(namespaces []introspector.Namespace) []introspector.Namespace {
-	out := append([]introspector.Namespace(nil), namespaces...)
-	sort.Slice(out, func(i, j int) bool {
-		return out[i].Name < out[j].Name
-	})
-	return out
-}
-
-func sortedTables(tables []introspector.Table) []introspector.Table {
-	out := append([]introspector.Table(nil), tables...)
-	sort.Slice(out, func(i, j int) bool {
-		return out[i].Name < out[j].Name
-	})
-	return out
-}
-
-func sortedViews(views []introspector.View) []introspector.View {
-	out := append([]introspector.View(nil), views...)
-	sort.Slice(out, func(i, j int) bool {
-		return out[i].Name < out[j].Name
-	})
-	return out
 }
 
 func sortedColumns(columns []introspector.Column) []introspector.Column {

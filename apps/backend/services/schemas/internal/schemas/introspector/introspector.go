@@ -51,6 +51,10 @@ type Namespace struct {
 	Extras map[string]any `json:"extras"`
 }
 
+func (n Namespace) GetName() string {
+	return n.Name
+}
+
 type Table struct {
 	Name        string       `json:"name"`
 	Columns     []Column     `json:"columns"`
@@ -58,6 +62,10 @@ type Table struct {
 	ForeignKeys []ForeignKey `json:"foreign_keys,omitempty"`
 	Indexes     []Index      `json:"indexes,omitempty"`
 	Comment     string       `json:"comment,omitempty"`
+}
+
+func (t Table) GetName() string {
+	return t.Name
 }
 
 type View struct {
@@ -68,12 +76,20 @@ type View struct {
 	Extras     map[string]any `json:"extras,omitempty"`
 }
 
+func (v View) GetName() string {
+	return v.Name
+}
+
 type Column struct {
 	Name     string `json:"name"`
 	DataType string `json:"data_type"`
 	Nullable bool   `json:"nullable"`
 	Position int    `json:"position"`
 	Comment  string `json:"comment,omitempty"`
+}
+
+func (c Column) GetName() string {
+	return c.Name
 }
 
 type ForeignKey struct {
