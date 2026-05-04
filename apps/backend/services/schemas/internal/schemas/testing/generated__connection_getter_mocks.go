@@ -15,9 +15,9 @@ type ConnectionGetter struct {
 	mock.Mock
 }
 
-// GetConnection provides a mock function with given fields: ctx, connectionID
-func (_m *ConnectionGetter) GetConnection(ctx context.Context, connectionID int32) (connections.Connection, error) {
-	ret := _m.Called(ctx, connectionID)
+// GetConnection provides a mock function with given fields: ctx, ID
+func (_m *ConnectionGetter) GetConnection(ctx context.Context, ID int32) (connections.Connection, error) {
+	ret := _m.Called(ctx, ID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetConnection")
@@ -26,16 +26,16 @@ func (_m *ConnectionGetter) GetConnection(ctx context.Context, connectionID int3
 	var r0 connections.Connection
 	var r1 error
 	if rf, ok := ret.Get(0).(func(context.Context, int32) (connections.Connection, error)); ok {
-		return rf(ctx, connectionID)
+		return rf(ctx, ID)
 	}
 	if rf, ok := ret.Get(0).(func(context.Context, int32) connections.Connection); ok {
-		r0 = rf(ctx, connectionID)
+		r0 = rf(ctx, ID)
 	} else {
 		r0 = ret.Get(0).(connections.Connection)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
-		r1 = rf(ctx, connectionID)
+		r1 = rf(ctx, ID)
 	} else {
 		r1 = ret.Error(1)
 	}
