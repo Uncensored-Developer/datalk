@@ -14,6 +14,8 @@ import (
 	"github.com/Uncensored-Developer/datalk/apps/backend/config"
 	"github.com/Uncensored-Developer/datalk/apps/backend/db/common"
 	"github.com/Uncensored-Developer/datalk/apps/backend/pkg/logger"
+	"github.com/Uncensored-Developer/datalk/apps/backend/pkg/pubsub"
+	pubsubpostgres "github.com/Uncensored-Developer/datalk/apps/backend/pkg/pubsub/postgres"
 	"github.com/alecthomas/kingpin/v2"
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/labstack/echo/v4"
@@ -30,7 +32,7 @@ func main() {
 	log := logger.SetupLogger(cfg)
 	slog.SetDefault(log)
 
-	ctx, _, err := setupDB(ctx, cfg, log)
+	ctx, conn, err := setupDB(ctx, cfg, log)
 	if err != nil {
 		logger.Fatal("failed to connect to DB", logger.Err(err))
 	}
@@ -42,6 +44,21 @@ func main() {
 		AllowOrigins: []string{"*"},
 		AllowMethods: []string{"*"},
 	}))
+
+	// locker := distlockpostgres.NewDistributedLocker(conn)
+	pubsubBus := pubsubpostgres.NewBus(conn, pubsubConnInfo(cfg))
+	defer pubsubBus.Close()
+	pubsub.RegisterPublisher(pubsubBus)
+
+	//connectionsService := connections.New(cfg, conn)
+	//
+	//embeddingSubscription, err := schemasService.SubscribeSnapshotEmbedding(ctx, pubsubBus)
+	//if err != nil {
+	//	logger.Fatal("failed to subscribe snapshot embedding handler", logger.Err(err))
+	//}
+	//if embeddingSubscription != nil {
+	//	defer embeddingSubscription.Close(context.Background())
+	//}
 
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
 	defer stop()
@@ -69,4 +86,17 @@ func setupDB(ctx context.Context, cfg config.Config, log *slog.Logger) (context.
 		logger.Fatal("failed to connect to DB", logger.Err(err))
 	}
 	return ctx, conn, nil
+}
+
+func pubsubConnInfo(cfg config.Config) string {
+	return fmt.Sprintf(
+		"user=%s password=%s host=%s port=%d dbname=%s sslmode=%s search_path=%s",
+		cfg.DBUser,
+		cfg.DBPassword,
+		cfg.DBHost,
+		cfg.DBPort,
+		cfg.DBName,
+		cfg.DBSSLMode,
+		cfg.DBSchema,
+	)
 }

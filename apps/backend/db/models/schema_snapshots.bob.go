@@ -49,9 +49,10 @@ type SchemaSnapshotsQuery = *psql.ViewQuery[*SchemaSnapshot, SchemaSnapshotSlice
 
 // schemaSnapshotR is where relationships are stored.
 type schemaSnapshotR struct {
-	SnapshotSchemaChunks       SchemaChunkSlice    // schema_chunks.schema_chunks_snapshot_id_fkey
-	SnapshotSchemaEmbeddingJob *SchemaEmbeddingJob // schema_embedding_jobs.schema_embedding_jobs_snapshot_id_fkey
-	Connection                 *Connection         // schema_snapshots.schema_snapshots_connection_id_fkey
+	SnapshotChatMessageRetrievals ChatMessageRetrievalSlice // chat_message_retrievals.chat_message_retrievals_snapshot_id_fkey
+	SnapshotSchemaChunks          SchemaChunkSlice          // schema_chunks.schema_chunks_snapshot_id_fkey
+	SnapshotSchemaEmbeddingJob    *SchemaEmbeddingJob       // schema_embedding_jobs.schema_embedding_jobs_snapshot_id_fkey
+	Connection                    *Connection               // schema_snapshots.schema_snapshots_connection_id_fkey
 }
 
 func buildSchemaSnapshotColumns(alias string) schemaSnapshotColumns {
@@ -444,6 +445,30 @@ func (o SchemaSnapshotSlice) ReloadAll(ctx context.Context, exec bob.Executor) e
 	return nil
 }
 
+// SnapshotChatMessageRetrievals starts a query for related objects on chat_message_retrievals
+func (o *SchemaSnapshot) SnapshotChatMessageRetrievals(mods ...bob.Mod[*dialect.SelectQuery]) ChatMessageRetrievalsQuery {
+	return ChatMessageRetrievals.Query(append(mods,
+		sm.Where(ChatMessageRetrievals.Columns.SnapshotID.EQ(psql.Arg(o.ID))),
+	)...)
+}
+
+func (os SchemaSnapshotSlice) SnapshotChatMessageRetrievals(mods ...bob.Mod[*dialect.SelectQuery]) ChatMessageRetrievalsQuery {
+	pkID := make(pgtypes.Array[int32], 0, len(os))
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+		pkID = append(pkID, o.ID)
+	}
+	PKArgExpr := psql.Select(sm.Columns(
+		psql.F("unnest", psql.Cast(psql.Arg(pkID), "integer[]")),
+	))
+
+	return ChatMessageRetrievals.Query(append(mods,
+		sm.Where(psql.Group(ChatMessageRetrievals.Columns.SnapshotID).OP("IN", PKArgExpr)),
+	)...)
+}
+
 // SnapshotSchemaChunks starts a query for related objects on schema_chunks
 func (o *SchemaSnapshot) SnapshotSchemaChunks(mods ...bob.Mod[*dialect.SelectQuery]) SchemaChunksQuery {
 	return SchemaChunks.Query(append(mods,
@@ -514,6 +539,67 @@ func (os SchemaSnapshotSlice) Connection(mods ...bob.Mod[*dialect.SelectQuery]) 
 	return Connections.Query(append(mods,
 		sm.Where(psql.Group(Connections.Columns.ID).OP("IN", PKArgExpr)),
 	)...)
+}
+
+func insertSchemaSnapshotSnapshotChatMessageRetrievals0(ctx context.Context, exec bob.Executor, chatMessageRetrievals1 []*ChatMessageRetrievalSetter, schemaSnapshot0 *SchemaSnapshot) (ChatMessageRetrievalSlice, error) {
+	for i := range chatMessageRetrievals1 {
+		chatMessageRetrievals1[i].SnapshotID = omit.From(schemaSnapshot0.ID)
+	}
+
+	ret, err := ChatMessageRetrievals.Insert(bob.ToMods(chatMessageRetrievals1...)).All(ctx, exec)
+	if err != nil {
+		return ret, fmt.Errorf("insertSchemaSnapshotSnapshotChatMessageRetrievals0: %w", err)
+	}
+
+	return ret, nil
+}
+
+func attachSchemaSnapshotSnapshotChatMessageRetrievals0(ctx context.Context, exec bob.Executor, count int, chatMessageRetrievals1 ChatMessageRetrievalSlice, schemaSnapshot0 *SchemaSnapshot) (ChatMessageRetrievalSlice, error) {
+	setter := &ChatMessageRetrievalSetter{
+		SnapshotID: omit.From(schemaSnapshot0.ID),
+	}
+
+	err := chatMessageRetrievals1.UpdateAll(ctx, exec, *setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachSchemaSnapshotSnapshotChatMessageRetrievals0: %w", err)
+	}
+
+	return chatMessageRetrievals1, nil
+}
+
+func (schemaSnapshot0 *SchemaSnapshot) InsertSnapshotChatMessageRetrievals(ctx context.Context, exec bob.Executor, related ...*ChatMessageRetrievalSetter) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+
+	chatMessageRetrievals1, err := insertSchemaSnapshotSnapshotChatMessageRetrievals0(ctx, exec, related, schemaSnapshot0)
+	if err != nil {
+		return err
+	}
+
+	schemaSnapshot0.R.SnapshotChatMessageRetrievals = append(schemaSnapshot0.R.SnapshotChatMessageRetrievals, chatMessageRetrievals1...)
+
+	return nil
+}
+
+func (schemaSnapshot0 *SchemaSnapshot) AttachSnapshotChatMessageRetrievals(ctx context.Context, exec bob.Executor, related ...*ChatMessageRetrieval) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+	chatMessageRetrievals1 := ChatMessageRetrievalSlice(related)
+
+	_, err = attachSchemaSnapshotSnapshotChatMessageRetrievals0(ctx, exec, len(related), chatMessageRetrievals1, schemaSnapshot0)
+	if err != nil {
+		return err
+	}
+
+	schemaSnapshot0.R.SnapshotChatMessageRetrievals = append(schemaSnapshot0.R.SnapshotChatMessageRetrievals, chatMessageRetrievals1...)
+
+	return nil
 }
 
 func insertSchemaSnapshotSnapshotSchemaChunks0(ctx context.Context, exec bob.Executor, schemaChunks1 []*SchemaChunkSetter, schemaSnapshot0 *SchemaSnapshot) (SchemaChunkSlice, error) {
@@ -649,6 +735,15 @@ func (o *SchemaSnapshot) Preload(name string, retrieved any) error {
 	}
 
 	switch name {
+	case "SnapshotChatMessageRetrievals":
+		rels, ok := retrieved.(ChatMessageRetrievalSlice)
+		if !ok {
+			return fmt.Errorf("schemaSnapshot cannot load %T as %q", retrieved, name)
+		}
+
+		o.R.SnapshotChatMessageRetrievals = rels
+
+		return nil
 	case "SnapshotSchemaChunks":
 		rels, ok := retrieved.(SchemaChunkSlice)
 		if !ok {
@@ -718,12 +813,16 @@ func buildSchemaSnapshotPreloader() schemaSnapshotPreloader {
 }
 
 type schemaSnapshotThenLoader[Q orm.Loadable] struct {
-	SnapshotSchemaChunks       func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	SnapshotSchemaEmbeddingJob func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	Connection                 func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	SnapshotChatMessageRetrievals func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	SnapshotSchemaChunks          func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	SnapshotSchemaEmbeddingJob    func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	Connection                    func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 }
 
 func buildSchemaSnapshotThenLoader[Q orm.Loadable]() schemaSnapshotThenLoader[Q] {
+	type SnapshotChatMessageRetrievalsLoadInterface interface {
+		LoadSnapshotChatMessageRetrievals(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	}
 	type SnapshotSchemaChunksLoadInterface interface {
 		LoadSnapshotSchemaChunks(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
@@ -735,6 +834,12 @@ func buildSchemaSnapshotThenLoader[Q orm.Loadable]() schemaSnapshotThenLoader[Q]
 	}
 
 	return schemaSnapshotThenLoader[Q]{
+		SnapshotChatMessageRetrievals: thenLoadBuilder[Q](
+			"SnapshotChatMessageRetrievals",
+			func(ctx context.Context, exec bob.Executor, retrieved SnapshotChatMessageRetrievalsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadSnapshotChatMessageRetrievals(ctx, exec, mods...)
+			},
+		),
 		SnapshotSchemaChunks: thenLoadBuilder[Q](
 			"SnapshotSchemaChunks",
 			func(ctx context.Context, exec bob.Executor, retrieved SnapshotSchemaChunksLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
@@ -754,6 +859,61 @@ func buildSchemaSnapshotThenLoader[Q orm.Loadable]() schemaSnapshotThenLoader[Q]
 			},
 		),
 	}
+}
+
+// LoadSnapshotChatMessageRetrievals loads the schemaSnapshot's SnapshotChatMessageRetrievals into the .R struct
+func (o *SchemaSnapshot) LoadSnapshotChatMessageRetrievals(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if o == nil {
+		return nil
+	}
+
+	// Reset the relationship
+	o.R.SnapshotChatMessageRetrievals = nil
+
+	related, err := o.SnapshotChatMessageRetrievals(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	o.R.SnapshotChatMessageRetrievals = related
+	return nil
+}
+
+// LoadSnapshotChatMessageRetrievals loads the schemaSnapshot's SnapshotChatMessageRetrievals into the .R struct
+func (os SchemaSnapshotSlice) LoadSnapshotChatMessageRetrievals(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if len(os) == 0 {
+		return nil
+	}
+
+	chatMessageRetrievals, err := os.SnapshotChatMessageRetrievals(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+
+		o.R.SnapshotChatMessageRetrievals = nil
+	}
+
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+
+		for _, rel := range chatMessageRetrievals {
+
+			if !(o.ID == rel.SnapshotID) {
+				continue
+			}
+
+			o.R.SnapshotChatMessageRetrievals = append(o.R.SnapshotChatMessageRetrievals, rel)
+		}
+	}
+
+	return nil
 }
 
 // LoadSnapshotSchemaChunks loads the schemaSnapshot's SnapshotSchemaChunks into the .R struct
@@ -908,10 +1068,11 @@ func (os SchemaSnapshotSlice) LoadConnection(ctx context.Context, exec bob.Execu
 }
 
 type schemaSnapshotJoins[Q dialect.Joinable] struct {
-	typ                        string
-	SnapshotSchemaChunks       modAs[Q, schemaChunkColumns]
-	SnapshotSchemaEmbeddingJob modAs[Q, schemaEmbeddingJobColumns]
-	Connection                 modAs[Q, connectionColumns]
+	typ                           string
+	SnapshotChatMessageRetrievals modAs[Q, chatMessageRetrievalColumns]
+	SnapshotSchemaChunks          modAs[Q, schemaChunkColumns]
+	SnapshotSchemaEmbeddingJob    modAs[Q, schemaEmbeddingJobColumns]
+	Connection                    modAs[Q, connectionColumns]
 }
 
 func (j schemaSnapshotJoins[Q]) aliasedAs(alias string) schemaSnapshotJoins[Q] {
@@ -921,6 +1082,20 @@ func (j schemaSnapshotJoins[Q]) aliasedAs(alias string) schemaSnapshotJoins[Q] {
 func buildSchemaSnapshotJoins[Q dialect.Joinable](cols schemaSnapshotColumns, typ string) schemaSnapshotJoins[Q] {
 	return schemaSnapshotJoins[Q]{
 		typ: typ,
+		SnapshotChatMessageRetrievals: modAs[Q, chatMessageRetrievalColumns]{
+			c: ChatMessageRetrievals.Columns,
+			f: func(to chatMessageRetrievalColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, ChatMessageRetrievals.Name().As(to.Alias())).On(
+						to.SnapshotID.EQ(cols.ID),
+					))
+				}
+
+				return mods
+			},
+		},
 		SnapshotSchemaChunks: modAs[Q, schemaChunkColumns]{
 			c: SchemaChunks.Columns,
 			f: func(to schemaChunkColumns) bob.Mod[Q] {

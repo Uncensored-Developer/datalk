@@ -32,12 +32,19 @@ func (j joinSet[Q]) AliasedAs(alias string) joinSet[Q] {
 }
 
 type joins[Q dialect.Joinable] struct {
-	ConnectionAccesses  joinSet[connectionAccessJoins[Q]]
-	Connections         joinSet[connectionJoins[Q]]
-	SchemaChunks        joinSet[schemaChunkJoins[Q]]
-	SchemaEmbeddingJobs joinSet[schemaEmbeddingJobJoins[Q]]
-	SchemaSnapshots     joinSet[schemaSnapshotJoins[Q]]
-	Users               joinSet[userJoins[Q]]
+	ChatConversations     joinSet[chatConversationJoins[Q]]
+	ChatMessageExecutions joinSet[chatMessageExecutionJoins[Q]]
+	ChatMessageLLMCalls   joinSet[chatMessageLLMCallJoins[Q]]
+	ChatMessageRetrievals joinSet[chatMessageRetrievalJoins[Q]]
+	ChatMessages          joinSet[chatMessageJoins[Q]]
+	ConnectionAccesses    joinSet[connectionAccessJoins[Q]]
+	Connections           joinSet[connectionJoins[Q]]
+	LLMProviderConfigs    joinSet[llmProviderConfigJoins[Q]]
+	LLMProviderModels     joinSet[llmProviderModelJoins[Q]]
+	SchemaChunks          joinSet[schemaChunkJoins[Q]]
+	SchemaEmbeddingJobs   joinSet[schemaEmbeddingJobJoins[Q]]
+	SchemaSnapshots       joinSet[schemaSnapshotJoins[Q]]
+	Users                 joinSet[userJoins[Q]]
 }
 
 func buildJoinSet[Q interface{ aliasedAs(string) Q }, C any, F func(C, string) Q](c C, f F) joinSet[Q] {
@@ -50,12 +57,19 @@ func buildJoinSet[Q interface{ aliasedAs(string) Q }, C any, F func(C, string) Q
 
 func getJoins[Q dialect.Joinable]() joins[Q] {
 	return joins[Q]{
-		ConnectionAccesses:  buildJoinSet[connectionAccessJoins[Q]](ConnectionAccesses.Columns, buildConnectionAccessJoins),
-		Connections:         buildJoinSet[connectionJoins[Q]](Connections.Columns, buildConnectionJoins),
-		SchemaChunks:        buildJoinSet[schemaChunkJoins[Q]](SchemaChunks.Columns, buildSchemaChunkJoins),
-		SchemaEmbeddingJobs: buildJoinSet[schemaEmbeddingJobJoins[Q]](SchemaEmbeddingJobs.Columns, buildSchemaEmbeddingJobJoins),
-		SchemaSnapshots:     buildJoinSet[schemaSnapshotJoins[Q]](SchemaSnapshots.Columns, buildSchemaSnapshotJoins),
-		Users:               buildJoinSet[userJoins[Q]](Users.Columns, buildUserJoins),
+		ChatConversations:     buildJoinSet[chatConversationJoins[Q]](ChatConversations.Columns, buildChatConversationJoins),
+		ChatMessageExecutions: buildJoinSet[chatMessageExecutionJoins[Q]](ChatMessageExecutions.Columns, buildChatMessageExecutionJoins),
+		ChatMessageLLMCalls:   buildJoinSet[chatMessageLLMCallJoins[Q]](ChatMessageLLMCalls.Columns, buildChatMessageLLMCallJoins),
+		ChatMessageRetrievals: buildJoinSet[chatMessageRetrievalJoins[Q]](ChatMessageRetrievals.Columns, buildChatMessageRetrievalJoins),
+		ChatMessages:          buildJoinSet[chatMessageJoins[Q]](ChatMessages.Columns, buildChatMessageJoins),
+		ConnectionAccesses:    buildJoinSet[connectionAccessJoins[Q]](ConnectionAccesses.Columns, buildConnectionAccessJoins),
+		Connections:           buildJoinSet[connectionJoins[Q]](Connections.Columns, buildConnectionJoins),
+		LLMProviderConfigs:    buildJoinSet[llmProviderConfigJoins[Q]](LLMProviderConfigs.Columns, buildLLMProviderConfigJoins),
+		LLMProviderModels:     buildJoinSet[llmProviderModelJoins[Q]](LLMProviderModels.Columns, buildLLMProviderModelJoins),
+		SchemaChunks:          buildJoinSet[schemaChunkJoins[Q]](SchemaChunks.Columns, buildSchemaChunkJoins),
+		SchemaEmbeddingJobs:   buildJoinSet[schemaEmbeddingJobJoins[Q]](SchemaEmbeddingJobs.Columns, buildSchemaEmbeddingJobJoins),
+		SchemaSnapshots:       buildJoinSet[schemaSnapshotJoins[Q]](SchemaSnapshots.Columns, buildSchemaSnapshotJoins),
+		Users:                 buildJoinSet[userJoins[Q]](Users.Columns, buildUserJoins),
 	}
 }
 

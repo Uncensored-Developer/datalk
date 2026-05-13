@@ -15,17 +15,227 @@ import (
 )
 
 type Factory struct {
-	baseConnectionAccessMods   ConnectionAccessModSlice
-	baseConnectionMods         ConnectionModSlice
-	baseOrganizationMods       OrganizationModSlice
-	baseSchemaChunkMods        SchemaChunkModSlice
-	baseSchemaEmbeddingJobMods SchemaEmbeddingJobModSlice
-	baseSchemaSnapshotMods     SchemaSnapshotModSlice
-	baseUserMods               UserModSlice
+	baseChatConversationMods     ChatConversationModSlice
+	baseChatMessageExecutionMods ChatMessageExecutionModSlice
+	baseChatMessageLLMCallMods   ChatMessageLLMCallModSlice
+	baseChatMessageRetrievalMods ChatMessageRetrievalModSlice
+	baseChatMessageMods          ChatMessageModSlice
+	baseConnectionAccessMods     ConnectionAccessModSlice
+	baseConnectionMods           ConnectionModSlice
+	baseLLMProviderConfigMods    LLMProviderConfigModSlice
+	baseLLMProviderModelMods     LLMProviderModelModSlice
+	baseOrganizationMods         OrganizationModSlice
+	baseSchemaChunkMods          SchemaChunkModSlice
+	baseSchemaEmbeddingJobMods   SchemaEmbeddingJobModSlice
+	baseSchemaSnapshotMods       SchemaSnapshotModSlice
+	baseUserMods                 UserModSlice
 }
 
 func New() *Factory {
 	return &Factory{}
+}
+
+func (f *Factory) NewChatConversation(mods ...ChatConversationMod) *ChatConversationTemplate {
+	return f.NewChatConversationWithContext(context.Background(), mods...)
+}
+
+func (f *Factory) NewChatConversationWithContext(ctx context.Context, mods ...ChatConversationMod) *ChatConversationTemplate {
+	o := &ChatConversationTemplate{f: f}
+
+	if f != nil {
+		f.baseChatConversationMods.Apply(ctx, o)
+	}
+
+	ChatConversationModSlice(mods).Apply(ctx, o)
+
+	return o
+}
+
+func (f *Factory) FromExistingChatConversation(m *models.ChatConversation) *ChatConversationTemplate {
+	o := &ChatConversationTemplate{f: f, alreadyPersisted: true}
+
+	o.ID = func() int64 { return m.ID }
+	o.UserID = func() int32 { return m.UserID }
+	o.ConnectionID = func() int32 { return m.ConnectionID }
+	o.Title = func() null.Val[string] { return m.Title }
+	o.CreatedAt = func() time.Time { return m.CreatedAt }
+	o.UpdatedAt = func() time.Time { return m.UpdatedAt }
+
+	ctx := context.Background()
+	if m.R.Connection != nil {
+		ChatConversationMods.WithExistingConnection(m.R.Connection).Apply(ctx, o)
+	}
+	if m.R.User != nil {
+		ChatConversationMods.WithExistingUser(m.R.User).Apply(ctx, o)
+	}
+	if len(m.R.ConversationChatMessages) > 0 {
+		ChatConversationMods.AddExistingConversationChatMessages(m.R.ConversationChatMessages...).Apply(ctx, o)
+	}
+
+	return o
+}
+
+func (f *Factory) NewChatMessageExecution(mods ...ChatMessageExecutionMod) *ChatMessageExecutionTemplate {
+	return f.NewChatMessageExecutionWithContext(context.Background(), mods...)
+}
+
+func (f *Factory) NewChatMessageExecutionWithContext(ctx context.Context, mods ...ChatMessageExecutionMod) *ChatMessageExecutionTemplate {
+	o := &ChatMessageExecutionTemplate{f: f}
+
+	if f != nil {
+		f.baseChatMessageExecutionMods.Apply(ctx, o)
+	}
+
+	ChatMessageExecutionModSlice(mods).Apply(ctx, o)
+
+	return o
+}
+
+func (f *Factory) FromExistingChatMessageExecution(m *models.ChatMessageExecution) *ChatMessageExecutionTemplate {
+	o := &ChatMessageExecutionTemplate{f: f, alreadyPersisted: true}
+
+	o.MessageID = func() int64 { return m.MessageID }
+	o.ConnectionID = func() int32 { return m.ConnectionID }
+	o.DatabaseKind = func() string { return m.DatabaseKind }
+	o.GeneratedSQL = func() string { return m.GeneratedSQL }
+	o.NormalizedSQL = func() string { return m.NormalizedSQL }
+	o.ResultJSON = func() types.JSON[json.RawMessage] { return m.ResultJSON }
+	o.ExecutionLatencyMS = func() int32 { return m.ExecutionLatencyMS }
+	o.ExecutedAt = func() time.Time { return m.ExecutedAt }
+
+	ctx := context.Background()
+	if m.R.Connection != nil {
+		ChatMessageExecutionMods.WithExistingConnection(m.R.Connection).Apply(ctx, o)
+	}
+	if m.R.MessageChatMessage != nil {
+		ChatMessageExecutionMods.WithExistingMessageChatMessage(m.R.MessageChatMessage).Apply(ctx, o)
+	}
+
+	return o
+}
+
+func (f *Factory) NewChatMessageLLMCall(mods ...ChatMessageLLMCallMod) *ChatMessageLLMCallTemplate {
+	return f.NewChatMessageLLMCallWithContext(context.Background(), mods...)
+}
+
+func (f *Factory) NewChatMessageLLMCallWithContext(ctx context.Context, mods ...ChatMessageLLMCallMod) *ChatMessageLLMCallTemplate {
+	o := &ChatMessageLLMCallTemplate{f: f}
+
+	if f != nil {
+		f.baseChatMessageLLMCallMods.Apply(ctx, o)
+	}
+
+	ChatMessageLLMCallModSlice(mods).Apply(ctx, o)
+
+	return o
+}
+
+func (f *Factory) FromExistingChatMessageLLMCall(m *models.ChatMessageLLMCall) *ChatMessageLLMCallTemplate {
+	o := &ChatMessageLLMCallTemplate{f: f, alreadyPersisted: true}
+
+	o.ID = func() int64 { return m.ID }
+	o.MessageID = func() int64 { return m.MessageID }
+	o.ProviderConfigID = func() int64 { return m.ProviderConfigID }
+	o.Provider = func() string { return m.Provider }
+	o.Model = func() string { return m.Model }
+	o.RequestJSON = func() types.JSON[json.RawMessage] { return m.RequestJSON }
+	o.ResponseJSON = func() types.JSON[json.RawMessage] { return m.ResponseJSON }
+	o.InputTokens = func() null.Val[int32] { return m.InputTokens }
+	o.OutputTokens = func() null.Val[int32] { return m.OutputTokens }
+	o.LatencyMS = func() int32 { return m.LatencyMS }
+	o.CreatedAt = func() time.Time { return m.CreatedAt }
+
+	ctx := context.Background()
+	if m.R.MessageChatMessage != nil {
+		ChatMessageLLMCallMods.WithExistingMessageChatMessage(m.R.MessageChatMessage).Apply(ctx, o)
+	}
+	if m.R.ProviderConfigLLMProviderConfig != nil {
+		ChatMessageLLMCallMods.WithExistingProviderConfigLLMProviderConfig(m.R.ProviderConfigLLMProviderConfig).Apply(ctx, o)
+	}
+
+	return o
+}
+
+func (f *Factory) NewChatMessageRetrieval(mods ...ChatMessageRetrievalMod) *ChatMessageRetrievalTemplate {
+	return f.NewChatMessageRetrievalWithContext(context.Background(), mods...)
+}
+
+func (f *Factory) NewChatMessageRetrievalWithContext(ctx context.Context, mods ...ChatMessageRetrievalMod) *ChatMessageRetrievalTemplate {
+	o := &ChatMessageRetrievalTemplate{f: f}
+
+	if f != nil {
+		f.baseChatMessageRetrievalMods.Apply(ctx, o)
+	}
+
+	ChatMessageRetrievalModSlice(mods).Apply(ctx, o)
+
+	return o
+}
+
+func (f *Factory) FromExistingChatMessageRetrieval(m *models.ChatMessageRetrieval) *ChatMessageRetrievalTemplate {
+	o := &ChatMessageRetrievalTemplate{f: f, alreadyPersisted: true}
+
+	o.MessageID = func() int64 { return m.MessageID }
+	o.SnapshotID = func() int32 { return m.SnapshotID }
+	o.QueryText = func() string { return m.QueryText }
+	o.Chunks = func() types.JSON[json.RawMessage] { return m.Chunks }
+	o.RetrievedAt = func() time.Time { return m.RetrievedAt }
+
+	ctx := context.Background()
+	if m.R.MessageChatMessage != nil {
+		ChatMessageRetrievalMods.WithExistingMessageChatMessage(m.R.MessageChatMessage).Apply(ctx, o)
+	}
+	if m.R.SnapshotSchemaSnapshot != nil {
+		ChatMessageRetrievalMods.WithExistingSnapshotSchemaSnapshot(m.R.SnapshotSchemaSnapshot).Apply(ctx, o)
+	}
+
+	return o
+}
+
+func (f *Factory) NewChatMessage(mods ...ChatMessageMod) *ChatMessageTemplate {
+	return f.NewChatMessageWithContext(context.Background(), mods...)
+}
+
+func (f *Factory) NewChatMessageWithContext(ctx context.Context, mods ...ChatMessageMod) *ChatMessageTemplate {
+	o := &ChatMessageTemplate{f: f}
+
+	if f != nil {
+		f.baseChatMessageMods.Apply(ctx, o)
+	}
+
+	ChatMessageModSlice(mods).Apply(ctx, o)
+
+	return o
+}
+
+func (f *Factory) FromExistingChatMessage(m *models.ChatMessage) *ChatMessageTemplate {
+	o := &ChatMessageTemplate{f: f, alreadyPersisted: true}
+
+	o.ID = func() int64 { return m.ID }
+	o.ConversationID = func() int64 { return m.ConversationID }
+	o.Role = func() string { return m.Role }
+	o.Content = func() string { return m.Content }
+	o.Provider = func() null.Val[string] { return m.Provider }
+	o.Model = func() null.Val[string] { return m.Model }
+	o.Status = func() string { return m.Status }
+	o.ErrorMessage = func() null.Val[string] { return m.ErrorMessage }
+	o.CreatedAt = func() time.Time { return m.CreatedAt }
+
+	ctx := context.Background()
+	if m.R.MessageChatMessageExecution != nil {
+		ChatMessageMods.WithExistingMessageChatMessageExecution(m.R.MessageChatMessageExecution).Apply(ctx, o)
+	}
+	if len(m.R.MessageChatMessageLLMCalls) > 0 {
+		ChatMessageMods.AddExistingMessageChatMessageLLMCalls(m.R.MessageChatMessageLLMCalls...).Apply(ctx, o)
+	}
+	if m.R.MessageChatMessageRetrieval != nil {
+		ChatMessageMods.WithExistingMessageChatMessageRetrieval(m.R.MessageChatMessageRetrieval).Apply(ctx, o)
+	}
+	if m.R.ConversationChatConversation != nil {
+		ChatMessageMods.WithExistingConversationChatConversation(m.R.ConversationChatConversation).Apply(ctx, o)
+	}
+
+	return o
 }
 
 func (f *Factory) NewConnectionAccess(mods ...ConnectionAccessMod) *ConnectionAccessTemplate {
@@ -94,6 +304,12 @@ func (f *Factory) FromExistingConnection(m *models.Connection) *ConnectionTempla
 	o.Metadata = func() types.JSON[json.RawMessage] { return m.Metadata }
 
 	ctx := context.Background()
+	if len(m.R.ChatConversations) > 0 {
+		ConnectionMods.AddExistingChatConversations(m.R.ChatConversations...).Apply(ctx, o)
+	}
+	if len(m.R.ChatMessageExecutions) > 0 {
+		ConnectionMods.AddExistingChatMessageExecutions(m.R.ChatMessageExecutions...).Apply(ctx, o)
+	}
 	if len(m.R.ConnectionAccesses) > 0 {
 		ConnectionMods.AddExistingConnectionAccesses(m.R.ConnectionAccesses...).Apply(ctx, o)
 	}
@@ -105,6 +321,82 @@ func (f *Factory) FromExistingConnection(m *models.Connection) *ConnectionTempla
 	}
 	if len(m.R.SchemaSnapshots) > 0 {
 		ConnectionMods.AddExistingSchemaSnapshots(m.R.SchemaSnapshots...).Apply(ctx, o)
+	}
+
+	return o
+}
+
+func (f *Factory) NewLLMProviderConfig(mods ...LLMProviderConfigMod) *LLMProviderConfigTemplate {
+	return f.NewLLMProviderConfigWithContext(context.Background(), mods...)
+}
+
+func (f *Factory) NewLLMProviderConfigWithContext(ctx context.Context, mods ...LLMProviderConfigMod) *LLMProviderConfigTemplate {
+	o := &LLMProviderConfigTemplate{f: f}
+
+	if f != nil {
+		f.baseLLMProviderConfigMods.Apply(ctx, o)
+	}
+
+	LLMProviderConfigModSlice(mods).Apply(ctx, o)
+
+	return o
+}
+
+func (f *Factory) FromExistingLLMProviderConfig(m *models.LLMProviderConfig) *LLMProviderConfigTemplate {
+	o := &LLMProviderConfigTemplate{f: f, alreadyPersisted: true}
+
+	o.ID = func() int64 { return m.ID }
+	o.Provider = func() string { return m.Provider }
+	o.DisplayName = func() string { return m.DisplayName }
+	o.APIKeyEnc = func() string { return m.APIKeyEnc }
+	o.BaseURL = func() null.Val[string] { return m.BaseURL }
+	o.IsEnabled = func() bool { return m.IsEnabled }
+	o.Metadata = func() types.JSON[json.RawMessage] { return m.Metadata }
+	o.CreatedAt = func() time.Time { return m.CreatedAt }
+	o.UpdatedAt = func() time.Time { return m.UpdatedAt }
+
+	ctx := context.Background()
+	if len(m.R.ProviderConfigChatMessageLLMCalls) > 0 {
+		LLMProviderConfigMods.AddExistingProviderConfigChatMessageLLMCalls(m.R.ProviderConfigChatMessageLLMCalls...).Apply(ctx, o)
+	}
+	if len(m.R.ProviderConfigLLMProviderModels) > 0 {
+		LLMProviderConfigMods.AddExistingProviderConfigLLMProviderModels(m.R.ProviderConfigLLMProviderModels...).Apply(ctx, o)
+	}
+
+	return o
+}
+
+func (f *Factory) NewLLMProviderModel(mods ...LLMProviderModelMod) *LLMProviderModelTemplate {
+	return f.NewLLMProviderModelWithContext(context.Background(), mods...)
+}
+
+func (f *Factory) NewLLMProviderModelWithContext(ctx context.Context, mods ...LLMProviderModelMod) *LLMProviderModelTemplate {
+	o := &LLMProviderModelTemplate{f: f}
+
+	if f != nil {
+		f.baseLLMProviderModelMods.Apply(ctx, o)
+	}
+
+	LLMProviderModelModSlice(mods).Apply(ctx, o)
+
+	return o
+}
+
+func (f *Factory) FromExistingLLMProviderModel(m *models.LLMProviderModel) *LLMProviderModelTemplate {
+	o := &LLMProviderModelTemplate{f: f, alreadyPersisted: true}
+
+	o.ID = func() int64 { return m.ID }
+	o.ProviderConfigID = func() int64 { return m.ProviderConfigID }
+	o.Model = func() string { return m.Model }
+	o.DisplayName = func() string { return m.DisplayName }
+	o.ContextWindow = func() null.Val[int32] { return m.ContextWindow }
+	o.SupportsSQL = func() bool { return m.SupportsSQL }
+	o.IsEnabled = func() bool { return m.IsEnabled }
+	o.DiscoveredAt = func() time.Time { return m.DiscoveredAt }
+
+	ctx := context.Background()
+	if m.R.ProviderConfigLLMProviderConfig != nil {
+		LLMProviderModelMods.WithExistingProviderConfigLLMProviderConfig(m.R.ProviderConfigLLMProviderConfig).Apply(ctx, o)
 	}
 
 	return o
@@ -238,6 +530,9 @@ func (f *Factory) FromExistingSchemaSnapshot(m *models.SchemaSnapshot) *SchemaSn
 	o.IntrospectedAt = func() time.Time { return m.IntrospectedAt }
 
 	ctx := context.Background()
+	if len(m.R.SnapshotChatMessageRetrievals) > 0 {
+		SchemaSnapshotMods.AddExistingSnapshotChatMessageRetrievals(m.R.SnapshotChatMessageRetrievals...).Apply(ctx, o)
+	}
 	if len(m.R.SnapshotSchemaChunks) > 0 {
 		SchemaSnapshotMods.AddExistingSnapshotSchemaChunks(m.R.SnapshotSchemaChunks...).Apply(ctx, o)
 	}
@@ -280,6 +575,9 @@ func (f *Factory) FromExistingUser(m *models.User) *UserTemplate {
 	o.CreatedAt = func() time.Time { return m.CreatedAt }
 
 	ctx := context.Background()
+	if len(m.R.ChatConversations) > 0 {
+		UserMods.AddExistingChatConversations(m.R.ChatConversations...).Apply(ctx, o)
+	}
 	if len(m.R.ConnectionAccesses) > 0 {
 		UserMods.AddExistingConnectionAccesses(m.R.ConnectionAccesses...).Apply(ctx, o)
 	}
@@ -288,6 +586,46 @@ func (f *Factory) FromExistingUser(m *models.User) *UserTemplate {
 	}
 
 	return o
+}
+
+func (f *Factory) ClearBaseChatConversationMods() {
+	f.baseChatConversationMods = nil
+}
+
+func (f *Factory) AddBaseChatConversationMod(mods ...ChatConversationMod) {
+	f.baseChatConversationMods = append(f.baseChatConversationMods, mods...)
+}
+
+func (f *Factory) ClearBaseChatMessageExecutionMods() {
+	f.baseChatMessageExecutionMods = nil
+}
+
+func (f *Factory) AddBaseChatMessageExecutionMod(mods ...ChatMessageExecutionMod) {
+	f.baseChatMessageExecutionMods = append(f.baseChatMessageExecutionMods, mods...)
+}
+
+func (f *Factory) ClearBaseChatMessageLLMCallMods() {
+	f.baseChatMessageLLMCallMods = nil
+}
+
+func (f *Factory) AddBaseChatMessageLLMCallMod(mods ...ChatMessageLLMCallMod) {
+	f.baseChatMessageLLMCallMods = append(f.baseChatMessageLLMCallMods, mods...)
+}
+
+func (f *Factory) ClearBaseChatMessageRetrievalMods() {
+	f.baseChatMessageRetrievalMods = nil
+}
+
+func (f *Factory) AddBaseChatMessageRetrievalMod(mods ...ChatMessageRetrievalMod) {
+	f.baseChatMessageRetrievalMods = append(f.baseChatMessageRetrievalMods, mods...)
+}
+
+func (f *Factory) ClearBaseChatMessageMods() {
+	f.baseChatMessageMods = nil
+}
+
+func (f *Factory) AddBaseChatMessageMod(mods ...ChatMessageMod) {
+	f.baseChatMessageMods = append(f.baseChatMessageMods, mods...)
 }
 
 func (f *Factory) ClearBaseConnectionAccessMods() {
@@ -304,6 +642,22 @@ func (f *Factory) ClearBaseConnectionMods() {
 
 func (f *Factory) AddBaseConnectionMod(mods ...ConnectionMod) {
 	f.baseConnectionMods = append(f.baseConnectionMods, mods...)
+}
+
+func (f *Factory) ClearBaseLLMProviderConfigMods() {
+	f.baseLLMProviderConfigMods = nil
+}
+
+func (f *Factory) AddBaseLLMProviderConfigMod(mods ...LLMProviderConfigMod) {
+	f.baseLLMProviderConfigMods = append(f.baseLLMProviderConfigMods, mods...)
+}
+
+func (f *Factory) ClearBaseLLMProviderModelMods() {
+	f.baseLLMProviderModelMods = nil
+}
+
+func (f *Factory) AddBaseLLMProviderModelMod(mods ...LLMProviderModelMod) {
+	f.baseLLMProviderModelMods = append(f.baseLLMProviderModelMods, mods...)
 }
 
 func (f *Factory) ClearBaseOrganizationMods() {

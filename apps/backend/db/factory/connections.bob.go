@@ -55,12 +55,22 @@ type ConnectionTemplate struct {
 }
 
 type connectionR struct {
-	ConnectionAccesses []*connectionRConnectionAccessesR
-	User               *connectionRUserR
-	SchemaChunks       []*connectionRSchemaChunksR
-	SchemaSnapshots    []*connectionRSchemaSnapshotsR
+	ChatConversations     []*connectionRChatConversationsR
+	ChatMessageExecutions []*connectionRChatMessageExecutionsR
+	ConnectionAccesses    []*connectionRConnectionAccessesR
+	User                  *connectionRUserR
+	SchemaChunks          []*connectionRSchemaChunksR
+	SchemaSnapshots       []*connectionRSchemaSnapshotsR
 }
 
+type connectionRChatConversationsR struct {
+	number int
+	o      *ChatConversationTemplate
+}
+type connectionRChatMessageExecutionsR struct {
+	number int
+	o      *ChatMessageExecutionTemplate
+}
 type connectionRConnectionAccessesR struct {
 	number int
 	o      *ConnectionAccessTemplate
@@ -87,6 +97,30 @@ func (o *ConnectionTemplate) Apply(ctx context.Context, mods ...ConnectionMod) {
 // setModelRels creates and sets the relationships on *models.Connection
 // according to the relationships in the template. Nothing is inserted into the db
 func (t ConnectionTemplate) setModelRels(o *models.Connection) {
+	if t.r.ChatConversations != nil {
+		rel := models.ChatConversationSlice{}
+		for _, r := range t.r.ChatConversations {
+			related := r.o.BuildMany(r.number)
+			for _, rel := range related {
+				rel.ConnectionID = o.ID // h2
+			}
+			rel = append(rel, related...)
+		}
+		o.R.ChatConversations = rel
+	}
+
+	if t.r.ChatMessageExecutions != nil {
+		rel := models.ChatMessageExecutionSlice{}
+		for _, r := range t.r.ChatMessageExecutions {
+			related := r.o.BuildMany(r.number)
+			for _, rel := range related {
+				rel.ConnectionID = o.ID // h2
+			}
+			rel = append(rel, related...)
+		}
+		o.R.ChatMessageExecutions = rel
+	}
+
 	if t.r.ConnectionAccesses != nil {
 		rel := models.ConnectionAccessSlice{}
 		for _, r := range t.r.ConnectionAccesses {
@@ -253,6 +287,46 @@ func ensureCreatableConnection(m *models.ConnectionSetter) {
 func (o *ConnectionTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *models.Connection) error {
 	var err error
 
+	isChatConversationsDone, _ := connectionRelChatConversationsCtx.Value(ctx)
+	if !isChatConversationsDone && o.r.ChatConversations != nil {
+		ctx = connectionRelChatConversationsCtx.WithValue(ctx, true)
+		for _, r := range o.r.ChatConversations {
+			if r.o.alreadyPersisted {
+				m.R.ChatConversations = append(m.R.ChatConversations, r.o.Build())
+			} else {
+				rel0, err := r.o.CreateMany(ctx, exec, r.number)
+				if err != nil {
+					return err
+				}
+
+				err = m.AttachChatConversations(ctx, exec, rel0...)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	isChatMessageExecutionsDone, _ := connectionRelChatMessageExecutionsCtx.Value(ctx)
+	if !isChatMessageExecutionsDone && o.r.ChatMessageExecutions != nil {
+		ctx = connectionRelChatMessageExecutionsCtx.WithValue(ctx, true)
+		for _, r := range o.r.ChatMessageExecutions {
+			if r.o.alreadyPersisted {
+				m.R.ChatMessageExecutions = append(m.R.ChatMessageExecutions, r.o.Build())
+			} else {
+				rel1, err := r.o.CreateMany(ctx, exec, r.number)
+				if err != nil {
+					return err
+				}
+
+				err = m.AttachChatMessageExecutions(ctx, exec, rel1...)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
 	isConnectionAccessesDone, _ := connectionRelConnectionAccessesCtx.Value(ctx)
 	if !isConnectionAccessesDone && o.r.ConnectionAccesses != nil {
 		ctx = connectionRelConnectionAccessesCtx.WithValue(ctx, true)
@@ -260,12 +334,12 @@ func (o *ConnectionTemplate) insertOptRels(ctx context.Context, exec bob.Executo
 			if r.o.alreadyPersisted {
 				m.R.ConnectionAccesses = append(m.R.ConnectionAccesses, r.o.Build())
 			} else {
-				rel0, err := r.o.CreateMany(ctx, exec, r.number)
+				rel2, err := r.o.CreateMany(ctx, exec, r.number)
 				if err != nil {
 					return err
 				}
 
-				err = m.AttachConnectionAccesses(ctx, exec, rel0...)
+				err = m.AttachConnectionAccesses(ctx, exec, rel2...)
 				if err != nil {
 					return err
 				}
@@ -280,12 +354,12 @@ func (o *ConnectionTemplate) insertOptRels(ctx context.Context, exec bob.Executo
 			if r.o.alreadyPersisted {
 				m.R.SchemaChunks = append(m.R.SchemaChunks, r.o.Build())
 			} else {
-				rel2, err := r.o.CreateMany(ctx, exec, r.number)
+				rel4, err := r.o.CreateMany(ctx, exec, r.number)
 				if err != nil {
 					return err
 				}
 
-				err = m.AttachSchemaChunks(ctx, exec, rel2...)
+				err = m.AttachSchemaChunks(ctx, exec, rel4...)
 				if err != nil {
 					return err
 				}
@@ -300,12 +374,12 @@ func (o *ConnectionTemplate) insertOptRels(ctx context.Context, exec bob.Executo
 			if r.o.alreadyPersisted {
 				m.R.SchemaSnapshots = append(m.R.SchemaSnapshots, r.o.Build())
 			} else {
-				rel3, err := r.o.CreateMany(ctx, exec, r.number)
+				rel5, err := r.o.CreateMany(ctx, exec, r.number)
 				if err != nil {
 					return err
 				}
 
-				err = m.AttachSchemaSnapshots(ctx, exec, rel3...)
+				err = m.AttachSchemaSnapshots(ctx, exec, rel5...)
 				if err != nil {
 					return err
 				}
@@ -327,25 +401,25 @@ func (o *ConnectionTemplate) Create(ctx context.Context, exec bob.Executor) (*mo
 		ConnectionMods.WithNewUser().Apply(ctx, o)
 	}
 
-	var rel1 *models.User
+	var rel3 *models.User
 
 	if o.r.User.o.alreadyPersisted {
-		rel1 = o.r.User.o.Build()
+		rel3 = o.r.User.o.Build()
 	} else {
-		rel1, err = o.r.User.o.Create(ctx, exec)
+		rel3, err = o.r.User.o.Create(ctx, exec)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	opt.UserID = omit.From(rel1.ID)
+	opt.UserID = omit.From(rel3.ID)
 
 	m, err := models.Connections.Insert(opt).One(ctx, exec)
 	if err != nil {
 		return nil, err
 	}
 
-	m.R.User = rel1
+	m.R.User = rel3
 
 	if err := o.insertOptRels(ctx, exec, m); err != nil {
 		return nil, err
@@ -746,6 +820,102 @@ func (m connectionMods) WithExistingUser(em *models.User) ConnectionMod {
 func (m connectionMods) WithoutUser() ConnectionMod {
 	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
 		o.r.User = nil
+	})
+}
+
+func (m connectionMods) WithChatConversations(number int, related *ChatConversationTemplate) ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		o.r.ChatConversations = []*connectionRChatConversationsR{{
+			number: number,
+			o:      related,
+		}}
+	})
+}
+
+func (m connectionMods) WithNewChatConversations(number int, mods ...ChatConversationMod) ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		related := o.f.NewChatConversationWithContext(ctx, mods...)
+		m.WithChatConversations(number, related).Apply(ctx, o)
+	})
+}
+
+func (m connectionMods) AddChatConversations(number int, related *ChatConversationTemplate) ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		o.r.ChatConversations = append(o.r.ChatConversations, &connectionRChatConversationsR{
+			number: number,
+			o:      related,
+		})
+	})
+}
+
+func (m connectionMods) AddNewChatConversations(number int, mods ...ChatConversationMod) ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		related := o.f.NewChatConversationWithContext(ctx, mods...)
+		m.AddChatConversations(number, related).Apply(ctx, o)
+	})
+}
+
+func (m connectionMods) AddExistingChatConversations(existingModels ...*models.ChatConversation) ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		for _, em := range existingModels {
+			o.r.ChatConversations = append(o.r.ChatConversations, &connectionRChatConversationsR{
+				o: o.f.FromExistingChatConversation(em),
+			})
+		}
+	})
+}
+
+func (m connectionMods) WithoutChatConversations() ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		o.r.ChatConversations = nil
+	})
+}
+
+func (m connectionMods) WithChatMessageExecutions(number int, related *ChatMessageExecutionTemplate) ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		o.r.ChatMessageExecutions = []*connectionRChatMessageExecutionsR{{
+			number: number,
+			o:      related,
+		}}
+	})
+}
+
+func (m connectionMods) WithNewChatMessageExecutions(number int, mods ...ChatMessageExecutionMod) ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		related := o.f.NewChatMessageExecutionWithContext(ctx, mods...)
+		m.WithChatMessageExecutions(number, related).Apply(ctx, o)
+	})
+}
+
+func (m connectionMods) AddChatMessageExecutions(number int, related *ChatMessageExecutionTemplate) ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		o.r.ChatMessageExecutions = append(o.r.ChatMessageExecutions, &connectionRChatMessageExecutionsR{
+			number: number,
+			o:      related,
+		})
+	})
+}
+
+func (m connectionMods) AddNewChatMessageExecutions(number int, mods ...ChatMessageExecutionMod) ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		related := o.f.NewChatMessageExecutionWithContext(ctx, mods...)
+		m.AddChatMessageExecutions(number, related).Apply(ctx, o)
+	})
+}
+
+func (m connectionMods) AddExistingChatMessageExecutions(existingModels ...*models.ChatMessageExecution) ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		for _, em := range existingModels {
+			o.r.ChatMessageExecutions = append(o.r.ChatMessageExecutions, &connectionRChatMessageExecutionsR{
+				o: o.f.FromExistingChatMessageExecution(em),
+			})
+		}
+	})
+}
+
+func (m connectionMods) WithoutChatMessageExecutions() ConnectionMod {
+	return ConnectionModFunc(func(ctx context.Context, o *ConnectionTemplate) {
+		o.r.ChatMessageExecutions = nil
 	})
 }
 

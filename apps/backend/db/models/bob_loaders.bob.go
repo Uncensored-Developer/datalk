@@ -17,22 +17,36 @@ import (
 var Preload = getPreloaders()
 
 type preloaders struct {
-	ConnectionAccess   connectionAccessPreloader
-	Connection         connectionPreloader
-	SchemaChunk        schemaChunkPreloader
-	SchemaEmbeddingJob schemaEmbeddingJobPreloader
-	SchemaSnapshot     schemaSnapshotPreloader
-	User               userPreloader
+	ChatConversation     chatConversationPreloader
+	ChatMessageExecution chatMessageExecutionPreloader
+	ChatMessageLLMCall   chatMessageLLMCallPreloader
+	ChatMessageRetrieval chatMessageRetrievalPreloader
+	ChatMessage          chatMessagePreloader
+	ConnectionAccess     connectionAccessPreloader
+	Connection           connectionPreloader
+	LLMProviderConfig    llmProviderConfigPreloader
+	LLMProviderModel     llmProviderModelPreloader
+	SchemaChunk          schemaChunkPreloader
+	SchemaEmbeddingJob   schemaEmbeddingJobPreloader
+	SchemaSnapshot       schemaSnapshotPreloader
+	User                 userPreloader
 }
 
 func getPreloaders() preloaders {
 	return preloaders{
-		ConnectionAccess:   buildConnectionAccessPreloader(),
-		Connection:         buildConnectionPreloader(),
-		SchemaChunk:        buildSchemaChunkPreloader(),
-		SchemaEmbeddingJob: buildSchemaEmbeddingJobPreloader(),
-		SchemaSnapshot:     buildSchemaSnapshotPreloader(),
-		User:               buildUserPreloader(),
+		ChatConversation:     buildChatConversationPreloader(),
+		ChatMessageExecution: buildChatMessageExecutionPreloader(),
+		ChatMessageLLMCall:   buildChatMessageLLMCallPreloader(),
+		ChatMessageRetrieval: buildChatMessageRetrievalPreloader(),
+		ChatMessage:          buildChatMessagePreloader(),
+		ConnectionAccess:     buildConnectionAccessPreloader(),
+		Connection:           buildConnectionPreloader(),
+		LLMProviderConfig:    buildLLMProviderConfigPreloader(),
+		LLMProviderModel:     buildLLMProviderModelPreloader(),
+		SchemaChunk:          buildSchemaChunkPreloader(),
+		SchemaEmbeddingJob:   buildSchemaEmbeddingJobPreloader(),
+		SchemaSnapshot:       buildSchemaSnapshotPreloader(),
+		User:                 buildUserPreloader(),
 	}
 }
 
@@ -43,22 +57,36 @@ var (
 )
 
 type thenLoaders[Q orm.Loadable] struct {
-	ConnectionAccess   connectionAccessThenLoader[Q]
-	Connection         connectionThenLoader[Q]
-	SchemaChunk        schemaChunkThenLoader[Q]
-	SchemaEmbeddingJob schemaEmbeddingJobThenLoader[Q]
-	SchemaSnapshot     schemaSnapshotThenLoader[Q]
-	User               userThenLoader[Q]
+	ChatConversation     chatConversationThenLoader[Q]
+	ChatMessageExecution chatMessageExecutionThenLoader[Q]
+	ChatMessageLLMCall   chatMessageLLMCallThenLoader[Q]
+	ChatMessageRetrieval chatMessageRetrievalThenLoader[Q]
+	ChatMessage          chatMessageThenLoader[Q]
+	ConnectionAccess     connectionAccessThenLoader[Q]
+	Connection           connectionThenLoader[Q]
+	LLMProviderConfig    llmProviderConfigThenLoader[Q]
+	LLMProviderModel     llmProviderModelThenLoader[Q]
+	SchemaChunk          schemaChunkThenLoader[Q]
+	SchemaEmbeddingJob   schemaEmbeddingJobThenLoader[Q]
+	SchemaSnapshot       schemaSnapshotThenLoader[Q]
+	User                 userThenLoader[Q]
 }
 
 func getThenLoaders[Q orm.Loadable]() thenLoaders[Q] {
 	return thenLoaders[Q]{
-		ConnectionAccess:   buildConnectionAccessThenLoader[Q](),
-		Connection:         buildConnectionThenLoader[Q](),
-		SchemaChunk:        buildSchemaChunkThenLoader[Q](),
-		SchemaEmbeddingJob: buildSchemaEmbeddingJobThenLoader[Q](),
-		SchemaSnapshot:     buildSchemaSnapshotThenLoader[Q](),
-		User:               buildUserThenLoader[Q](),
+		ChatConversation:     buildChatConversationThenLoader[Q](),
+		ChatMessageExecution: buildChatMessageExecutionThenLoader[Q](),
+		ChatMessageLLMCall:   buildChatMessageLLMCallThenLoader[Q](),
+		ChatMessageRetrieval: buildChatMessageRetrievalThenLoader[Q](),
+		ChatMessage:          buildChatMessageThenLoader[Q](),
+		ConnectionAccess:     buildConnectionAccessThenLoader[Q](),
+		Connection:           buildConnectionThenLoader[Q](),
+		LLMProviderConfig:    buildLLMProviderConfigThenLoader[Q](),
+		LLMProviderModel:     buildLLMProviderModelThenLoader[Q](),
+		SchemaChunk:          buildSchemaChunkThenLoader[Q](),
+		SchemaEmbeddingJob:   buildSchemaEmbeddingJobThenLoader[Q](),
+		SchemaSnapshot:       buildSchemaSnapshotThenLoader[Q](),
+		User:                 buildUserThenLoader[Q](),
 	}
 }
 

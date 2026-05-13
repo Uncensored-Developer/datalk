@@ -50,11 +50,16 @@ type SchemaSnapshotTemplate struct {
 }
 
 type schemaSnapshotR struct {
-	SnapshotSchemaChunks       []*schemaSnapshotRSnapshotSchemaChunksR
-	SnapshotSchemaEmbeddingJob *schemaSnapshotRSnapshotSchemaEmbeddingJobR
-	Connection                 *schemaSnapshotRConnectionR
+	SnapshotChatMessageRetrievals []*schemaSnapshotRSnapshotChatMessageRetrievalsR
+	SnapshotSchemaChunks          []*schemaSnapshotRSnapshotSchemaChunksR
+	SnapshotSchemaEmbeddingJob    *schemaSnapshotRSnapshotSchemaEmbeddingJobR
+	Connection                    *schemaSnapshotRConnectionR
 }
 
+type schemaSnapshotRSnapshotChatMessageRetrievalsR struct {
+	number int
+	o      *ChatMessageRetrievalTemplate
+}
 type schemaSnapshotRSnapshotSchemaChunksR struct {
 	number int
 	o      *SchemaChunkTemplate
@@ -76,6 +81,18 @@ func (o *SchemaSnapshotTemplate) Apply(ctx context.Context, mods ...SchemaSnapsh
 // setModelRels creates and sets the relationships on *models.SchemaSnapshot
 // according to the relationships in the template. Nothing is inserted into the db
 func (t SchemaSnapshotTemplate) setModelRels(o *models.SchemaSnapshot) {
+	if t.r.SnapshotChatMessageRetrievals != nil {
+		rel := models.ChatMessageRetrievalSlice{}
+		for _, r := range t.r.SnapshotChatMessageRetrievals {
+			related := r.o.BuildMany(r.number)
+			for _, rel := range related {
+				rel.SnapshotID = o.ID // h2
+			}
+			rel = append(rel, related...)
+		}
+		o.R.SnapshotChatMessageRetrievals = rel
+	}
+
 	if t.r.SnapshotSchemaChunks != nil {
 		rel := models.SchemaChunkSlice{}
 		for _, r := range t.r.SnapshotSchemaChunks {
@@ -203,6 +220,26 @@ func ensureCreatableSchemaSnapshot(m *models.SchemaSnapshotSetter) {
 func (o *SchemaSnapshotTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *models.SchemaSnapshot) error {
 	var err error
 
+	isSnapshotChatMessageRetrievalsDone, _ := schemaSnapshotRelSnapshotChatMessageRetrievalsCtx.Value(ctx)
+	if !isSnapshotChatMessageRetrievalsDone && o.r.SnapshotChatMessageRetrievals != nil {
+		ctx = schemaSnapshotRelSnapshotChatMessageRetrievalsCtx.WithValue(ctx, true)
+		for _, r := range o.r.SnapshotChatMessageRetrievals {
+			if r.o.alreadyPersisted {
+				m.R.SnapshotChatMessageRetrievals = append(m.R.SnapshotChatMessageRetrievals, r.o.Build())
+			} else {
+				rel0, err := r.o.CreateMany(ctx, exec, r.number)
+				if err != nil {
+					return err
+				}
+
+				err = m.AttachSnapshotChatMessageRetrievals(ctx, exec, rel0...)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
 	isSnapshotSchemaChunksDone, _ := schemaSnapshotRelSnapshotSchemaChunksCtx.Value(ctx)
 	if !isSnapshotSchemaChunksDone && o.r.SnapshotSchemaChunks != nil {
 		ctx = schemaSnapshotRelSnapshotSchemaChunksCtx.WithValue(ctx, true)
@@ -210,12 +247,12 @@ func (o *SchemaSnapshotTemplate) insertOptRels(ctx context.Context, exec bob.Exe
 			if r.o.alreadyPersisted {
 				m.R.SnapshotSchemaChunks = append(m.R.SnapshotSchemaChunks, r.o.Build())
 			} else {
-				rel0, err := r.o.CreateMany(ctx, exec, r.number)
+				rel1, err := r.o.CreateMany(ctx, exec, r.number)
 				if err != nil {
 					return err
 				}
 
-				err = m.AttachSnapshotSchemaChunks(ctx, exec, rel0...)
+				err = m.AttachSnapshotSchemaChunks(ctx, exec, rel1...)
 				if err != nil {
 					return err
 				}
@@ -237,25 +274,25 @@ func (o *SchemaSnapshotTemplate) Create(ctx context.Context, exec bob.Executor) 
 		SchemaSnapshotMods.WithNewConnection().Apply(ctx, o)
 	}
 
-	var rel2 *models.Connection
+	var rel3 *models.Connection
 
 	if o.r.Connection.o.alreadyPersisted {
-		rel2 = o.r.Connection.o.Build()
+		rel3 = o.r.Connection.o.Build()
 	} else {
-		rel2, err = o.r.Connection.o.Create(ctx, exec)
+		rel3, err = o.r.Connection.o.Create(ctx, exec)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	opt.ConnectionID = omit.From(rel2.ID)
+	opt.ConnectionID = omit.From(rel3.ID)
 
 	m, err := models.SchemaSnapshots.Insert(opt).One(ctx, exec)
 	if err != nil {
 		return nil, err
 	}
 
-	m.R.Connection = rel2
+	m.R.Connection = rel3
 
 	if err := o.insertOptRels(ctx, exec, m); err != nil {
 		return nil, err
@@ -573,6 +610,54 @@ func (m schemaSnapshotMods) WithExistingConnection(em *models.Connection) Schema
 func (m schemaSnapshotMods) WithoutConnection() SchemaSnapshotMod {
 	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
 		o.r.Connection = nil
+	})
+}
+
+func (m schemaSnapshotMods) WithSnapshotChatMessageRetrievals(number int, related *ChatMessageRetrievalTemplate) SchemaSnapshotMod {
+	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
+		o.r.SnapshotChatMessageRetrievals = []*schemaSnapshotRSnapshotChatMessageRetrievalsR{{
+			number: number,
+			o:      related,
+		}}
+	})
+}
+
+func (m schemaSnapshotMods) WithNewSnapshotChatMessageRetrievals(number int, mods ...ChatMessageRetrievalMod) SchemaSnapshotMod {
+	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
+		related := o.f.NewChatMessageRetrievalWithContext(ctx, mods...)
+		m.WithSnapshotChatMessageRetrievals(number, related).Apply(ctx, o)
+	})
+}
+
+func (m schemaSnapshotMods) AddSnapshotChatMessageRetrievals(number int, related *ChatMessageRetrievalTemplate) SchemaSnapshotMod {
+	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
+		o.r.SnapshotChatMessageRetrievals = append(o.r.SnapshotChatMessageRetrievals, &schemaSnapshotRSnapshotChatMessageRetrievalsR{
+			number: number,
+			o:      related,
+		})
+	})
+}
+
+func (m schemaSnapshotMods) AddNewSnapshotChatMessageRetrievals(number int, mods ...ChatMessageRetrievalMod) SchemaSnapshotMod {
+	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
+		related := o.f.NewChatMessageRetrievalWithContext(ctx, mods...)
+		m.AddSnapshotChatMessageRetrievals(number, related).Apply(ctx, o)
+	})
+}
+
+func (m schemaSnapshotMods) AddExistingSnapshotChatMessageRetrievals(existingModels ...*models.ChatMessageRetrieval) SchemaSnapshotMod {
+	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
+		for _, em := range existingModels {
+			o.r.SnapshotChatMessageRetrievals = append(o.r.SnapshotChatMessageRetrievals, &schemaSnapshotRSnapshotChatMessageRetrievalsR{
+				o: o.f.FromExistingChatMessageRetrieval(em),
+			})
+		}
+	})
+}
+
+func (m schemaSnapshotMods) WithoutSnapshotChatMessageRetrievals() SchemaSnapshotMod {
+	return SchemaSnapshotModFunc(func(ctx context.Context, o *SchemaSnapshotTemplate) {
+		o.r.SnapshotChatMessageRetrievals = nil
 	})
 }
 

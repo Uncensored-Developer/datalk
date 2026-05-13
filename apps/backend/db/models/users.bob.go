@@ -50,6 +50,7 @@ type UsersQuery = *psql.ViewQuery[*User, UserSlice]
 
 // userR is where relationships are stored.
 type userR struct {
+	ChatConversations  ChatConversationSlice // chat_conversations.chat_conversations_user_id_fkey
 	ConnectionAccesses ConnectionAccessSlice // connection_access.connection_access_user_id_fkey
 	Connections        ConnectionSlice       // connections.connections_user_id_fkey
 }
@@ -510,6 +511,30 @@ func (o UserSlice) ReloadAll(ctx context.Context, exec bob.Executor) error {
 	return nil
 }
 
+// ChatConversations starts a query for related objects on chat_conversations
+func (o *User) ChatConversations(mods ...bob.Mod[*dialect.SelectQuery]) ChatConversationsQuery {
+	return ChatConversations.Query(append(mods,
+		sm.Where(ChatConversations.Columns.UserID.EQ(psql.Arg(o.ID))),
+	)...)
+}
+
+func (os UserSlice) ChatConversations(mods ...bob.Mod[*dialect.SelectQuery]) ChatConversationsQuery {
+	pkID := make(pgtypes.Array[int32], 0, len(os))
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+		pkID = append(pkID, o.ID)
+	}
+	PKArgExpr := psql.Select(sm.Columns(
+		psql.F("unnest", psql.Cast(psql.Arg(pkID), "integer[]")),
+	))
+
+	return ChatConversations.Query(append(mods,
+		sm.Where(psql.Group(ChatConversations.Columns.UserID).OP("IN", PKArgExpr)),
+	)...)
+}
+
 // ConnectionAccesses starts a query for related objects on connection_access
 func (o *User) ConnectionAccesses(mods ...bob.Mod[*dialect.SelectQuery]) ConnectionAccessesQuery {
 	return ConnectionAccesses.Query(append(mods,
@@ -556,6 +581,67 @@ func (os UserSlice) Connections(mods ...bob.Mod[*dialect.SelectQuery]) Connectio
 	return Connections.Query(append(mods,
 		sm.Where(psql.Group(Connections.Columns.UserID).OP("IN", PKArgExpr)),
 	)...)
+}
+
+func insertUserChatConversations0(ctx context.Context, exec bob.Executor, chatConversations1 []*ChatConversationSetter, user0 *User) (ChatConversationSlice, error) {
+	for i := range chatConversations1 {
+		chatConversations1[i].UserID = omit.From(user0.ID)
+	}
+
+	ret, err := ChatConversations.Insert(bob.ToMods(chatConversations1...)).All(ctx, exec)
+	if err != nil {
+		return ret, fmt.Errorf("insertUserChatConversations0: %w", err)
+	}
+
+	return ret, nil
+}
+
+func attachUserChatConversations0(ctx context.Context, exec bob.Executor, count int, chatConversations1 ChatConversationSlice, user0 *User) (ChatConversationSlice, error) {
+	setter := &ChatConversationSetter{
+		UserID: omit.From(user0.ID),
+	}
+
+	err := chatConversations1.UpdateAll(ctx, exec, *setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachUserChatConversations0: %w", err)
+	}
+
+	return chatConversations1, nil
+}
+
+func (user0 *User) InsertChatConversations(ctx context.Context, exec bob.Executor, related ...*ChatConversationSetter) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+
+	chatConversations1, err := insertUserChatConversations0(ctx, exec, related, user0)
+	if err != nil {
+		return err
+	}
+
+	user0.R.ChatConversations = append(user0.R.ChatConversations, chatConversations1...)
+
+	return nil
+}
+
+func (user0 *User) AttachChatConversations(ctx context.Context, exec bob.Executor, related ...*ChatConversation) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+	chatConversations1 := ChatConversationSlice(related)
+
+	_, err = attachUserChatConversations0(ctx, exec, len(related), chatConversations1, user0)
+	if err != nil {
+		return err
+	}
+
+	user0.R.ChatConversations = append(user0.R.ChatConversations, chatConversations1...)
+
+	return nil
 }
 
 func insertUserConnectionAccesses0(ctx context.Context, exec bob.Executor, connectionAccesses1 []*ConnectionAccessSetter, user0 *User) (ConnectionAccessSlice, error) {
@@ -714,6 +800,15 @@ func (o *User) Preload(name string, retrieved any) error {
 	}
 
 	switch name {
+	case "ChatConversations":
+		rels, ok := retrieved.(ChatConversationSlice)
+		if !ok {
+			return fmt.Errorf("user cannot load %T as %q", retrieved, name)
+		}
+
+		o.R.ChatConversations = rels
+
+		return nil
 	case "ConnectionAccesses":
 		rels, ok := retrieved.(ConnectionAccessSlice)
 		if !ok {
@@ -744,11 +839,15 @@ func buildUserPreloader() userPreloader {
 }
 
 type userThenLoader[Q orm.Loadable] struct {
+	ChatConversations  func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	ConnectionAccesses func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	Connections        func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 }
 
 func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
+	type ChatConversationsLoadInterface interface {
+		LoadChatConversations(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	}
 	type ConnectionAccessesLoadInterface interface {
 		LoadConnectionAccesses(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
@@ -757,6 +856,12 @@ func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
 	}
 
 	return userThenLoader[Q]{
+		ChatConversations: thenLoadBuilder[Q](
+			"ChatConversations",
+			func(ctx context.Context, exec bob.Executor, retrieved ChatConversationsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadChatConversations(ctx, exec, mods...)
+			},
+		),
 		ConnectionAccesses: thenLoadBuilder[Q](
 			"ConnectionAccesses",
 			func(ctx context.Context, exec bob.Executor, retrieved ConnectionAccessesLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
@@ -770,6 +875,61 @@ func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
 			},
 		),
 	}
+}
+
+// LoadChatConversations loads the user's ChatConversations into the .R struct
+func (o *User) LoadChatConversations(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if o == nil {
+		return nil
+	}
+
+	// Reset the relationship
+	o.R.ChatConversations = nil
+
+	related, err := o.ChatConversations(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	o.R.ChatConversations = related
+	return nil
+}
+
+// LoadChatConversations loads the user's ChatConversations into the .R struct
+func (os UserSlice) LoadChatConversations(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if len(os) == 0 {
+		return nil
+	}
+
+	chatConversations, err := os.ChatConversations(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+
+		o.R.ChatConversations = nil
+	}
+
+	for _, o := range os {
+		if o == nil {
+			continue
+		}
+
+		for _, rel := range chatConversations {
+
+			if !(o.ID == rel.UserID) {
+				continue
+			}
+
+			o.R.ChatConversations = append(o.R.ChatConversations, rel)
+		}
+	}
+
+	return nil
 }
 
 // LoadConnectionAccesses loads the user's ConnectionAccesses into the .R struct
@@ -884,6 +1044,7 @@ func (os UserSlice) LoadConnections(ctx context.Context, exec bob.Executor, mods
 
 type userJoins[Q dialect.Joinable] struct {
 	typ                string
+	ChatConversations  modAs[Q, chatConversationColumns]
 	ConnectionAccesses modAs[Q, connectionAccessColumns]
 	Connections        modAs[Q, connectionColumns]
 }
@@ -895,6 +1056,20 @@ func (j userJoins[Q]) aliasedAs(alias string) userJoins[Q] {
 func buildUserJoins[Q dialect.Joinable](cols userColumns, typ string) userJoins[Q] {
 	return userJoins[Q]{
 		typ: typ,
+		ChatConversations: modAs[Q, chatConversationColumns]{
+			c: ChatConversations.Columns,
+			f: func(to chatConversationColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, ChatConversations.Name().As(to.Alias())).On(
+						to.UserID.EQ(cols.ID),
+					))
+				}
+
+				return mods
+			},
+		},
 		ConnectionAccesses: modAs[Q, connectionAccessColumns]{
 			c: ConnectionAccesses.Columns,
 			f: func(to connectionAccessColumns) bob.Mod[Q] {

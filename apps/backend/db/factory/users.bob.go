@@ -53,10 +53,15 @@ type UserTemplate struct {
 }
 
 type userR struct {
+	ChatConversations  []*userRChatConversationsR
 	ConnectionAccesses []*userRConnectionAccessesR
 	Connections        []*userRConnectionsR
 }
 
+type userRChatConversationsR struct {
+	number int
+	o      *ChatConversationTemplate
+}
 type userRConnectionAccessesR struct {
 	number int
 	o      *ConnectionAccessTemplate
@@ -76,6 +81,18 @@ func (o *UserTemplate) Apply(ctx context.Context, mods ...UserMod) {
 // setModelRels creates and sets the relationships on *models.User
 // according to the relationships in the template. Nothing is inserted into the db
 func (t UserTemplate) setModelRels(o *models.User) {
+	if t.r.ChatConversations != nil {
+		rel := models.ChatConversationSlice{}
+		for _, r := range t.r.ChatConversations {
+			related := r.o.BuildMany(r.number)
+			for _, rel := range related {
+				rel.UserID = o.ID // h2
+			}
+			rel = append(rel, related...)
+		}
+		o.R.ChatConversations = rel
+	}
+
 	if t.r.ConnectionAccesses != nil {
 		rel := models.ConnectionAccessSlice{}
 		for _, r := range t.r.ConnectionAccesses {
@@ -224,6 +241,26 @@ func ensureCreatableUser(m *models.UserSetter) {
 func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *models.User) error {
 	var err error
 
+	isChatConversationsDone, _ := userRelChatConversationsCtx.Value(ctx)
+	if !isChatConversationsDone && o.r.ChatConversations != nil {
+		ctx = userRelChatConversationsCtx.WithValue(ctx, true)
+		for _, r := range o.r.ChatConversations {
+			if r.o.alreadyPersisted {
+				m.R.ChatConversations = append(m.R.ChatConversations, r.o.Build())
+			} else {
+				rel0, err := r.o.CreateMany(ctx, exec, r.number)
+				if err != nil {
+					return err
+				}
+
+				err = m.AttachChatConversations(ctx, exec, rel0...)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
 	isConnectionAccessesDone, _ := userRelConnectionAccessesCtx.Value(ctx)
 	if !isConnectionAccessesDone && o.r.ConnectionAccesses != nil {
 		ctx = userRelConnectionAccessesCtx.WithValue(ctx, true)
@@ -231,12 +268,12 @@ func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 			if r.o.alreadyPersisted {
 				m.R.ConnectionAccesses = append(m.R.ConnectionAccesses, r.o.Build())
 			} else {
-				rel0, err := r.o.CreateMany(ctx, exec, r.number)
+				rel1, err := r.o.CreateMany(ctx, exec, r.number)
 				if err != nil {
 					return err
 				}
 
-				err = m.AttachConnectionAccesses(ctx, exec, rel0...)
+				err = m.AttachConnectionAccesses(ctx, exec, rel1...)
 				if err != nil {
 					return err
 				}
@@ -251,12 +288,12 @@ func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 			if r.o.alreadyPersisted {
 				m.R.Connections = append(m.R.Connections, r.o.Build())
 			} else {
-				rel1, err := r.o.CreateMany(ctx, exec, r.number)
+				rel2, err := r.o.CreateMany(ctx, exec, r.number)
 				if err != nil {
 					return err
 				}
 
-				err = m.AttachConnections(ctx, exec, rel1...)
+				err = m.AttachConnections(ctx, exec, rel2...)
 				if err != nil {
 					return err
 				}
@@ -643,6 +680,54 @@ func (m userMods) WithParentsCascading() UserMod {
 			return
 		}
 		ctx = userWithParentsCascadingCtx.WithValue(ctx, true)
+	})
+}
+
+func (m userMods) WithChatConversations(number int, related *ChatConversationTemplate) UserMod {
+	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
+		o.r.ChatConversations = []*userRChatConversationsR{{
+			number: number,
+			o:      related,
+		}}
+	})
+}
+
+func (m userMods) WithNewChatConversations(number int, mods ...ChatConversationMod) UserMod {
+	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
+		related := o.f.NewChatConversationWithContext(ctx, mods...)
+		m.WithChatConversations(number, related).Apply(ctx, o)
+	})
+}
+
+func (m userMods) AddChatConversations(number int, related *ChatConversationTemplate) UserMod {
+	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
+		o.r.ChatConversations = append(o.r.ChatConversations, &userRChatConversationsR{
+			number: number,
+			o:      related,
+		})
+	})
+}
+
+func (m userMods) AddNewChatConversations(number int, mods ...ChatConversationMod) UserMod {
+	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
+		related := o.f.NewChatConversationWithContext(ctx, mods...)
+		m.AddChatConversations(number, related).Apply(ctx, o)
+	})
+}
+
+func (m userMods) AddExistingChatConversations(existingModels ...*models.ChatConversation) UserMod {
+	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
+		for _, em := range existingModels {
+			o.r.ChatConversations = append(o.r.ChatConversations, &userRChatConversationsR{
+				o: o.f.FromExistingChatConversation(em),
+			})
+		}
+	})
+}
+
+func (m userMods) WithoutChatConversations() UserMod {
+	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
+		o.r.ChatConversations = nil
 	})
 }
 

@@ -17,29 +17,50 @@ var (
 )
 
 func Where[Q psql.Filterable]() struct {
-	ConnectionAccesses  connectionAccessWhere[Q]
-	Connections         connectionWhere[Q]
-	Organizations       organizationWhere[Q]
-	SchemaChunks        schemaChunkWhere[Q]
-	SchemaEmbeddingJobs schemaEmbeddingJobWhere[Q]
-	SchemaSnapshots     schemaSnapshotWhere[Q]
-	Users               userWhere[Q]
+	ChatConversations     chatConversationWhere[Q]
+	ChatMessageExecutions chatMessageExecutionWhere[Q]
+	ChatMessageLLMCalls   chatMessageLLMCallWhere[Q]
+	ChatMessageRetrievals chatMessageRetrievalWhere[Q]
+	ChatMessages          chatMessageWhere[Q]
+	ConnectionAccesses    connectionAccessWhere[Q]
+	Connections           connectionWhere[Q]
+	LLMProviderConfigs    llmProviderConfigWhere[Q]
+	LLMProviderModels     llmProviderModelWhere[Q]
+	Organizations         organizationWhere[Q]
+	SchemaChunks          schemaChunkWhere[Q]
+	SchemaEmbeddingJobs   schemaEmbeddingJobWhere[Q]
+	SchemaSnapshots       schemaSnapshotWhere[Q]
+	Users                 userWhere[Q]
 } {
 	return struct {
-		ConnectionAccesses  connectionAccessWhere[Q]
-		Connections         connectionWhere[Q]
-		Organizations       organizationWhere[Q]
-		SchemaChunks        schemaChunkWhere[Q]
-		SchemaEmbeddingJobs schemaEmbeddingJobWhere[Q]
-		SchemaSnapshots     schemaSnapshotWhere[Q]
-		Users               userWhere[Q]
+		ChatConversations     chatConversationWhere[Q]
+		ChatMessageExecutions chatMessageExecutionWhere[Q]
+		ChatMessageLLMCalls   chatMessageLLMCallWhere[Q]
+		ChatMessageRetrievals chatMessageRetrievalWhere[Q]
+		ChatMessages          chatMessageWhere[Q]
+		ConnectionAccesses    connectionAccessWhere[Q]
+		Connections           connectionWhere[Q]
+		LLMProviderConfigs    llmProviderConfigWhere[Q]
+		LLMProviderModels     llmProviderModelWhere[Q]
+		Organizations         organizationWhere[Q]
+		SchemaChunks          schemaChunkWhere[Q]
+		SchemaEmbeddingJobs   schemaEmbeddingJobWhere[Q]
+		SchemaSnapshots       schemaSnapshotWhere[Q]
+		Users                 userWhere[Q]
 	}{
-		ConnectionAccesses:  buildConnectionAccessWhere[Q](ConnectionAccesses.Columns),
-		Connections:         buildConnectionWhere[Q](Connections.Columns),
-		Organizations:       buildOrganizationWhere[Q](Organizations.Columns),
-		SchemaChunks:        buildSchemaChunkWhere[Q](SchemaChunks.Columns),
-		SchemaEmbeddingJobs: buildSchemaEmbeddingJobWhere[Q](SchemaEmbeddingJobs.Columns),
-		SchemaSnapshots:     buildSchemaSnapshotWhere[Q](SchemaSnapshots.Columns),
-		Users:               buildUserWhere[Q](Users.Columns),
+		ChatConversations:     buildChatConversationWhere[Q](ChatConversations.Columns),
+		ChatMessageExecutions: buildChatMessageExecutionWhere[Q](ChatMessageExecutions.Columns),
+		ChatMessageLLMCalls:   buildChatMessageLLMCallWhere[Q](ChatMessageLLMCalls.Columns),
+		ChatMessageRetrievals: buildChatMessageRetrievalWhere[Q](ChatMessageRetrievals.Columns),
+		ChatMessages:          buildChatMessageWhere[Q](ChatMessages.Columns),
+		ConnectionAccesses:    buildConnectionAccessWhere[Q](ConnectionAccesses.Columns),
+		Connections:           buildConnectionWhere[Q](Connections.Columns),
+		LLMProviderConfigs:    buildLLMProviderConfigWhere[Q](LLMProviderConfigs.Columns),
+		LLMProviderModels:     buildLLMProviderModelWhere[Q](LLMProviderModels.Columns),
+		Organizations:         buildOrganizationWhere[Q](Organizations.Columns),
+		SchemaChunks:          buildSchemaChunkWhere[Q](SchemaChunks.Columns),
+		SchemaEmbeddingJobs:   buildSchemaEmbeddingJobWhere[Q](SchemaEmbeddingJobs.Columns),
+		SchemaSnapshots:       buildSchemaSnapshotWhere[Q](SchemaSnapshots.Columns),
+		Users:                 buildUserWhere[Q](Users.Columns),
 	}
 }

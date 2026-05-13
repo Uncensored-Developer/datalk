@@ -8,17 +8,56 @@ import "context"
 type contextKey string
 
 var (
+	// Relationship Contexts for chat_conversations
+	chatConversationWithParentsCascadingCtx        = newContextual[bool]("chatConversationWithParentsCascading")
+	chatConversationRelConnectionCtx               = newContextual[bool]("chat_conversations.connections.chat_conversations.chat_conversations_connection_id_fkey")
+	chatConversationRelUserCtx                     = newContextual[bool]("chat_conversations.users.chat_conversations.chat_conversations_user_id_fkey")
+	chatConversationRelConversationChatMessagesCtx = newContextual[bool]("chat_conversations.chat_messages.chat_messages.chat_messages_conversation_id_fkey")
+
+	// Relationship Contexts for chat_message_executions
+	chatMessageExecutionWithParentsCascadingCtx  = newContextual[bool]("chatMessageExecutionWithParentsCascading")
+	chatMessageExecutionRelConnectionCtx         = newContextual[bool]("chat_message_executions.connections.chat_message_executions.chat_message_executions_connection_id_fkey")
+	chatMessageExecutionRelMessageChatMessageCtx = newContextual[bool]("chat_message_executions.chat_messages.chat_message_executions.chat_message_executions_message_id_fkey")
+
+	// Relationship Contexts for chat_message_llm_calls
+	chatMessageLLMCallWithParentsCascadingCtx               = newContextual[bool]("chatMessageLLMCallWithParentsCascading")
+	chatMessageLLMCallRelMessageChatMessageCtx              = newContextual[bool]("chat_message_llm_calls.chat_messages.chat_message_llm_calls.chat_message_llm_calls_message_id_fkey")
+	chatMessageLLMCallRelProviderConfigLLMProviderConfigCtx = newContextual[bool]("chat_message_llm_calls.llm_provider_configs.chat_message_llm_calls.chat_message_llm_calls_provider_config_id_fkey")
+
+	// Relationship Contexts for chat_message_retrievals
+	chatMessageRetrievalWithParentsCascadingCtx      = newContextual[bool]("chatMessageRetrievalWithParentsCascading")
+	chatMessageRetrievalRelMessageChatMessageCtx     = newContextual[bool]("chat_message_retrievals.chat_messages.chat_message_retrievals.chat_message_retrievals_message_id_fkey")
+	chatMessageRetrievalRelSnapshotSchemaSnapshotCtx = newContextual[bool]("chat_message_retrievals.schema_snapshots.chat_message_retrievals.chat_message_retrievals_snapshot_id_fkey")
+
+	// Relationship Contexts for chat_messages
+	chatMessageWithParentsCascadingCtx            = newContextual[bool]("chatMessageWithParentsCascading")
+	chatMessageRelMessageChatMessageExecutionCtx  = newContextual[bool]("chat_message_executions.chat_messages.chat_message_executions.chat_message_executions_message_id_fkey")
+	chatMessageRelMessageChatMessageLLMCallsCtx   = newContextual[bool]("chat_message_llm_calls.chat_messages.chat_message_llm_calls.chat_message_llm_calls_message_id_fkey")
+	chatMessageRelMessageChatMessageRetrievalCtx  = newContextual[bool]("chat_message_retrievals.chat_messages.chat_message_retrievals.chat_message_retrievals_message_id_fkey")
+	chatMessageRelConversationChatConversationCtx = newContextual[bool]("chat_conversations.chat_messages.chat_messages.chat_messages_conversation_id_fkey")
+
 	// Relationship Contexts for connection_access
 	connectionAccessWithParentsCascadingCtx = newContextual[bool]("connectionAccessWithParentsCascading")
 	connectionAccessRelConnectionCtx        = newContextual[bool]("connection_access.connections.connection_access.connection_access_connection_id_fkey")
 	connectionAccessRelUserCtx              = newContextual[bool]("connection_access.users.connection_access.connection_access_user_id_fkey")
 
 	// Relationship Contexts for connections
-	connectionWithParentsCascadingCtx  = newContextual[bool]("connectionWithParentsCascading")
-	connectionRelConnectionAccessesCtx = newContextual[bool]("connection_access.connections.connection_access.connection_access_connection_id_fkey")
-	connectionRelUserCtx               = newContextual[bool]("connections.users.connections.connections_user_id_fkey")
-	connectionRelSchemaChunksCtx       = newContextual[bool]("connections.schema_chunks.schema_chunks.schema_chunks_connection_id_fkey")
-	connectionRelSchemaSnapshotsCtx    = newContextual[bool]("connections.schema_snapshots.schema_snapshots.schema_snapshots_connection_id_fkey")
+	connectionWithParentsCascadingCtx     = newContextual[bool]("connectionWithParentsCascading")
+	connectionRelChatConversationsCtx     = newContextual[bool]("chat_conversations.connections.chat_conversations.chat_conversations_connection_id_fkey")
+	connectionRelChatMessageExecutionsCtx = newContextual[bool]("chat_message_executions.connections.chat_message_executions.chat_message_executions_connection_id_fkey")
+	connectionRelConnectionAccessesCtx    = newContextual[bool]("connection_access.connections.connection_access.connection_access_connection_id_fkey")
+	connectionRelUserCtx                  = newContextual[bool]("connections.users.connections.connections_user_id_fkey")
+	connectionRelSchemaChunksCtx          = newContextual[bool]("connections.schema_chunks.schema_chunks.schema_chunks_connection_id_fkey")
+	connectionRelSchemaSnapshotsCtx       = newContextual[bool]("connections.schema_snapshots.schema_snapshots.schema_snapshots_connection_id_fkey")
+
+	// Relationship Contexts for llm_provider_configs
+	llmProviderConfigWithParentsCascadingCtx                 = newContextual[bool]("llmProviderConfigWithParentsCascading")
+	llmProviderConfigRelProviderConfigChatMessageLLMCallsCtx = newContextual[bool]("chat_message_llm_calls.llm_provider_configs.chat_message_llm_calls.chat_message_llm_calls_provider_config_id_fkey")
+	llmProviderConfigRelProviderConfigLLMProviderModelsCtx   = newContextual[bool]("llm_provider_configs.llm_provider_models.llm_provider_models.llm_provider_models_provider_config_id_fkey")
+
+	// Relationship Contexts for llm_provider_models
+	llmProviderModelWithParentsCascadingCtx               = newContextual[bool]("llmProviderModelWithParentsCascading")
+	llmProviderModelRelProviderConfigLLMProviderConfigCtx = newContextual[bool]("llm_provider_configs.llm_provider_models.llm_provider_models.llm_provider_models_provider_config_id_fkey")
 
 	// Relationship Contexts for organization
 	organizationWithParentsCascadingCtx = newContextual[bool]("organizationWithParentsCascading")
@@ -33,13 +72,15 @@ var (
 	schemaEmbeddingJobRelSnapshotSchemaSnapshotCtx = newContextual[bool]("schema_embedding_jobs.schema_snapshots.schema_embedding_jobs.schema_embedding_jobs_snapshot_id_fkey")
 
 	// Relationship Contexts for schema_snapshots
-	schemaSnapshotWithParentsCascadingCtx          = newContextual[bool]("schemaSnapshotWithParentsCascading")
-	schemaSnapshotRelSnapshotSchemaChunksCtx       = newContextual[bool]("schema_chunks.schema_snapshots.schema_chunks.schema_chunks_snapshot_id_fkey")
-	schemaSnapshotRelSnapshotSchemaEmbeddingJobCtx = newContextual[bool]("schema_embedding_jobs.schema_snapshots.schema_embedding_jobs.schema_embedding_jobs_snapshot_id_fkey")
-	schemaSnapshotRelConnectionCtx                 = newContextual[bool]("connections.schema_snapshots.schema_snapshots.schema_snapshots_connection_id_fkey")
+	schemaSnapshotWithParentsCascadingCtx             = newContextual[bool]("schemaSnapshotWithParentsCascading")
+	schemaSnapshotRelSnapshotChatMessageRetrievalsCtx = newContextual[bool]("chat_message_retrievals.schema_snapshots.chat_message_retrievals.chat_message_retrievals_snapshot_id_fkey")
+	schemaSnapshotRelSnapshotSchemaChunksCtx          = newContextual[bool]("schema_chunks.schema_snapshots.schema_chunks.schema_chunks_snapshot_id_fkey")
+	schemaSnapshotRelSnapshotSchemaEmbeddingJobCtx    = newContextual[bool]("schema_embedding_jobs.schema_snapshots.schema_embedding_jobs.schema_embedding_jobs_snapshot_id_fkey")
+	schemaSnapshotRelConnectionCtx                    = newContextual[bool]("connections.schema_snapshots.schema_snapshots.schema_snapshots_connection_id_fkey")
 
 	// Relationship Contexts for users
 	userWithParentsCascadingCtx  = newContextual[bool]("userWithParentsCascading")
+	userRelChatConversationsCtx  = newContextual[bool]("chat_conversations.users.chat_conversations.chat_conversations_user_id_fkey")
 	userRelConnectionAccessesCtx = newContextual[bool]("connection_access.users.connection_access.connection_access_user_id_fkey")
 	userRelConnectionsCtx        = newContextual[bool]("connections.users.connections.connections_user_id_fkey")
 )
