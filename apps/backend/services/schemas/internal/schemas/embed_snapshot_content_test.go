@@ -26,19 +26,20 @@ func TestService_EmbedSnapshotContent(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name            string
-		snapshotID      int32
-		cfg             config.Config
-		setupFn         func(t *testing.T, ctx context.Context, mockStorage *storagetesting.Storage, mockClient *schematesting.EmbeddingClient)
-		expectedErr     error
-		expectedErrText string
+		name        string
+		snapshotID  int32
+		cfg         config.Config
+		setupFn     func(t *testing.T, ctx context.Context, mockStorage *storagetesting.Storage, mockClient *schematesting.EmbeddingClient)
+		assertErrFn func(t *testing.T, err error)
 	}{
 		{
-			name:        "embedding disabled",
-			snapshotID:  10,
-			cfg:         config.Config{EmbeddingEnabled: false},
-			setupFn:     func(*testing.T, context.Context, *storagetesting.Storage, *schematesting.EmbeddingClient) {},
-			expectedErr: schemaerrors.ErrEmbeddingDisabled,
+			name:       "embedding disabled",
+			snapshotID: 10,
+			cfg:        config.Config{EmbeddingEnabled: false},
+			setupFn:    func(*testing.T, context.Context, *storagetesting.Storage, *schematesting.EmbeddingClient) {},
+			assertErrFn: func(t *testing.T, err error) {
+				require.ErrorIs(t, err, schemaerrors.ErrEmbeddingDisabled)
+			},
 		},
 		{
 			name:       "snapshot not found",
@@ -47,7 +48,9 @@ func TestService_EmbedSnapshotContent(t *testing.T) {
 			setupFn: func(t *testing.T, ctx context.Context, mockStorage *storagetesting.Storage, _ *schematesting.EmbeddingClient) {
 				mockStorage.On("ListSnapshots", ctx, storage.SnapshotsFilter{ID: []int32{10}}).Return([]*schematypes.Snapshot{}, nil)
 			},
-			expectedErrText: "snapshot not found",
+			assertErrFn: func(t *testing.T, err error) {
+				require.ErrorIs(t, err, storage.ErrSnapshotNotFound)
+			},
 		},
 		{
 			name:       "success",
@@ -126,6 +129,7 @@ func TestService_EmbedSnapshotContent(t *testing.T) {
 			snapshotID: 88,
 			cfg:        config.Config{EmbeddingEnabled: true, EmbeddingBatchSize: 2},
 			setupFn: func(t *testing.T, ctx context.Context, mockStorage *storagetesting.Storage, mockClient *schematesting.EmbeddingClient) {
+				ollamaErr := errors.New("ollama down")
 				snapshot := &schematypes.Snapshot{
 					ID:           88,
 					ConnectionID: 50,
@@ -152,7 +156,7 @@ func TestService_EmbedSnapshotContent(t *testing.T) {
 					return true
 				})).Return(nil).Once()
 
-				mockClient.On("EmbedTexts", ctx, mock.Anything).Return(nil, errors.New("ollama down")).Once()
+				mockClient.On("EmbedTexts", ctx, mock.Anything).Return(nil, ollamaErr).Once()
 
 				mockStorage.On("UpsertEmbeddingJob", ctx, mock.MatchedBy(func(job *schematypes.EmbeddingJob) bool {
 					require.NotNil(t, job)
@@ -169,7 +173,9 @@ func TestService_EmbedSnapshotContent(t *testing.T) {
 					return true
 				})).Return(nil).Once()
 			},
-			expectedErrText: "failed to embed chunks",
+			assertErrFn: func(t *testing.T, err error) {
+				require.EqualError(t, err, "failed to embed chunks: ollama down")
+			},
 		},
 	}
 
@@ -191,12 +197,9 @@ func TestService_EmbedSnapshotContent(t *testing.T) {
 			}
 
 			err := service.EmbedSnapshotContent(ctx, tc.snapshotID)
-			if tc.expectedErr != nil {
-				require.ErrorIs(t, err, tc.expectedErr)
-				return
-			}
-			if tc.expectedErrText != "" {
-				require.ErrorContains(t, err, tc.expectedErrText)
+			if tc.assertErrFn != nil {
+				require.Error(t, err)
+				tc.assertErrFn(t, err)
 				return
 			}
 

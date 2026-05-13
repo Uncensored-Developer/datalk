@@ -5,6 +5,7 @@ package testing
 import (
 	context "context"
 
+	schemas "github.com/Uncensored-Developer/datalk/apps/backend/services/schemas/pkg/schemas"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -29,6 +30,36 @@ func (_m *Service) RefreshSchemaSnapshot(ctx context.Context, connectionID int32
 	}
 
 	return r0
+}
+
+// RetrieveRelevantSchemaContext provides a mock function with given fields: ctx, params
+func (_m *Service) RetrieveRelevantSchemaContext(ctx context.Context, params schemas.RetrieveRelevantSchemaContextParams) (*schemas.RetrievedSchemaContext, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RetrieveRelevantSchemaContext")
+	}
+
+	var r0 *schemas.RetrievedSchemaContext
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, schemas.RetrieveRelevantSchemaContextParams) (*schemas.RetrievedSchemaContext, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, schemas.RetrieveRelevantSchemaContextParams) *schemas.RetrievedSchemaContext); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*schemas.RetrievedSchemaContext)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, schemas.RetrieveRelevantSchemaContextParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // NewService creates a new instance of Service. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

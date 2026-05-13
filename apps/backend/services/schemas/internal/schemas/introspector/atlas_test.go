@@ -36,7 +36,7 @@ func TestNewPostgres(t *testing.T) {
 		require.Equal(t, DBPostgres, catalog.Kind)
 		require.Len(t, catalog.Namespaces, 1)
 		assert.Equal(t, namespace, catalog.Namespaces[0].Name)
-		assert.Len(t, catalog.Namespaces[0].Tables, 8)
+		assert.Len(t, catalog.Namespaces[0].Tables, 15)
 	})
 
 	t.Run("include only a few tables introspection", func(t *testing.T) {
@@ -74,7 +74,7 @@ func TestNewPostgres(t *testing.T) {
 		require.Equal(t, DBPostgres, catalog.Kind)
 		require.Len(t, catalog.Namespaces, 1)
 		assert.Equal(t, namespace, catalog.Namespaces[0].Name)
-		assert.Len(t, catalog.Namespaces[0].Tables, 6)
+		assert.Len(t, catalog.Namespaces[0].Tables, 13)
 	})
 
 	t.Run("schema_snapshots introspection", func(t *testing.T) {
