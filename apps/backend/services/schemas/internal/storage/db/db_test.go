@@ -109,6 +109,52 @@ func TestStorage_ListSnapshots_LimitAndPagination(t *testing.T) {
 	assert.Equal(t, []int32{thirdSnapshot.ID}, snapshotIDs(secondPage))
 }
 
+func TestStorage_ListSnapshots_CanReturnLatestByOrdering(t *testing.T) {
+	t.Parallel()
+
+	createdConn := createConnection(t, "latest-snapshot-connection")
+
+	oldest := &schemas.Snapshot{
+		ConnectionID:   createdConn.ID,
+		SchemaHash:     "hash-oldest",
+		SchemaJSON:     json.RawMessage(`{"tables":["oldest"]}`),
+		IntrospectedAt: time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second),
+	}
+	middle := &schemas.Snapshot{
+		ConnectionID:   createdConn.ID,
+		SchemaHash:     "hash-middle",
+		SchemaJSON:     json.RawMessage(`{"tables":["middle"]}`),
+		IntrospectedAt: time.Now().UTC().Add(-1 * time.Hour).Truncate(time.Second),
+	}
+	latest := &schemas.Snapshot{
+		ConnectionID:   createdConn.ID,
+		SchemaHash:     "hash-latest",
+		SchemaJSON:     json.RawMessage(`{"tables":["latest"]}`),
+		IntrospectedAt: time.Now().UTC().Truncate(time.Second),
+	}
+
+	require.NoError(t, s.InsertSnapshot(t.Context(), oldest))
+	require.NoError(t, s.InsertSnapshot(t.Context(), middle))
+	require.NoError(t, s.InsertSnapshot(t.Context(), latest))
+
+	got, err := s.ListSnapshots(t.Context(), storage.SnapshotsFilter{
+		ConnectionID: []int32{createdConn.ID},
+		Pagination: pagination.LimitOffsetPagination{
+			Limit: 1,
+		},
+		Ordering: ordering.Orderings[storage.SnapshotOrdering]{
+			ordering.OrderByDesc(storage.SnapshotOrderingIntrospectedAt),
+			ordering.OrderByDesc(storage.SnapshotOrderingID),
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, latest.ID, got[0].ID)
+	assert.Equal(t, latest.SchemaHash, got[0].SchemaHash)
+	assert.JSONEq(t, string(latest.SchemaJSON), string(got[0].SchemaJSON))
+	assert.WithinDuration(t, latest.IntrospectedAt, got[0].IntrospectedAt, time.Second)
+}
+
 func TestStorage_InsertChunk(t *testing.T) {
 	t.Parallel()
 
@@ -163,6 +209,111 @@ func TestStorage_InsertChunk(t *testing.T) {
 	assert.JSONEq(t, string(chunk.Metadata), string(got.Metadata))
 }
 
+func TestStorage_SearchChunks(t *testing.T) {
+	t.Parallel()
+
+	createdConn := createConnection(t, "search-chunks-connection")
+	targetSnapshot := insertSnapshot(t, createdConn.ID, "hash-search-target")
+	otherSnapshot := insertSnapshot(t, createdConn.ID, "hash-search-other")
+
+	targetChunk := &schemas.Chunk{
+		SnapshotID:   targetSnapshot.ID,
+		ConnectionID: targetSnapshot.ConnectionID,
+		ObjectType:   "table",
+		ObjectName:   "public.users",
+		SchemaJSON:   json.RawMessage(`{"table":"users"}`),
+		Content:      "users table",
+		Embedding:    testEmbeddingVectorAt(0),
+		Metadata:     []byte(`{"qualified_name":"public.users"}`),
+	}
+	secondChunk := &schemas.Chunk{
+		SnapshotID:   targetSnapshot.ID,
+		ConnectionID: targetSnapshot.ConnectionID,
+		ObjectType:   "table",
+		ObjectName:   "public.subscriptions",
+		SchemaJSON:   json.RawMessage(`{"table":"subscriptions"}`),
+		Content:      "subscriptions table",
+		Embedding:    testEmbeddingVectorAt(1),
+		Metadata:     []byte(`{"qualified_name":"public.subscriptions"}`),
+	}
+	otherSnapshotChunk := &schemas.Chunk{
+		SnapshotID:   otherSnapshot.ID,
+		ConnectionID: otherSnapshot.ConnectionID,
+		ObjectType:   "table",
+		ObjectName:   "public.should_not_match",
+		SchemaJSON:   json.RawMessage(`{"table":"should_not_match"}`),
+		Content:      "other snapshot table",
+		Embedding:    testEmbeddingVectorAt(0),
+		Metadata:     []byte(`{"qualified_name":"public.should_not_match"}`),
+	}
+
+	require.NoError(t, s.InsertChunk(t.Context(), targetChunk))
+	require.NoError(t, s.InsertChunk(t.Context(), secondChunk))
+	require.NoError(t, s.InsertChunk(t.Context(), otherSnapshotChunk))
+
+	retrieved, err := s.SearchChunks(t.Context(), storage.SearchChunksParams{
+		SnapshotID:     targetSnapshot.ID,
+		QueryEmbedding: testEmbeddingVectorAt(0),
+		Limit:          5,
+	})
+	require.NoError(t, err)
+	require.Len(t, retrieved, 2)
+
+	assert.Equal(t, targetChunk.ID, retrieved[0].ChunkID)
+	assert.Equal(t, targetChunk.ObjectType, retrieved[0].ObjectType)
+	assert.Equal(t, targetChunk.ObjectName, retrieved[0].ObjectName)
+	assert.Equal(t, targetChunk.Content, retrieved[0].Content)
+	assert.JSONEq(t, string(targetChunk.SchemaJSON), string(retrieved[0].SchemaJSON))
+	assert.InDelta(t, 1.0, retrieved[0].Similarity, 0.0001)
+
+	assert.Equal(t, secondChunk.ID, retrieved[1].ChunkID)
+	assert.NotEqual(t, otherSnapshotChunk.ID, retrieved[0].ChunkID)
+	assert.NotEqual(t, otherSnapshotChunk.ID, retrieved[1].ChunkID)
+	assert.Less(t, retrieved[1].Similarity, retrieved[0].Similarity)
+}
+
+func TestStorage_SearchChunks_AppliesSimilarityThreshold(t *testing.T) {
+	t.Parallel()
+
+	createdConn := createConnection(t, "search-chunks-threshold-connection")
+	snapshot := insertSnapshot(t, createdConn.ID, "hash-search-threshold")
+
+	closeChunk := &schemas.Chunk{
+		SnapshotID:   snapshot.ID,
+		ConnectionID: snapshot.ConnectionID,
+		ObjectType:   "table",
+		ObjectName:   "public.users",
+		SchemaJSON:   json.RawMessage(`{"table":"users"}`),
+		Content:      "users table",
+		Embedding:    testEmbeddingVectorAt(0),
+		Metadata:     []byte(`{"qualified_name":"public.users"}`),
+	}
+	farChunk := &schemas.Chunk{
+		SnapshotID:   snapshot.ID,
+		ConnectionID: snapshot.ConnectionID,
+		ObjectType:   "table",
+		ObjectName:   "public.subscriptions",
+		SchemaJSON:   json.RawMessage(`{"table":"subscriptions"}`),
+		Content:      "subscriptions table",
+		Embedding:    testEmbeddingVectorAt(1),
+		Metadata:     []byte(`{"qualified_name":"public.subscriptions"}`),
+	}
+
+	require.NoError(t, s.InsertChunk(t.Context(), closeChunk))
+	require.NoError(t, s.InsertChunk(t.Context(), farChunk))
+
+	threshold := float32(0.8)
+	retrieved, err := s.SearchChunks(t.Context(), storage.SearchChunksParams{
+		SnapshotID:          snapshot.ID,
+		QueryEmbedding:      testEmbeddingVectorAt(0),
+		Limit:               5,
+		SimilarityThreshold: &threshold,
+	})
+	require.NoError(t, err)
+	require.Len(t, retrieved, 1)
+	assert.Equal(t, closeChunk.ID, retrieved[0].ChunkID)
+}
+
 func TestStorage_UpsertAndGetEmbeddingJob(t *testing.T) {
 	t.Parallel()
 
@@ -208,6 +359,17 @@ func TestStorage_UpsertAndGetEmbeddingJob(t *testing.T) {
 	require.NotNil(t, got.ErrorMessage)
 	assert.Equal(t, message, *got.ErrorMessage)
 	require.NotNil(t, got.CompletedAt)
+}
+
+func TestStorage_GetEmbeddingJob_ReturnsNilWhenMissing(t *testing.T) {
+	t.Parallel()
+
+	createdConn := createConnection(t, "embedding-job-missing-connection")
+	snapshot := insertSnapshot(t, createdConn.ID, "hash-no-job")
+
+	got, err := s.GetEmbeddingJob(t.Context(), snapshot.ID)
+	require.NoError(t, err)
+	assert.Nil(t, got)
 }
 
 func TestStorage_ReplaceChunks(t *testing.T) {
@@ -298,5 +460,11 @@ func testEmbeddingVector(value float32) []float32 {
 	for i := range vector {
 		vector[i] = value
 	}
+	return vector
+}
+
+func testEmbeddingVectorAt(index int) []float32 {
+	vector := make([]float32, 768)
+	vector[index] = 1
 	return vector
 }

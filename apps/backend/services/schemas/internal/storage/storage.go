@@ -25,6 +25,13 @@ type SnapshotsFilter struct {
 	Ordering     ordering.Orderings[SnapshotOrdering]
 }
 
+type SearchChunksParams struct {
+	SnapshotID          int32
+	QueryEmbedding      []float32
+	Limit               int
+	SimilarityThreshold *float32
+}
+
 //go:generate go tool with-modfile mockery --name Storage --outpkg testing --output ./testing --filename generated__storage_mocks.go
 type Storage interface {
 	InsertSnapshot(ctx context.Context, snapshot *schemas.Snapshot) error
@@ -32,6 +39,7 @@ type Storage interface {
 	ListSnapshots(ctx context.Context, filter SnapshotsFilter) ([]*schemas.Snapshot, error)
 
 	InsertChunk(ctx context.Context, snapshot *schemas.Chunk) error
+	SearchChunks(ctx context.Context, params SearchChunksParams) ([]*schemas.RetrievedChunk, error)
 
 	ReplaceChunks(ctx context.Context, snapshotID int32, chunks []*schemas.Chunk) error
 

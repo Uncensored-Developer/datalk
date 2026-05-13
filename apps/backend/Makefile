@@ -37,7 +37,7 @@ migrate-force:
 
 generate-models:
 	rm -f db/models/*
-	go run github.com/stephenafamo/bob/gen/bobgen-psql@latest -c etc/bobgen.yaml
+	go run github.com/stephenafamo/bob/gen/bobgen-psql@v0.42.0 -c etc/bobgen.yaml
 
 # run gofumpt two times because it's buggy and need 2 pass
 	go tool with-modfile gofumpt -w -l ./db/*/*.go

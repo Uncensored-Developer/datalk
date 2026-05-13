@@ -10,6 +10,7 @@ import (
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/schemas/internal/storage"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/schemas/pkg/schemas"
 	"github.com/mdobak/go-xerrors"
+	pgvector "github.com/pgvector/pgvector-go"
 	"github.com/stephenafamo/bob"
 	"github.com/stephenafamo/bob/dialect/psql"
 	"github.com/stephenafamo/bob/dialect/psql/dialect"
@@ -97,6 +98,81 @@ func (s *Storage) InsertChunk(ctx context.Context, chunk *schemas.Chunk) error {
 	return nil
 }
 
+// SearchChunks searches for schema chunks based on a query embedding and snapshot ID, with optional similarity threshold and limit.
+func (s *Storage) SearchChunks(ctx context.Context, params storage.SearchChunksParams) ([]*schemas.RetrievedChunk, error) {
+	if params.SnapshotID == 0 {
+		return nil, xerrors.New("snapshot id is required")
+	}
+	if len(params.QueryEmbedding) == 0 {
+		return nil, xerrors.New("query embedding is required")
+	}
+	if params.Limit <= 0 {
+		return nil, xerrors.New("limit must be greater than 0")
+	}
+
+	query := `
+SELECT
+	id,
+	object_type,
+	object_name,
+	content,
+	schema_json,
+	CAST(1 - (embedding OPERATOR(datalk.<=>) $1::datalk.vector) AS real) AS similarity
+FROM schema_chunks
+WHERE snapshot_id = $2
+  AND embedding IS NOT NULL`
+
+	args := []any{pgvector.NewVector(params.QueryEmbedding), params.SnapshotID}
+	if params.SimilarityThreshold != nil {
+		query += `
+  AND CAST(1 - (embedding OPERATOR(datalk.<=>) $1::datalk.vector) AS real) >= $3`
+		args = append(args, *params.SimilarityThreshold)
+		query += `
+ORDER BY embedding OPERATOR(datalk.<=>) $1::datalk.vector ASC, id ASC
+LIMIT $4`
+		args = append(args, params.Limit)
+	} else {
+		query += `
+ORDER BY embedding OPERATOR(datalk.<=>) $1::datalk.vector ASC, id ASC
+LIMIT $3`
+		args = append(args, params.Limit)
+	}
+
+	rows, err := s.Executor(ctx).QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, xerrors.Newf("failed to search chunks: %w", err)
+	}
+	defer rows.Close()
+
+	results := make([]*schemas.RetrievedChunk, 0, params.Limit)
+	for rows.Next() {
+		var chunk schemas.RetrievedChunk
+		var schemaJSON []byte
+		var similarity float32
+
+		if err := rows.Scan(
+			&chunk.ChunkID,
+			&chunk.ObjectType,
+			&chunk.ObjectName,
+			&chunk.Content,
+			&schemaJSON,
+			&similarity,
+		); err != nil {
+			return nil, xerrors.Newf("failed to scan retrieved chunk: %w", err)
+		}
+
+		chunk.SchemaJSON = schemaJSON
+		chunk.Similarity = similarity
+		results = append(results, &chunk)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, xerrors.Newf("failed to iterate retrieved chunks: %w", err)
+	}
+
+	return results, nil
+}
+
 func (s *Storage) ReplaceChunks(ctx context.Context, snapshotID int32, chunks []*schemas.Chunk) error {
 	return s.InTransaction(ctx, func(ctx context.Context) error {
 		existingChunks, err := models.SchemaChunks.Query(
@@ -174,6 +250,8 @@ func (s *Storage) UpsertEmbeddingJob(ctx context.Context, job *schemas.Embedding
 
 func listSnapshotsOrderingExpr(field storage.SnapshotOrdering) (bob.Expression, error) {
 	switch field {
+	case storage.SnapshotOrderingIntrospectedAt:
+		return models.SchemaSnapshots.Columns.IntrospectedAt, nil
 	case storage.SnapshotOrderingID:
 		return models.SchemaSnapshots.Columns.ID, nil
 	default:

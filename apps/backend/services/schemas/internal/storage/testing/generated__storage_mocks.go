@@ -129,6 +129,36 @@ func (_m *Storage) ReplaceChunks(ctx context.Context, snapshotID int32, chunks [
 	return r0
 }
 
+// SearchChunks provides a mock function with given fields: ctx, params
+func (_m *Storage) SearchChunks(ctx context.Context, params storage.SearchChunksParams) ([]*schemas.RetrievedChunk, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SearchChunks")
+	}
+
+	var r0 []*schemas.RetrievedChunk
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, storage.SearchChunksParams) ([]*schemas.RetrievedChunk, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, storage.SearchChunksParams) []*schemas.RetrievedChunk); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*schemas.RetrievedChunk)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, storage.SearchChunksParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // UpsertEmbeddingJob provides a mock function with given fields: ctx, job
 func (_m *Storage) UpsertEmbeddingJob(ctx context.Context, job *schemas.EmbeddingJob) error {
 	ret := _m.Called(ctx, job)
