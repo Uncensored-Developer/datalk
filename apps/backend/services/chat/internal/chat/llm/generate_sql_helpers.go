@@ -57,6 +57,11 @@ func GenerateSQLSystemPrompt(req llmtypes.GenerateSQLRequest) string {
 	builder.WriteString("You generate a single read-only SQL query from the provided database context.\n")
 	builder.WriteString("Return only structured data that matches the requested schema.\n")
 	builder.WriteString("Do not invent tables or columns.\n\n")
+	builder.WriteString("SQL safety rules:\n")
+	builder.WriteString("- Generate exactly one SQL statement.\n")
+	builder.WriteString("- Generate only SELECT queries or WITH queries that end in SELECT.\n")
+	builder.WriteString("- Do not generate INSERT, UPDATE, DELETE, MERGE, DDL, transaction commands, temp objects, COPY, or procedure calls.\n")
+	builder.WriteString("- If the schema context is insufficient, explain the missing context instead of guessing.\n\n")
 
 	builder.WriteString(fmt.Sprintf("Database dialect: %s\n", req.Conversation.DatabaseKind))
 	builder.WriteString("Retrieved schema context:\n")
