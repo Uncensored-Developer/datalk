@@ -165,34 +165,44 @@ func (s *Service) getOwnedConversation(
 	userID int32,
 	conversationID int64,
 ) (*chattype.Conversation, *connectiontypes.Connection, error) {
-	conversation, err := s.storage.GetConversation(ctx, conversationID)
+	conversation, err := s.GetConversation(ctx, userID, conversationID)
 	if err != nil {
-		return nil, nil, xerrors.Newf("failed to fetch conversation: %w", err)
-	}
-	if conversation == nil || conversation.UserID != userID {
-		return nil, nil, chaterrors.ErrConversationNotFound
+		return nil, nil, err
 	}
 
-	connection, err := s.connections.GetConnection(ctx, conversation.ConnectionID)
+	connection, err := s.getQueryableConnection(ctx, userID, conversation.ConnectionID)
 	if err != nil {
-		return nil, nil, xerrors.Newf("failed to fetch connection: %w", err)
-	}
-	if connection == nil {
-		return nil, nil, chaterrors.ErrConnectionAccessDenied
-	}
-
-	access, err := s.connections.GetAccess(ctx, userID, conversation.ConnectionID)
-	if err != nil {
-		if errors.Is(err, connectionerrors.ErrAccessNotFound) {
-			return nil, nil, chaterrors.ErrConnectionAccessDenied
-		}
-		return nil, nil, xerrors.Newf("failed to fetch connection access: %w", err)
-	}
-	if access == nil || !access.CanQuery {
-		return nil, nil, chaterrors.ErrConnectionAccessDenied
+		return nil, nil, err
 	}
 
 	return conversation, connection, nil
+}
+
+func (s *Service) getQueryableConnection(
+	ctx context.Context,
+	userID int32,
+	connectionID int32,
+) (*connectiontypes.Connection, error) {
+	connection, err := s.connections.GetConnection(ctx, connectionID)
+	if err != nil {
+		return nil, xerrors.Newf("failed to fetch connection: %w", err)
+	}
+	if connection == nil {
+		return nil, chaterrors.ErrConnectionAccessDenied
+	}
+
+	access, err := s.connections.GetAccess(ctx, userID, connectionID)
+	if err != nil {
+		if errors.Is(err, connectionerrors.ErrAccessNotFound) {
+			return nil, chaterrors.ErrConnectionAccessDenied
+		}
+		return nil, xerrors.Newf("failed to fetch connection access: %w", err)
+	}
+	if access == nil || !access.CanQuery {
+		return nil, chaterrors.ErrConnectionAccessDenied
+	}
+
+	return connection, nil
 }
 
 func isSupportedChatDatabase(database connectiontypes.Database) bool {
