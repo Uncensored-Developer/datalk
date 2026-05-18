@@ -183,6 +183,37 @@ func TestRegistry_ResolveQualifiedModel(t *testing.T) {
 	require.ErrorIs(t, err, chaterrors.ErrModelNotAvailable)
 }
 
+func TestRegistry_ResolveModel_NormalizesQualifiedModelID(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	mockStorage := storagetesting.NewStorage(t)
+	mockStorage.
+		On("ListProviderConfigs", ctx, mock.MatchedBy(func(filter chatstorage.ProviderConfigsFilter) bool {
+			return filter.IsEnabled != nil && *filter.IsEnabled
+		})).
+		Return([]*llmtypes.ProviderConfig{
+			{ID: 1, Provider: llmtypes.ProviderOpenAI, IsEnabled: true},
+		}, nil).
+		Once()
+
+	registry := NewRegistry(mockStorage, map[llmtypes.Provider]ClientFactory{
+		llmtypes.ProviderOpenAI: func(config *llmtypes.ProviderConfig) (Client, error) {
+			return stubClient{
+				models: []llmtypes.Model{
+					{ID: "gpt-5.2", DisplayName: "GPT 5.2"},
+				},
+			}, nil
+		},
+	})
+
+	resolved, err := registry.ResolveModel(ctx, llmtypes.ProviderOpenAI, "openai:gpt-5.2")
+	require.NoError(t, err)
+	assert.Equal(t, "gpt-5.2", resolved.ProviderModelID)
+	assert.Equal(t, "openai:gpt-5.2", resolved.QualifiedModelID)
+	assert.Equal(t, "openai:gpt-5.2", resolved.Model.ID)
+}
+
 func TestParseQualifiedModelID(t *testing.T) {
 	t.Parallel()
 

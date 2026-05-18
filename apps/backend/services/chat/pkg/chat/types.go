@@ -115,6 +115,7 @@ type CreateConversationParams struct {
 }
 
 type SendMessageParams struct {
+	UserID         int32
 	ConversationID int64
 	Content        string
 	Provider       llm.Provider

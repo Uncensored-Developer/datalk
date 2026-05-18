@@ -25,6 +25,11 @@ type RunOptions struct {
 	RowLimit int
 }
 
+//go:generate go tool with-modfile mockery --name SQLRunner --outpkg testing --output ./testing --filename generated__sql_runner_mocks.go
+type SQLRunner interface {
+	Run(ctx context.Context, connection connectiontypes.Connection, query string, options RunOptions) (*chattype.QueryResult, error)
+}
+
 type Runner struct {
 	validator *Validator
 	openDB    func(driverName, dataSourceName string) (*sql.DB, error)

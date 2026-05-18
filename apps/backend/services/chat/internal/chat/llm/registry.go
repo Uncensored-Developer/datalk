@@ -27,6 +27,16 @@ type ResolvedModel struct {
 	QualifiedModelID string
 }
 
+type ResolvedClient struct {
+	*ResolvedModel
+	Client Client
+}
+
+//go:generate go tool with-modfile mockery --name ClientResolver --outpkg testing --output ./testing --filename generated__client_resolver_mocks.go
+type ClientResolver interface {
+	ResolveClient(ctx context.Context, provider llmtypes.Provider, modelID string) (*ResolvedClient, error)
+}
+
 func NewRegistry(storage chatstorage.Storage, factories map[llmtypes.Provider]ClientFactory) *Registry {
 	return &Registry{
 		storage:   storage,
@@ -72,6 +82,17 @@ func (r *Registry) ResolveModel(ctx context.Context, provider llmtypes.Provider,
 	if modelID == "" {
 		return nil, xerrors.Newf("model id is required: %w", chaterrors.ErrModelNotAvailable)
 	}
+	providerModelID := modelID
+	if strings.Contains(modelID, ":") {
+		parsedProvider, parsedModelID, err := ParseQualifiedModelID(modelID)
+		if err != nil {
+			return nil, err
+		}
+		if parsedProvider != provider {
+			return nil, xerrors.Newf("model %s is not available for provider %s: %w", modelID, provider, chaterrors.ErrModelNotAvailable)
+		}
+		providerModelID = parsedModelID
+	}
 
 	configsByProvider, err := r.listEnabledProviderConfigs(ctx)
 	if err != nil {
@@ -88,7 +109,7 @@ func (r *Registry) ResolveModel(ctx context.Context, provider llmtypes.Provider,
 		return nil, err
 	}
 
-	qualifiedModelID := QualifiedModelID(provider, modelID)
+	qualifiedModelID := QualifiedModelID(provider, providerModelID)
 	for _, model := range normalizedModels {
 		if model.ID != qualifiedModelID {
 			continue
@@ -97,12 +118,29 @@ func (r *Registry) ResolveModel(ctx context.Context, provider llmtypes.Provider,
 		return &ResolvedModel{
 			ProviderConfig:   config,
 			Model:            model,
-			ProviderModelID:  modelID,
+			ProviderModelID:  providerModelID,
 			QualifiedModelID: qualifiedModelID,
 		}, nil
 	}
 
 	return nil, xerrors.Newf("model %s is not available for provider %s: %w", modelID, provider, chaterrors.ErrModelNotAvailable)
+}
+
+func (r *Registry) ResolveClient(ctx context.Context, provider llmtypes.Provider, modelID string) (*ResolvedClient, error) {
+	resolved, err := r.ResolveModel(ctx, provider, modelID)
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := r.clientForConfig(resolved.ProviderConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ResolvedClient{
+		ResolvedModel: resolved,
+		Client:        client,
+	}, nil
 }
 
 func QualifiedModelID(provider llmtypes.Provider, modelID string) string {
