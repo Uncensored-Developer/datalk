@@ -169,6 +169,24 @@ func (_m *Storage) GetRetrieval(ctx context.Context, messageID int64) (*chat.Mes
 	return r0, r1
 }
 
+// InTransaction provides a mock function with given fields: ctx, fn
+func (_m *Storage) InTransaction(ctx context.Context, fn func(context.Context) error) error {
+	ret := _m.Called(ctx, fn)
+
+	if len(ret) == 0 {
+		panic("no return value specified for InTransaction")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, func(context.Context) error) error); ok {
+		r0 = rf(ctx, fn)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // InsertConversation provides a mock function with given fields: ctx, conversation
 func (_m *Storage) InsertConversation(ctx context.Context, conversation *chat.Conversation) error {
 	ret := _m.Called(ctx, conversation)
