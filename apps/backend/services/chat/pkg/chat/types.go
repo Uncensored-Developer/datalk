@@ -109,6 +109,12 @@ type AssistantTurn struct {
 	Retrieval        *MessageRetrieval
 }
 
+type MessageDetails struct {
+	Message   *Message
+	Execution *MessageExecution
+	Retrieval *MessageRetrieval
+}
+
 type CreateConversationParams struct {
 	ConnectionID int32
 	Title        *string
