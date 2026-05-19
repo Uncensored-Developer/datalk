@@ -49,7 +49,7 @@ func TestService_ListMessages_ReturnsJoinedDetailsInCreationOrder(t *testing.T) 
 	mockStorage.On("GetRetrieval", ctx, userMessage.ID).Return(retrieval, nil).Once()
 	mockStorage.On("GetExecution", ctx, assistantMessage.ID).Return(execution, nil).Once()
 
-	service := NewService(mockStorage, nil, nil, nil, nil)
+	service := newTestService(mockStorage, nil, nil, nil, nil)
 
 	got, err := service.ListMessages(ctx, userID, chattype.ListMessagesFilter{
 		ConversationID: conversation.ID,
@@ -74,7 +74,7 @@ func TestService_ListMessages_RejectsOtherUserConversation(t *testing.T) {
 	mockStorage := storagetesting.NewStorage(t)
 	mockStorage.On("GetConversation", ctx, int64(10)).Return(&chattype.Conversation{ID: 10, UserID: 99, ConnectionID: 42}, nil).Once()
 
-	service := NewService(mockStorage, nil, nil, nil, nil)
+	service := newTestService(mockStorage, nil, nil, nil, nil)
 
 	_, err := service.ListMessages(ctx, 7, chattype.ListMessagesFilter{ConversationID: 10})
 

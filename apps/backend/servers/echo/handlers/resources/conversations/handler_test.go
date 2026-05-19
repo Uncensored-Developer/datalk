@@ -131,6 +131,6 @@ func newTestEcho(service chatapi.Client) *echo.Echo {
 			return next(c)
 		}
 	})
-	New(service).Register(e.Group("/api/chat"))
+	New(service, nil).Register(e.Group("/api/chat"))
 	return e
 }

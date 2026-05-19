@@ -20,7 +20,7 @@ func (h *Handler) GetConversation(c echo.Context) error {
 
 	conversation, err := h.service.GetConversation(c.Request().Context(), userID, conversationID)
 	if err != nil {
-		return echohandlers.Error(err)
+		return echohandlers.Error(c, h.logger, err)
 	}
 
 	return c.JSON(http.StatusOK, toConversationResponse(conversation))

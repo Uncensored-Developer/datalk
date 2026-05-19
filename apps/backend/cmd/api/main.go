@@ -38,6 +38,7 @@ func main() {
 	}
 
 	e := echo.New()
+	e.Use(requestLoggingMiddleware(log))
 	e.Use(middleware.Recover())
 
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{

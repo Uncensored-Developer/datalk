@@ -40,7 +40,7 @@ func TestService_CreateConversation(t *testing.T) {
 		Return(nil).
 		Once()
 
-	service := NewService(mockStorage, mockConnections, nil, nil, nil)
+	service := newTestService(mockStorage, mockConnections, nil, nil, nil)
 
 	conversation, err := service.CreateConversation(ctx, userID, chattype.CreateConversationParams{
 		ConnectionID: connectionID,
@@ -63,7 +63,7 @@ func TestService_GetConversation(t *testing.T) {
 	mockStorage := storagetesting.NewStorage(t)
 	mockStorage.On("GetConversation", ctx, conversation.ID).Return(conversation, nil).Once()
 
-	service := NewService(mockStorage, nil, nil, nil, nil)
+	service := newTestService(mockStorage, nil, nil, nil, nil)
 
 	got, err := service.GetConversation(ctx, userID, conversation.ID)
 
@@ -78,7 +78,7 @@ func TestService_GetConversation_RejectsOtherUser(t *testing.T) {
 	mockStorage := storagetesting.NewStorage(t)
 	mockStorage.On("GetConversation", ctx, int64(10)).Return(&chattype.Conversation{ID: 10, UserID: 99, ConnectionID: 42}, nil).Once()
 
-	service := NewService(mockStorage, nil, nil, nil, nil)
+	service := newTestService(mockStorage, nil, nil, nil, nil)
 
 	_, err := service.GetConversation(ctx, 7, 10)
 
@@ -112,7 +112,7 @@ func TestService_ListConversations(t *testing.T) {
 		Return(conversations, nil).
 		Once()
 
-	service := NewService(mockStorage, nil, nil, nil, nil)
+	service := newTestService(mockStorage, nil, nil, nil, nil)
 
 	got, err := service.ListConversations(ctx, userID, chattype.ListConversationsFilter{
 		ConnectionID: []int32{connectionID},

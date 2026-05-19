@@ -3,6 +3,7 @@ package connections
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/connections/pkg/connections"
@@ -53,6 +54,13 @@ func (s *Service) CreateConnection(ctx context.Context, newConnection NewConnect
 	if err := s.storage.UpsertConnection(ctx, &connection); err != nil {
 		return nil, xerrors.Newf("failed to insert connection: %w", err)
 	}
+
+	s.Logger().Info(
+		"connection created",
+		slog.Int("connection_id", int(connection.ID)),
+		slog.Int("user_id", int(connection.UserID)),
+		slog.String("database", string(connection.Database)),
+	)
 
 	return &connection, nil
 }

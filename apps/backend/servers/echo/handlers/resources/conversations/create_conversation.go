@@ -24,7 +24,7 @@ func (h *Handler) CreateConversation(c echo.Context) error {
 		Title:        req.Title,
 	})
 	if err != nil {
-		return echohandlers.Error(err)
+		return echohandlers.Error(c, h.logger, err)
 	}
 
 	return c.JSON(http.StatusCreated, toConversationResponse(conversation))

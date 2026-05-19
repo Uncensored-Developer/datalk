@@ -3,6 +3,7 @@ package users
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/users/pkg/users"
@@ -51,5 +52,12 @@ func (s *Service) CreateUser(ctx context.Context, newUser NewUser) (*users.User,
 	if err != nil {
 		return nil, xerrors.Newf("failed to insert user: %w", err)
 	}
+
+	s.Logger().Info(
+		"user created",
+		slog.Int("user_id", int(user.ID)),
+		slog.String("role", string(user.Role)),
+	)
+
 	return &user, nil
 }

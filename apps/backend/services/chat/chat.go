@@ -36,6 +36,8 @@ func New(
 	storage := chatstorage.NewStorage(conn)
 	modelCatalog := chatllm.NewRegistry(storage, providerFactories(defaultLLMHTTPTimeout))
 	chatService := internalchat.NewService(
+		cfg,
+		logger,
 		storage,
 		connections,
 		schemaRetriever,

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -66,7 +67,7 @@ func Int32Query(c echo.Context, name string) ([]int32, error) {
 	return []int32{int32(value)}, nil
 }
 
-func Error(err error) error {
+func Error(c echo.Context, logger *slog.Logger, err error) error {
 	if err == nil {
 		return nil
 	}
@@ -86,5 +87,32 @@ func Error(err error) error {
 		status = http.StatusBadRequest
 	}
 
-	return echo.NewHTTPError(status, ErrorResponse{Error: err.Error()})
+	message := err.Error()
+	if status >= http.StatusInternalServerError {
+		logInternalError(c, logger, err)
+		message = "internal server error"
+	}
+
+	return echo.NewHTTPError(status, ErrorResponse{Error: message})
+}
+
+func logInternalError(c echo.Context, logger *slog.Logger, err error) {
+	if logger == nil {
+		logger = slog.Default()
+	}
+
+	if c == nil || c.Request() == nil {
+		logger.Error("internal handler error", slog.Any("err", err))
+		return
+	}
+
+	req := c.Request()
+	logger.Error(
+		"internal handler error",
+		slog.Any("err", err),
+		slog.String("method", req.Method),
+		slog.String("path", req.URL.Path),
+		slog.String("route", c.Path()),
+		slog.String("request_id", req.Header.Get(echo.HeaderXRequestID)),
+	)
 }

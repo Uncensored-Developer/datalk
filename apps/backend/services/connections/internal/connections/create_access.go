@@ -3,6 +3,7 @@ package connections
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/connections/pkg/connections"
@@ -43,6 +44,15 @@ func (s *Service) CreateAccess(ctx context.Context, newAccess NewAccess) (*conne
 	if err := s.storage.UpsertAccess(ctx, &access); err != nil {
 		return nil, xerrors.Newf("failed to insert access: %w", err)
 	}
+
+	s.Logger().Info(
+		"connection access granted",
+		slog.Int("user_id", int(access.UserID)),
+		slog.Int("connection_id", int(access.ConnectionID)),
+		slog.Bool("can_query", access.CanQuery),
+		slog.Bool("allow_writes", access.AllowWrites),
+		slog.Bool("can_manage", access.CanManage),
+	)
 
 	return &access, nil
 }

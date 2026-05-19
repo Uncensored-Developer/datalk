@@ -36,7 +36,7 @@ func (h *Handler) SendMessage(c echo.Context) error {
 		Model:          req.Model,
 	})
 	if err != nil {
-		return echohandlers.Error(err)
+		return echohandlers.Error(c, h.logger, err)
 	}
 
 	return c.JSON(http.StatusOK, toAssistantTurnResponse(turn))

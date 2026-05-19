@@ -33,7 +33,7 @@ func (h *Handler) ListConversations(c echo.Context) error {
 		Offset:       offset,
 	})
 	if err != nil {
-		return echohandlers.Error(err)
+		return echohandlers.Error(c, h.logger, err)
 	}
 
 	return c.JSON(http.StatusOK, toConversationResponses(conversations))

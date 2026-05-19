@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/Uncensored-Developer/datalk/apps/backend/pkg/distlock"
@@ -44,6 +45,20 @@ type chunkSchema struct {
 }
 
 func (s *Service) EmbedSnapshotContent(ctx context.Context, snapshotID int32) (retErr error) {
+	startedAt := time.Now()
+	defer func() {
+		if retErr == nil {
+			return
+		}
+
+		s.Logger().Warn(
+			"schema snapshot embedding failed",
+			slog.Any("err", retErr),
+			slog.Int("snapshot_id", int(snapshotID)),
+			slog.Int("latency_ms", int(time.Since(startedAt).Milliseconds())),
+		)
+	}()
+
 	// Embedding is optional at the service level, so fail early when the feature
 	// is disabled or the runtime dependency was not wired in.
 	if !s.Config().EmbeddingEnabled {
@@ -124,6 +139,14 @@ func (s *Service) EmbedSnapshotContent(ctx context.Context, snapshotID int32) (r
 	if err := s.storage.UpsertEmbeddingJob(ctx, completedJob); err != nil {
 		return xerrors.Newf("failed to set embedding job completed: %w", err)
 	}
+
+	s.Logger().Info(
+		"schema snapshot embedded",
+		slog.Int("snapshot_id", int(snapshotID)),
+		slog.Int("connection_id", int(snapshot.ConnectionID)),
+		slog.Int("chunks", len(chunks)),
+		slog.Int("latency_ms", int(time.Since(startedAt).Milliseconds())),
+	)
 
 	return nil
 }

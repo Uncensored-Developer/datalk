@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/Uncensored-Developer/datalk/apps/backend/pkg/distlock"
@@ -25,7 +26,21 @@ var databaseToDBKind = map[connectiontypes.Database]introspector.DBKind{
 	connectiontypes.DatabaseCQL:      introspector.DBCQL,
 }
 
-func (s *Service) RefreshSchemaSnapshot(ctx context.Context, connectionID int32) error {
+func (s *Service) RefreshSchemaSnapshot(ctx context.Context, connectionID int32) (retErr error) {
+	startedAt := time.Now()
+	defer func() {
+		if retErr == nil {
+			return
+		}
+
+		s.Logger().Warn(
+			"schema snapshot refresh failed",
+			slog.Any("err", retErr),
+			slog.Int("connection_id", int(connectionID)),
+			slog.Int("latency_ms", int(time.Since(startedAt).Milliseconds())),
+		)
+	}()
+
 	key := fmt.Sprintf("schemas-core:refresh-schema-snapshot:%d", connectionID)
 	lock, err := s.locker.Lock(ctx, []string{key}, distlock.LockOptions{Wait: true})
 	if err != nil {
@@ -75,7 +90,6 @@ func (s *Service) RefreshSchemaSnapshot(ctx context.Context, connectionID int32)
 	schemaHash := hex.EncodeToString(schemaHashBytes[:])
 
 	if schemaHash != snapshot.SchemaHash {
-		s.Logger().Info("Schema changed, updating schema")
 		// Schema has changed or snapshot not found
 		newSnapshot := &schematypes.Snapshot{
 			ConnectionID:   connectionID,
@@ -94,7 +108,23 @@ func (s *Service) RefreshSchemaSnapshot(ctx context.Context, connectionID int32)
 		if err != nil {
 			return xerrors.Newf("failed to send snapshot created event: %w", err)
 		}
+
+		s.Logger().Info(
+			"schema snapshot refreshed",
+			slog.Int("connection_id", int(connectionID)),
+			slog.Int("snapshot_id", int(newSnapshot.ID)),
+			slog.Int("latency_ms", int(time.Since(startedAt).Milliseconds())),
+		)
+
+		return nil
 	}
+
+	s.Logger().Info(
+		"schema snapshot unchanged",
+		slog.Int("connection_id", int(connectionID)),
+		slog.Int("snapshot_id", int(snapshot.ID)),
+		slog.Int("latency_ms", int(time.Since(startedAt).Milliseconds())),
+	)
 
 	return nil
 }

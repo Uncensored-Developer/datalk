@@ -44,7 +44,7 @@ func TestHandler_ListModels(t *testing.T) {
 			return next(c)
 		}
 	})
-	New(mockService).Register(e.Group("/api/chat"))
+	New(mockService, nil).Register(e.Group("/api/chat"))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/chat/models", nil)
 	rec := httptest.NewRecorder()

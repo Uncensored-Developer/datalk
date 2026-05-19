@@ -2,8 +2,11 @@ package chat
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
+	"github.com/Uncensored-Developer/datalk/apps/backend/config"
+	"github.com/Uncensored-Developer/datalk/apps/backend/services/base"
 	chatllm "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/internal/chat/llm"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/chat/internal/chat/sqlrunner"
 	chatstorage "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/internal/storage"
@@ -30,6 +33,8 @@ type SchemaRetriever interface {
 }
 
 type Service struct {
+	*base.Base
+
 	storage         chatstorage.Storage
 	connections     ConnectionService
 	schemaRetriever SchemaRetriever
@@ -38,6 +43,8 @@ type Service struct {
 }
 
 func NewService(
+	cfg config.Config,
+	logger *slog.Logger,
 	storage chatstorage.Storage,
 	connections ConnectionService,
 	schemaRetriever SchemaRetriever,
@@ -45,6 +52,7 @@ func NewService(
 	sqlRunner sqlrunner.SQLRunner,
 ) *Service {
 	return &Service{
+		Base:            base.NewBase("chat-core", logger, cfg),
 		storage:         storage,
 		connections:     connections,
 		schemaRetriever: schemaRetriever,

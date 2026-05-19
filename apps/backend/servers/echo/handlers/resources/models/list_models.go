@@ -14,7 +14,7 @@ func (h *Handler) ListModels(c echo.Context) error {
 
 	models, err := h.service.ListAvailableModels(c.Request().Context())
 	if err != nil {
-		return echohandlers.Error(err)
+		return echohandlers.Error(c, h.logger, err)
 	}
 
 	return c.JSON(http.StatusOK, toModelResponses(models))

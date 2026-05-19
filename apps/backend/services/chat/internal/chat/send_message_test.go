@@ -183,7 +183,7 @@ func TestService_SendMessage_HappyPath(t *testing.T) {
 		Return(nil).
 		Once()
 
-	service := NewService(
+	service := newTestService(
 		mockStorage,
 		mockConnections,
 		mockSchemas,
@@ -238,7 +238,7 @@ func TestService_SendMessage_RejectsBeforePersistence(t *testing.T) {
 					Return(&chattype.Conversation{ID: conversation.ID, UserID: 99, ConnectionID: conversation.ConnectionID}, nil).
 					Once()
 
-				return NewService(mockStorage, nil, nil, nil, nil), mockStorage
+				return newTestService(mockStorage, nil, nil, nil, nil), mockStorage
 			},
 			expectErr: chaterrors.ErrConversationNotFound,
 		},
@@ -257,7 +257,7 @@ func TestService_SendMessage_RejectsBeforePersistence(t *testing.T) {
 					Once()
 				mockConnections.On("GetAccess", ctx, userID, conversation.ConnectionID).Return(&connectiontypes.Access{CanQuery: false}, nil).Once()
 
-				return NewService(mockStorage, mockConnections, nil, nil, nil), mockStorage
+				return newTestService(mockStorage, mockConnections, nil, nil, nil), mockStorage
 			},
 			expectErr: chaterrors.ErrConnectionAccessDenied,
 		},
@@ -276,7 +276,7 @@ func TestService_SendMessage_RejectsBeforePersistence(t *testing.T) {
 					Once()
 				mockConnections.On("GetAccess", ctx, userID, conversation.ConnectionID).Return(nil, connectionerrors.ErrAccessNotFound).Once()
 
-				return NewService(mockStorage, mockConnections, nil, nil, nil), mockStorage
+				return newTestService(mockStorage, mockConnections, nil, nil, nil), mockStorage
 			},
 			expectErr: chaterrors.ErrConnectionAccessDenied,
 		},
@@ -295,7 +295,7 @@ func TestService_SendMessage_RejectsBeforePersistence(t *testing.T) {
 					Once()
 				mockConnections.On("GetAccess", ctx, userID, conversation.ConnectionID).Return(&connectiontypes.Access{CanQuery: true}, nil).Once()
 
-				return NewService(mockStorage, mockConnections, nil, nil, nil), mockStorage
+				return newTestService(mockStorage, mockConnections, nil, nil, nil), mockStorage
 			},
 			expectErr: chaterrors.ErrUnsupportedDatabaseKind,
 		},
@@ -325,7 +325,7 @@ func TestService_SendMessage_RejectsBeforePersistence(t *testing.T) {
 					Return((*chatllm.ResolvedClient)(nil), errors.Join(chaterrors.ErrModelNotAvailable)).
 					Once()
 
-				return NewService(mockStorage, mockConnections, nil, mockModels, nil), mockStorage
+				return newTestService(mockStorage, mockConnections, nil, mockModels, nil), mockStorage
 			},
 			expectErr: chaterrors.ErrModelNotAvailable,
 		},
@@ -399,7 +399,7 @@ func TestService_SendMessage_DoesNotPersistMessagesWhenLLMGenerationFails(t *tes
 		Return((*llmtypes.GenerateSQLResponse)(nil), errors.New("provider unavailable")).
 		Once()
 
-	service := NewService(
+	service := newTestService(
 		mockStorage,
 		mockConnections,
 		mockSchemas,

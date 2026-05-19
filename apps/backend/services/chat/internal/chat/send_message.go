@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 )
 
 func (s *Service) SendMessage(ctx context.Context, params chattype.SendMessageParams) (*chattype.AssistantTurn, error) {
+	startedAt := time.Now()
 	userContent := strings.TrimSpace(params.Content)
 	if userContent == "" {
 		return nil, xerrors.New("message content is required")
@@ -23,28 +25,36 @@ func (s *Service) SendMessage(ctx context.Context, params chattype.SendMessagePa
 
 	conversation, connection, err := s.getOwnedConversation(ctx, params.UserID, params.ConversationID)
 	if err != nil {
+		s.logSendMessageFailure("failed to validate conversation access", err, params, nil)
 		return nil, err
 	}
 
 	if !isSupportedChatDatabase(connection.Database) {
-		return nil, xerrors.Newf("%s: %w", connection.Database, chaterrors.ErrUnsupportedDatabaseKind)
+		err := xerrors.Newf("%s: %w", connection.Database, chaterrors.ErrUnsupportedDatabaseKind)
+		s.logSendMessageFailure("unsupported chat database", err, params, connection)
+		return nil, err
 	}
 
 	resolved, err := s.clientResolver.ResolveClient(ctx, params.Provider, params.Model)
 	if err != nil {
+		s.logSendMessageFailure("failed to resolve llm client", err, params, connection)
 		return nil, err
 	}
 	if resolved == nil || resolved.ProviderConfig == nil || resolved.Client == nil {
-		return nil, xerrors.Newf("model resolver returned incomplete client: %w", chaterrors.ErrModelNotAvailable)
+		err := xerrors.Newf("model resolver returned incomplete client: %w", chaterrors.ErrModelNotAvailable)
+		s.logSendMessageFailure("llm resolver returned incomplete client", err, params, connection)
+		return nil, err
 	}
 
 	history, err := s.loadRecentHistory(ctx, conversation.ID, 0)
 	if err != nil {
+		s.logSendMessageFailure("failed to load recent chat history", err, params, connection)
 		return nil, err
 	}
 
 	lastAssistantSQL, err := s.latestAssistantSQL(ctx, history)
 	if err != nil {
+		s.logSendMessageFailure("failed to load previous assistant sql", err, params, connection)
 		return nil, err
 	}
 
@@ -55,10 +65,13 @@ func (s *Service) SendMessage(ctx context.Context, params chattype.SendMessagePa
 		Limit:        defaultSchemaChunkLimit,
 	})
 	if err != nil {
+		s.logSendMessageFailure("failed to retrieve schema context", err, params, connection)
 		return nil, err
 	}
 	if schemaContext == nil {
-		return nil, xerrors.Newf("schema retrieval returned no context: %w", chaterrors.ErrEmbeddedSnapshotNotReady)
+		err := xerrors.Newf("schema retrieval returned no context: %w", chaterrors.ErrEmbeddedSnapshotNotReady)
+		s.logSendMessageFailure("schema retrieval returned no context", err, params, connection)
+		return nil, err
 	}
 
 	retrieval := &chattype.MessageRetrieval{
@@ -74,13 +87,17 @@ func (s *Service) SendMessage(ctx context.Context, params chattype.SendMessagePa
 	generateResp, err := resolved.Client.GenerateSQL(ctx, generateReq)
 	llmLatencyMS := elapsedMilliseconds(llmStarted)
 	if err != nil {
+		s.logSendMessageFailure("failed to generate sql", err, params, connection, slog.Int("llm_latency_ms", int(llmLatencyMS)))
 		return nil, xerrors.Newf("failed to generate sql: %w", err)
 	}
 	if generateResp == nil {
-		return nil, xerrors.New("provider returned empty sql response")
+		err := xerrors.New("provider returned empty sql response")
+		s.logSendMessageFailure("provider returned empty sql response", err, params, connection, slog.Int("llm_latency_ms", int(llmLatencyMS)))
+		return nil, err
 	}
 
 	if err := sqlrunner.NewValidator().Validate(connection.Database, generateResp.SQL); err != nil {
+		s.logSendMessageFailure("failed to validate generated sql", err, params, connection, slog.Int("llm_latency_ms", int(llmLatencyMS)))
 		return nil, xerrors.Newf("failed to validate sql: %w", err)
 	}
 
@@ -91,6 +108,7 @@ func (s *Service) SendMessage(ctx context.Context, params chattype.SendMessagePa
 	})
 	executionLatencyMS := elapsedMilliseconds(execStarted)
 	if err != nil {
+		s.logSendMessageFailure("failed to execute generated sql", err, params, connection, slog.Int("execution_latency_ms", int(executionLatencyMS)))
 		return nil, err
 	}
 
@@ -148,8 +166,26 @@ func (s *Service) SendMessage(ctx context.Context, params chattype.SendMessagePa
 
 		return nil
 	}); err != nil {
+		s.logSendMessageFailure("failed to persist assistant turn", err, params, connection)
 		return nil, err
 	}
+
+	s.Logger().Info(
+		"chat message completed",
+		slog.Int64("conversation_id", conversation.ID),
+		slog.Int("user_id", int(params.UserID)),
+		slog.Int("connection_id", int(connection.ID)),
+		slog.String("database", string(connection.Database)),
+		slog.String("provider", string(params.Provider)),
+		slog.String("model", params.Model),
+		slog.Int("history_messages", len(history)),
+		slog.Int("schema_chunks", len(schemaContext.Chunks)),
+		slog.Int("llm_latency_ms", int(llmLatencyMS)),
+		slog.Int("execution_latency_ms", int(executionLatencyMS)),
+		slog.Int("total_latency_ms", int(elapsedMilliseconds(startedAt))),
+		slog.Int("result_rows", int(result.RowCount)),
+		slog.Bool("result_truncated", result.Truncated),
+	)
 
 	return &chattype.AssistantTurn{
 		Conversation:     conversation,
@@ -158,6 +194,33 @@ func (s *Service) SendMessage(ctx context.Context, params chattype.SendMessagePa
 		Execution:        execution,
 		Retrieval:        retrieval,
 	}, nil
+}
+
+func (s *Service) logSendMessageFailure(
+	message string,
+	err error,
+	params chattype.SendMessageParams,
+	connection *connectiontypes.Connection,
+	attrs ...slog.Attr,
+) {
+	args := []any{
+		slog.Any("err", err),
+		slog.Int64("conversation_id", params.ConversationID),
+		slog.Int("user_id", int(params.UserID)),
+		slog.String("provider", string(params.Provider)),
+		slog.String("model", params.Model),
+	}
+	if connection != nil {
+		args = append(args,
+			slog.Int("connection_id", int(connection.ID)),
+			slog.String("database", string(connection.Database)),
+		)
+	}
+	for _, attr := range attrs {
+		args = append(args, attr)
+	}
+
+	s.Logger().Warn(message, args...)
 }
 
 func (s *Service) getOwnedConversation(
