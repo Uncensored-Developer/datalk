@@ -1,4 +1,4 @@
-package schemas
+package sqlrunner
 
 import (
 	"log/slog"
@@ -8,12 +8,8 @@ import (
 
 	"github.com/Uncensored-Developer/datalk/apps/backend/config"
 	"github.com/Uncensored-Developer/datalk/apps/backend/db/common"
-	"github.com/Uncensored-Developer/datalk/apps/backend/pkg/pubsub"
-	"github.com/Uncensored-Developer/datalk/apps/backend/pkg/pubsub/memory"
 	"github.com/stretchr/testify/require"
 )
-
-var memoryPublisher = memory.NewMemoryBus()
 
 var (
 	integrationRunner     *common.TestRunner
@@ -22,7 +18,6 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	pubsub.RegisterPublisher(memoryPublisher)
 	code := m.Run()
 	if integrationRunner != nil && integrationRunner.Conn != nil {
 		if err := common.DropTestSchema(integrationRunner.Conn, integrationRunner.Schema); err != nil {

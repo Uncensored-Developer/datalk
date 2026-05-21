@@ -2,9 +2,11 @@ package sqlrunner
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/Uncensored-Developer/datalk/apps/backend/config"
 	chattype "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/pkg/chat"
 	chaterrors "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/pkg/errors"
 	connectiontypes "github.com/Uncensored-Developer/datalk/apps/backend/services/connections/pkg/connections"
@@ -244,4 +246,49 @@ func TestDataSourceNameForDatabase(t *testing.T) {
 			assert.Equal(t, tc.expect, got)
 		})
 	}
+}
+
+func TestRunnerIntegration_PostgresReadOnlyExecution(t *testing.T) {
+	runner, cfg := requireIntegrationRunner(t, "sqlrunner")
+	_, err := runner.Conn.ExecContext(t.Context(), `
+		CREATE TABLE runner_subscriptions (
+			id SERIAL PRIMARY KEY,
+			subscribed_at TIMESTAMPTZ NOT NULL
+		);
+		INSERT INTO runner_subscriptions (subscribed_at) VALUES
+			('2026-05-03T10:00:00Z'),
+			('2026-05-12T10:00:00Z');
+	`)
+	require.NoError(t, err)
+
+	connection := connectiontypes.Connection{
+		Database: connectiontypes.DatabasePostgres,
+		DSN:      sqlRunnerIntegrationPostgresDSN(cfg, runner.Schema),
+	}
+
+	result, err := NewRunner().Run(t.Context(), connection, "SELECT count(*)::int AS total FROM runner_subscriptions", RunOptions{RowLimit: 10})
+	require.NoError(t, err)
+	require.Len(t, result.Rows, 1)
+	assert.EqualValues(t, int64(2), result.Rows[0]["total"])
+	assert.False(t, result.Truncated)
+
+	_, err = NewRunner().Run(t.Context(), connection, "DELETE FROM runner_subscriptions", RunOptions{RowLimit: 10})
+	require.ErrorIs(t, err, chaterrors.ErrInvalidSQL)
+
+	var remaining int
+	require.NoError(t, runner.Conn.QueryRowContext(t.Context(), "SELECT count(*) FROM runner_subscriptions").Scan(&remaining))
+	assert.Equal(t, 2, remaining)
+}
+
+func sqlRunnerIntegrationPostgresDSN(cfg config.Config, schema string) string {
+	return fmt.Sprintf(
+		"user=%s password=%s host=%s port=%d dbname=%s sslmode=%s search_path=test%s",
+		cfg.DBUser,
+		cfg.DBPassword,
+		cfg.DBHost,
+		cfg.DBPort,
+		cfg.DBName,
+		cfg.DBSSLMode,
+		schema,
+	)
 }

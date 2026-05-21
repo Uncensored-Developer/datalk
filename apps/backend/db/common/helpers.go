@@ -72,6 +72,9 @@ func FindMigrations() (string, error) {
 		// services api tests
 		"../../../../../db/migrations",
 
+		// Integration tests
+		"../../../../db/migrations",
+
 		"db/migrations",
 
 		// echo tests
