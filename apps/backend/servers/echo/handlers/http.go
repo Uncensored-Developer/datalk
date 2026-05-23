@@ -82,6 +82,7 @@ func Error(c echo.Context, logger *slog.Logger, err error) error {
 		errors.Is(err, chaterrors.ErrModelNotAvailable),
 		errors.Is(err, chaterrors.ErrEmbeddedSnapshotNotReady),
 		errors.Is(err, chaterrors.ErrInvalidSQL),
+		errors.Is(err, chaterrors.ErrPromptTooLarge),
 		errors.Is(err, chaterrors.ErrUnsupportedDatabaseKind),
 		errors.Is(err, chaterrors.ErrMessageExecutionFailed):
 		status = http.StatusBadRequest

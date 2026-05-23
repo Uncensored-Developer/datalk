@@ -82,6 +82,13 @@ func (s *Service) SendMessage(ctx context.Context, params chattype.SendMessagePa
 	}
 
 	generateReq := buildGenerateSQLRequest(conversation, connection.Database, userContent, history, schemaContext, resolved.ProviderModelID)
+	if err := enforceGenerateSQLRequestLimits(&generateReq); err != nil {
+		s.logSendMessageFailure("generated sql request exceeded limits", err, params, connection,
+			slog.Int("schema_chunks", len(generateReq.Schema.Chunks)),
+			slog.Int("max_prompt_bytes", generateReq.Options.MaxPromptBytes),
+		)
+		return nil, err
+	}
 
 	llmStarted := time.Now()
 	generateResp, err := resolved.Client.GenerateSQL(ctx, generateReq)

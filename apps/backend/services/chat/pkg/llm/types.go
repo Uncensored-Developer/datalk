@@ -74,6 +74,7 @@ type ConversationMessage struct {
 type GenerateSQLOptions struct {
 	MaxHistoryMessages int
 	MaxSchemaChunks    int
+	MaxPromptBytes     int
 	RequireReadOnly    bool
 	RequireSingleStmt  bool
 	AllowedDatabases   []connectiontypes.Database

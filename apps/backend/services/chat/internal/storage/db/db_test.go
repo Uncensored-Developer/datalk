@@ -1,7 +1,9 @@
 package db
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -255,6 +257,33 @@ func TestStorage_InsertAndGetRetrieval(t *testing.T) {
 	assert.JSONEq(t, string(retrieval.Chunks[0].SchemaJSON), string(got.Chunks[0].SchemaJSON))
 	assert.InDelta(t, retrieval.Chunks[0].Similarity, got.Chunks[0].Similarity, 0.0001)
 	assert.WithinDuration(t, retrievedAt, got.RetrievedAt, time.Second)
+}
+
+func TestStorage_InTransactionRollsBackOnError(t *testing.T) {
+	t.Parallel()
+
+	connection := createConnection(t, "chat-transaction-rollback")
+	conversation := insertConversation(t, connection.UserID, connection.ID, "Rollback test")
+	rollbackErr := errors.New("force rollback")
+
+	err := s.InTransaction(t.Context(), func(ctx context.Context) error {
+		return errors.Join(
+			s.InsertMessage(ctx, &chattype.Message{
+				ConversationID: conversation.ID,
+				Role:           chattype.MessageRoleUser,
+				Content:        "this should roll back",
+				Status:         chattype.MessageStatusCompleted,
+			}),
+			rollbackErr,
+		)
+	})
+	require.ErrorIs(t, err, rollbackErr)
+
+	messages, err := s.ListMessages(t.Context(), chatstorage.MessagesFilter{
+		ConversationID: []int64{conversation.ID},
+	})
+	require.NoError(t, err)
+	assert.Empty(t, messages)
 }
 
 func TestStorage_InsertAndListLLMCalls(t *testing.T) {

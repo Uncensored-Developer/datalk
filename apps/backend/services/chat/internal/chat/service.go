@@ -17,6 +17,7 @@ import (
 const (
 	defaultHistoryLimit     = 20
 	defaultSchemaChunkLimit = 8
+	defaultMaxPromptBytes   = 64 * 1024
 	defaultResultRowLimit   = 100
 	defaultQueryTimeout     = 30 * time.Second
 )

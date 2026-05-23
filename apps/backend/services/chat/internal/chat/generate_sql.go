@@ -28,6 +28,7 @@ func buildGenerateSQLRequest(
 		Options: llmtypes.GenerateSQLOptions{
 			MaxHistoryMessages: defaultHistoryLimit,
 			MaxSchemaChunks:    defaultSchemaChunkLimit,
+			MaxPromptBytes:     defaultMaxPromptBytes,
 			RequireReadOnly:    true,
 			RequireSingleStmt:  true,
 			AllowedDatabases:   []connectiontypes.Database{connectiontypes.DatabasePostgres, connectiontypes.DatabaseMySQL},

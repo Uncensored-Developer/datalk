@@ -419,3 +419,91 @@ func TestService_SendMessage_DoesNotPersistMessagesWhenLLMGenerationFails(t *tes
 	mockStorage.AssertNotCalled(t, "InTransaction", mock.Anything, mock.Anything)
 	mockStorage.AssertNotCalled(t, "InsertMessage", mock.Anything, mock.Anything)
 }
+
+func TestService_SendMessage_DoesNotPersistMessagesWhenSQLExecutionFails(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	userID := int32(7)
+	conversation := &chattype.Conversation{ID: 10, UserID: userID, ConnectionID: 42}
+	connection := &connectiontypes.Connection{ID: 42, Database: connectiontypes.DatabasePostgres, DSN: "postgres://warehouse"}
+	schemaContext := &schematypes.RetrievedSchemaContext{
+		ConnectionID:   conversation.ConnectionID,
+		SnapshotID:     55,
+		EmbeddingModel: "nomic-embed-text",
+		QueryText:      "how many users?",
+		Chunks: []schematypes.RetrievedChunk{
+			{ChunkID: 1, ObjectType: "table", ObjectName: "users", Content: "table users(id int)", Similarity: 0.91},
+		},
+		RetrievedAt: time.Now().UTC(),
+	}
+
+	mockStorage := storagetesting.NewStorage(t)
+	mockConnections := chattesting.NewConnectionService(t)
+	mockSchemas := chattesting.NewSchemaRetriever(t)
+	mockModels := llmtesting.NewClientResolver(t)
+	mockClient := llmtesting.NewClient(t)
+	mockSQLRunner := sqlrunnertesting.NewSQLRunner(t)
+
+	mockStorage.On("GetConversation", ctx, conversation.ID).Return(conversation, nil).Once()
+	mockConnections.On("GetConnection", ctx, conversation.ConnectionID).Return(connection, nil).Once()
+	mockConnections.On("GetAccess", ctx, userID, conversation.ConnectionID).Return(&connectiontypes.Access{CanQuery: true}, nil).Once()
+	mockModels.
+		On("ResolveClient", ctx, llmtypes.ProviderOpenAI, "gpt-5.2").
+		Return(&chatllm.ResolvedClient{
+			ResolvedModel: &chatllm.ResolvedModel{
+				ProviderConfig:   &llmtypes.ProviderConfig{ID: 300, Provider: llmtypes.ProviderOpenAI},
+				ProviderModelID:  "gpt-5.2",
+				QualifiedModelID: "openai:gpt-5.2",
+			},
+			Client: mockClient,
+		}, nil).
+		Once()
+	mockStorage.
+		On("ListMessages", ctx, mock.MatchedBy(func(filter chatstorage.MessagesFilter) bool {
+			return len(filter.ConversationID) == 1 && filter.ConversationID[0] == conversation.ID
+		})).
+		Return(nil, nil).
+		Once()
+	mockSchemas.
+		On("RetrieveRelevantSchemaContext", ctx, mock.MatchedBy(func(params schematypes.RetrieveRelevantSchemaContextParams) bool {
+			return params.ConnectionID == conversation.ConnectionID && params.Limit == defaultSchemaChunkLimit
+		})).
+		Return(schemaContext, nil).
+		Once()
+	mockClient.
+		On("GenerateSQL", ctx, mock.Anything).
+		Return(&llmtypes.GenerateSQLResponse{
+			SQL:         "select count(*) from users",
+			Explanation: "Counts users.",
+		}, nil).
+		Once()
+	executionErr := errors.New("database unavailable")
+	mockSQLRunner.
+		On("Run", ctx, *connection, "select count(*) from users", sqlrunner.RunOptions{
+			Timeout:  defaultQueryTimeout,
+			RowLimit: defaultResultRowLimit,
+		}).
+		Return((*chattype.QueryResult)(nil), executionErr).
+		Once()
+
+	service := newTestService(
+		mockStorage,
+		mockConnections,
+		mockSchemas,
+		mockModels,
+		mockSQLRunner,
+	)
+
+	_, err := service.SendMessage(ctx, chattype.SendMessageParams{
+		UserID:         userID,
+		ConversationID: conversation.ID,
+		Content:        "how many users?",
+		Provider:       llmtypes.ProviderOpenAI,
+		Model:          "gpt-5.2",
+	})
+
+	require.ErrorIs(t, err, executionErr)
+	mockStorage.AssertNotCalled(t, "InTransaction", mock.Anything, mock.Anything)
+	mockStorage.AssertNotCalled(t, "InsertMessage", mock.Anything, mock.Anything)
+}
