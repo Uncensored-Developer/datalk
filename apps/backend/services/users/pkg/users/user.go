@@ -13,12 +13,21 @@ const (
 )
 
 type User struct {
-	ID           int32
-	Email        string
-	Name         string
-	PasswordHash string
-	Role         Role
-	IsActive     bool
-	LastLoginAt  *time.Time
-	CreatedAt    time.Time
+	ID                 int32
+	Email              string
+	Name               string
+	PasswordHash       string
+	Role               Role
+	IsActive           bool
+	MustChangePassword bool
+	LastLoginAt        *time.Time
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+func (u *User) IsAdmin() bool {
+	if u == nil {
+		return false
+	}
+	return u.Role == RoleOwner || u.Role == RoleAdmin
 }
