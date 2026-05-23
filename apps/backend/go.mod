@@ -25,7 +25,8 @@ require (
 	github.com/mdobak/go-xerrors v1.0.0
 	github.com/pganalyze/pg_query_go/v6 v6.1.0
 	github.com/pgvector/pgvector-go v0.3.0
-	github.com/stephenafamo/bob v0.42.0
+	github.com/stephenafamo/bob v0.44.0
+	github.com/stephenafamo/scan v0.7.0
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/exp v0.0.0-20250305212735-054e65f0b394
 	golang.org/x/mod v0.30.0
@@ -53,7 +54,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/qdm12/reprint v0.0.0-20200326205758-722754a53494 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	github.com/stephenafamo/scan v0.7.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
