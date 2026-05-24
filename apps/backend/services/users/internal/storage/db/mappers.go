@@ -4,8 +4,8 @@ import (
 	"time"
 
 	"github.com/Uncensored-Developer/datalk/apps/backend/db/models"
+	userauth "github.com/Uncensored-Developer/datalk/apps/backend/pkg/auth"
 	"github.com/Uncensored-Developer/datalk/apps/backend/pkg/slices"
-	userauth "github.com/Uncensored-Developer/datalk/apps/backend/services/users/internal/auth"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/users/pkg/users"
 	"github.com/aarondl/opt/null"
 	"github.com/aarondl/opt/omit"

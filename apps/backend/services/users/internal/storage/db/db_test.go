@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/Uncensored-Developer/datalk/apps/backend/db/factory"
-	userauth "github.com/Uncensored-Developer/datalk/apps/backend/services/users/internal/auth"
+	userauth "github.com/Uncensored-Developer/datalk/apps/backend/pkg/auth"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/users/internal/storage"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/users/pkg/users"
 	"github.com/aarondl/opt/null"

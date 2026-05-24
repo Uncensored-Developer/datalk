@@ -9,7 +9,7 @@ import (
 	"github.com/Uncensored-Developer/datalk/apps/backend/db/common"
 	"github.com/Uncensored-Developer/datalk/apps/backend/db/info"
 	"github.com/Uncensored-Developer/datalk/apps/backend/db/models"
-	userauth "github.com/Uncensored-Developer/datalk/apps/backend/services/users/internal/auth"
+	userauth "github.com/Uncensored-Developer/datalk/apps/backend/pkg/auth"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/users/internal/storage"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/users/pkg/users"
 	"github.com/lib/pq"
