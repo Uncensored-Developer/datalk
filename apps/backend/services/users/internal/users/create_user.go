@@ -2,7 +2,6 @@ package users
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"time"
 
@@ -11,21 +10,27 @@ import (
 )
 
 type NewUser struct {
-	Name     string
-	Email    string
-	Password string
-	Role     users.Role
+	Name               string
+	Email              string
+	Password           string
+	Role               users.Role
+	MustChangePassword bool
 }
 
 func (n *NewUser) Validate() error {
 	if n.Name == "" {
-		return errors.New("name is required")
+		return xerrors.New("name is required")
 	}
 	if n.Email == "" {
-		return errors.New("email is required")
+		return xerrors.New("email is required")
 	}
 	if n.Password == "" {
-		return errors.New("password is required")
+		return xerrors.New("password is required")
+	}
+	switch n.Role {
+	case "", users.RoleOwner, users.RoleAdmin, users.RoleMember:
+	default:
+		return xerrors.New("role is invalid")
 	}
 	return nil
 }
@@ -41,12 +46,16 @@ func (s *Service) CreateUser(ctx context.Context, newUser NewUser) (*users.User,
 	}
 
 	user := users.User{
-		Name:         newUser.Name,
-		Email:        newUser.Email,
-		PasswordHash: hashedPassword,
-		Role:         newUser.Role,
-		IsActive:     true,
-		CreatedAt:    time.Now().UTC(),
+		Name:               newUser.Name,
+		Email:              newUser.Email,
+		PasswordHash:       hashedPassword,
+		Role:               newUser.Role,
+		IsActive:           true,
+		MustChangePassword: newUser.MustChangePassword,
+		CreatedAt:          time.Now().UTC(),
+	}
+	if user.Role == "" {
+		user.Role = users.RoleMember
 	}
 	err = s.storage.UpsertUser(ctx, &user)
 	if err != nil {

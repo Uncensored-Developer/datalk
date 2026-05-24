@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/Uncensored-Developer/datalk/apps/backend/config"
+	userauth "github.com/Uncensored-Developer/datalk/apps/backend/pkg/auth"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/base"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/users/internal/storage"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/users/internal/storage/db"
@@ -16,6 +17,7 @@ type Service struct {
 
 	storage storage.Storage
 	hasher  hashers.Hasher
+	tokens  *userauth.TokenManager
 }
 
 func NewService(conn *sql.DB, logger *slog.Logger, cfg config.Config) *Service {
@@ -23,5 +25,6 @@ func NewService(conn *sql.DB, logger *slog.Logger, cfg config.Config) *Service {
 		Base:    base.NewBase("users-core", logger, cfg),
 		storage: db.NewStorage(conn),
 		hasher:  hashers.NewArgon2Hasher(),
+		tokens:  userauth.NewTokenManager(cfg),
 	}
 }

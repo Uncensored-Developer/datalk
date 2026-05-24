@@ -8,3 +8,14 @@ type NewUserParams struct {
 	Password string
 	Role     users.Role
 }
+
+type LoginParams struct {
+	Email    string
+	Password string
+}
+
+type ChangePasswordParams struct {
+	UserID          int32
+	CurrentPassword string
+	NewPassword     string
+}
