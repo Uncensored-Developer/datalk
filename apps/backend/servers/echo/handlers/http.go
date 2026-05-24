@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	chaterrors "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/pkg/errors"
+	usererrors "github.com/Uncensored-Developer/datalk/apps/backend/services/users/pkg/errors"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/users/pkg/users"
 	"github.com/labstack/echo/v4"
 )
@@ -17,17 +18,25 @@ type ErrorResponse struct {
 	Error string `json:"error"`
 }
 
-func UserID(c echo.Context) (int32, error) {
+func User(c echo.Context) (*users.User, error) {
 	switch user := c.Get(UserContextKey).(type) {
 	case *users.User:
 		if user != nil {
-			return user.ID, nil
+			return user, nil
 		}
 	case users.User:
-		return user.ID, nil
+		return &user, nil
 	}
 
-	return 0, echo.NewHTTPError(http.StatusUnauthorized, ErrorResponse{Error: "unauthorized"})
+	return nil, echo.NewHTTPError(http.StatusUnauthorized, ErrorResponse{Error: "unauthorized"})
+}
+
+func UserID(c echo.Context) (int32, error) {
+	user, err := User(c)
+	if err != nil {
+		return 0, err
+	}
+	return user.ID, nil
 }
 
 func Int64Param(c echo.Context, name string) (int64, error) {
@@ -74,6 +83,16 @@ func Error(c echo.Context, logger *slog.Logger, err error) error {
 
 	status := http.StatusInternalServerError
 	switch {
+	case errors.Is(err, usererrors.ErrUnauthorized), errors.Is(err, usererrors.ErrRefreshTokenInvalid):
+		status = http.StatusUnauthorized
+	case errors.Is(err, usererrors.ErrForbidden), errors.Is(err, usererrors.ErrPasswordChangeRequired):
+		status = http.StatusForbidden
+	case errors.Is(err, usererrors.ErrUserNotFound):
+		status = http.StatusNotFound
+	case errors.Is(err, usererrors.ErrSetupUnavailable):
+		status = http.StatusConflict
+	case errors.Is(err, usererrors.ErrInactiveUser):
+		status = http.StatusForbidden
 	case errors.Is(err, chaterrors.ErrConversationNotFound), errors.Is(err, chaterrors.ErrMessageNotFound):
 		status = http.StatusNotFound
 	case errors.Is(err, chaterrors.ErrConnectionAccessDenied):

@@ -13,9 +13,17 @@ import (
 
 	"github.com/Uncensored-Developer/datalk/apps/backend/config"
 	"github.com/Uncensored-Developer/datalk/apps/backend/db/common"
+	"github.com/Uncensored-Developer/datalk/apps/backend/pkg/distlock/postgres"
 	"github.com/Uncensored-Developer/datalk/apps/backend/pkg/logger"
 	"github.com/Uncensored-Developer/datalk/apps/backend/pkg/pubsub"
 	pubsubpostgres "github.com/Uncensored-Developer/datalk/apps/backend/pkg/pubsub/postgres"
+	echoauth "github.com/Uncensored-Developer/datalk/apps/backend/servers/echo/api/authenticator"
+	authhandlers "github.com/Uncensored-Developer/datalk/apps/backend/servers/echo/handlers/resources/auth"
+	connectionhandlers "github.com/Uncensored-Developer/datalk/apps/backend/servers/echo/handlers/resources/connections"
+	userhandlers "github.com/Uncensored-Developer/datalk/apps/backend/servers/echo/handlers/users"
+	connectionsservice "github.com/Uncensored-Developer/datalk/apps/backend/services/connections"
+	schemasservice "github.com/Uncensored-Developer/datalk/apps/backend/services/schemas"
+	usersservice "github.com/Uncensored-Developer/datalk/apps/backend/services/users"
 	"github.com/alecthomas/kingpin/v2"
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/labstack/echo/v4"
@@ -28,6 +36,9 @@ func main() {
 	ctx := context.Background()
 	kingpin.Parse()
 	cfg := config.MustLoad()
+	if cfg.JWTSecret == "" {
+		logger.Fatal("JWT_SECRET is required")
+	}
 
 	log := logger.SetupLogger(cfg)
 	slog.SetDefault(log)
@@ -46,20 +57,34 @@ func main() {
 		AllowMethods: []string{"*"},
 	}))
 
-	// locker := distlockpostgres.NewDistributedLocker(conn)
+	locker := postgres.NewDistributedLocker(conn)
 	pubsubBus := pubsubpostgres.NewBus(conn, pubsubConnInfo(cfg))
 	defer pubsubBus.Close()
 	pubsub.RegisterPublisher(pubsubBus)
 
-	//connectionsService := connections.New(cfg, conn)
-	//
-	//embeddingSubscription, err := schemasService.SubscribeSnapshotEmbedding(ctx, pubsubBus)
-	//if err != nil {
-	//	logger.Fatal("failed to subscribe snapshot embedding handler", logger.Err(err))
-	//}
-	//if embeddingSubscription != nil {
-	//	defer embeddingSubscription.Close(context.Background())
-	//}
+	usersService := usersservice.New(cfg, conn)
+	connectionsService := connectionsservice.New(cfg, conn)
+	schemasService, err := schemasservice.New(ctx, conn, cfg, log, locker, connectionsService.API)
+	if err != nil {
+		logger.Fatal("failed to create schemas service", logger.Err(err))
+	}
+
+	jwtAuthenticator := echoauth.NewJWTAuthenticator(cfg, usersService.API)
+	authMiddleware := echoauth.Middleware(jwtAuthenticator)
+	authhandlers.New(usersService.API, log).RegisterPublic(e.Group("/api"))
+
+	protectedAPI := e.Group("/api", authMiddleware)
+	authhandlers.New(usersService.API, log).RegisterProtected(protectedAPI)
+	userhandlers.New(usersService.API, log).Register(protectedAPI.Group("/users"))
+	connectionhandlers.New(connectionsService.API, log).Register(protectedAPI)
+
+	embeddingSubscription, err := schemasService.SubscribeSnapshotEmbedding(ctx, pubsubBus)
+	if err != nil {
+		logger.Fatal("failed to subscribe snapshot embedding handler", logger.Err(err))
+	}
+	if embeddingSubscription != nil {
+		defer embeddingSubscription.Close(context.Background())
+	}
 
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
 	defer stop()

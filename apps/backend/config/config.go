@@ -29,6 +29,11 @@ type Config struct {
 	GoMigrateTable string `env:"GO_MIGRATE_TABLE"`
 	RedisURL       string `env:"REDIS_URL"`
 
+	JWTSecret     string        `env:"JWT_SECRET"`
+	JWTAccessTTL  time.Duration `env:"JWT_ACCESS_TTL" envDefault:"15m"`
+	JWTRefreshTTL time.Duration `env:"JWT_REFRESH_TTL" envDefault:"720h"`
+	JWTIssuer     string        `env:"JWT_ISSUER"`
+
 	EmbeddingEnabled     bool          `env:"EMBEDDING_ENABLED" envDefault:"true"`
 	OllamaBaseURL        string        `env:"OLLAMA_BASE_URL" envDefault:"http://localhost:11434"`
 	EmbeddingBatchSize   int           `env:"EMBEDDING_BATCH_SIZE" envDefault:"16"`
