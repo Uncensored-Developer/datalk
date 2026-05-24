@@ -72,7 +72,7 @@ func (s *Service) RefreshSchemaSnapshot(ctx context.Context, connectionID int32)
 		snapshot = *snapshots[0]
 	}
 
-	dbIntrospector, err := s.introspectorFactory.ForConnection(ctx, connection)
+	dbIntrospector, err := s.introspectorFactory.ForConnection(ctx, *connection)
 	if err != nil {
 		return xerrors.Newf("failed to introspector: %w", err)
 	}

@@ -32,7 +32,7 @@ func TestService_RefreshSchemaSnapshot(t *testing.T) {
 	t.Parallel()
 
 	connectionID := int32(42)
-	connection := connectiontypes.Connection{
+	connection := &connectiontypes.Connection{
 		ID:       connectionID,
 		Database: connectiontypes.DatabasePostgres,
 		Metadata: connectiontypes.Metadata{
@@ -63,7 +63,7 @@ func TestService_RefreshSchemaSnapshot(t *testing.T) {
 		{
 			name: "get connection failure",
 			modifyFn: func(ctx context.Context, mockGetter *schematesting.ConnectionGetter, mockStorage *storagetesting.Storage, mockFactory *schematesting.IntrospectorFactory, mockIntrospector *introspectortesting.Introspector) {
-				mockGetter.On("GetConnection", ctx, connectionID).Return(connectiontypes.Connection{}, errors.New("connection missing"))
+				mockGetter.On("GetConnection", ctx, connectionID).Return(nil, errors.New("connection missing"))
 			},
 			expectError: "failed to get connection",
 		},
@@ -80,7 +80,7 @@ func TestService_RefreshSchemaSnapshot(t *testing.T) {
 			modifyFn: func(ctx context.Context, mockGetter *schematesting.ConnectionGetter, mockStorage *storagetesting.Storage, mockFactory *schematesting.IntrospectorFactory, mockIntrospector *introspectortesting.Introspector) {
 				mockGetter.On("GetConnection", ctx, connectionID).Return(connection, nil)
 				mockStorage.On("ListSnapshots", ctx, expectedSnapshotsFilter(connectionID)).Return([]*schematypes.Snapshot{}, nil)
-				mockFactory.On("ForConnection", ctx, connection).Return(nil, errors.New("factory down"))
+				mockFactory.On("ForConnection", ctx, *connection).Return(nil, errors.New("factory down"))
 			},
 			expectError: "failed to introspector",
 		},
@@ -89,7 +89,7 @@ func TestService_RefreshSchemaSnapshot(t *testing.T) {
 			modifyFn: func(ctx context.Context, mockGetter *schematesting.ConnectionGetter, mockStorage *storagetesting.Storage, mockFactory *schematesting.IntrospectorFactory, mockIntrospector *introspectortesting.Introspector) {
 				mockGetter.On("GetConnection", ctx, connectionID).Return(connection, nil)
 				mockStorage.On("ListSnapshots", ctx, expectedSnapshotsFilter(connectionID)).Return([]*schematypes.Snapshot{}, nil)
-				mockFactory.On("ForConnection", ctx, connection).Return(mockIntrospector, nil)
+				mockFactory.On("ForConnection", ctx, *connection).Return(mockIntrospector, nil)
 				mockIntrospector.On("Introspect", ctx, toIntrospectOptions(connection.Metadata)).Return((*introspector.Catalog)(nil), errors.New("introspect failed"))
 			},
 			expectError: "failed to introspect",
@@ -99,7 +99,7 @@ func TestService_RefreshSchemaSnapshot(t *testing.T) {
 			modifyFn: func(ctx context.Context, mockGetter *schematesting.ConnectionGetter, mockStorage *storagetesting.Storage, mockFactory *schematesting.IntrospectorFactory, mockIntrospector *introspectortesting.Introspector) {
 				mockGetter.On("GetConnection", ctx, connectionID).Return(connection, nil)
 				mockStorage.On("ListSnapshots", ctx, expectedSnapshotsFilter(connectionID)).Return([]*schematypes.Snapshot{}, nil)
-				mockFactory.On("ForConnection", ctx, connection).Return(mockIntrospector, nil)
+				mockFactory.On("ForConnection", ctx, *connection).Return(mockIntrospector, nil)
 				mockIntrospector.On("Introspect", ctx, toIntrospectOptions(connection.Metadata)).Return(catalog, nil)
 				mockStorage.On("InsertSnapshot", ctx, mock.MatchedBy(func(snapshot *schematypes.Snapshot) bool {
 					if snapshot == nil {
@@ -121,7 +121,7 @@ func TestService_RefreshSchemaSnapshot(t *testing.T) {
 				mockStorage.On("ListSnapshots", ctx, expectedSnapshotsFilter(connectionID)).Return([]*schematypes.Snapshot{
 					{ID: 7, ConnectionID: connectionID, SchemaHash: "old-hash"},
 				}, nil)
-				mockFactory.On("ForConnection", ctx, connection).Return(mockIntrospector, nil)
+				mockFactory.On("ForConnection", ctx, *connection).Return(mockIntrospector, nil)
 				mockIntrospector.On("Introspect", ctx, toIntrospectOptions(connection.Metadata)).Return(catalog, nil)
 				mockStorage.On("InsertSnapshot", ctx, mock.MatchedBy(func(snapshot *schematypes.Snapshot) bool {
 					require.NotNil(t, snapshot)
@@ -141,7 +141,7 @@ func TestService_RefreshSchemaSnapshot(t *testing.T) {
 				mockStorage.On("ListSnapshots", ctx, expectedSnapshotsFilter(connectionID)).Return([]*schematypes.Snapshot{
 					{ID: 7, ConnectionID: connectionID, SchemaHash: schemaHash},
 				}, nil)
-				mockFactory.On("ForConnection", ctx, connection).Return(mockIntrospector, nil)
+				mockFactory.On("ForConnection", ctx, *connection).Return(mockIntrospector, nil)
 				mockIntrospector.On("Introspect", ctx, toIntrospectOptions(connection.Metadata)).Return(catalog, nil)
 			},
 		},

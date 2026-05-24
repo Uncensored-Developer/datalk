@@ -16,22 +16,24 @@ type ConnectionGetter struct {
 }
 
 // GetConnection provides a mock function with given fields: ctx, ID
-func (_m *ConnectionGetter) GetConnection(ctx context.Context, ID int32) (connections.Connection, error) {
+func (_m *ConnectionGetter) GetConnection(ctx context.Context, ID int32) (*connections.Connection, error) {
 	ret := _m.Called(ctx, ID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetConnection")
 	}
 
-	var r0 connections.Connection
+	var r0 *connections.Connection
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, int32) (connections.Connection, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, int32) (*connections.Connection, error)); ok {
 		return rf(ctx, ID)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, int32) connections.Connection); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, int32) *connections.Connection); ok {
 		r0 = rf(ctx, ID)
 	} else {
-		r0 = ret.Get(0).(connections.Connection)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*connections.Connection)
+		}
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
