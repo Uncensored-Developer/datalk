@@ -98,6 +98,7 @@ func Error(c echo.Context, logger *slog.Logger, err error) error {
 	case errors.Is(err, chaterrors.ErrConnectionAccessDenied):
 		status = http.StatusForbidden
 	case errors.Is(err, chaterrors.ErrProviderNotAvailable),
+		errors.Is(err, chaterrors.ErrInvalidProviderConfig),
 		errors.Is(err, chaterrors.ErrModelNotAvailable),
 		errors.Is(err, chaterrors.ErrEmbeddedSnapshotNotReady),
 		errors.Is(err, chaterrors.ErrInvalidSQL),

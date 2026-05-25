@@ -7,6 +7,7 @@ import (
 
 	"github.com/Uncensored-Developer/datalk/apps/backend/config"
 	pkglogger "github.com/Uncensored-Developer/datalk/apps/backend/pkg/logger"
+	"github.com/Uncensored-Developer/datalk/apps/backend/pkg/secrets"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/chat/api"
 	internalchat "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/internal/chat"
 	chatllm "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/internal/chat/llm"
@@ -33,8 +34,14 @@ func New(
 	schemaRetriever internalchat.SchemaRetriever,
 ) Chat {
 	logger := pkglogger.SetupLogger(cfg)
+	cipher, err := secrets.NewAESCipher(cfg.ProviderConfigSecret)
+	if err != nil {
+		logger.Error("failed to configure provider config encryption", "err", err)
+		panic(err)
+	}
+
 	storage := chatstorage.NewStorage(conn)
-	modelCatalog := chatllm.NewRegistry(storage, providerFactories(defaultLLMHTTPTimeout))
+	modelCatalog := chatllm.NewRegistry(storage, providerFactories(defaultLLMHTTPTimeout), cipher)
 	chatService := internalchat.NewService(
 		cfg,
 		logger,
@@ -43,6 +50,7 @@ func New(
 		schemaRetriever,
 		modelCatalog,
 		sqlrunner.NewRunner(),
+		cipher,
 	)
 
 	return Chat{

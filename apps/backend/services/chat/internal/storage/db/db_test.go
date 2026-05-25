@@ -310,8 +310,8 @@ func TestStorage_InsertAndListLLMCalls(t *testing.T) {
 		Metadata:    json.RawMessage(`{"tier":"backup"}`),
 	}
 
-	require.NoError(t, s.InsertProviderConfig(t.Context(), providerConfig1))
-	require.NoError(t, s.InsertProviderConfig(t.Context(), providerConfig2))
+	require.NoError(t, s.UpsertProviderConfig(t.Context(), providerConfig1))
+	require.NoError(t, s.UpsertProviderConfig(t.Context(), providerConfig2))
 
 	call1 := &chattype.MessageLLMCall{
 		MessageID:        message.ID,
@@ -384,8 +384,8 @@ func TestStorage_InsertGetAndListProviderConfigs(t *testing.T) {
 		Metadata:    json.RawMessage(`{"local":true}`),
 	}
 
-	require.NoError(t, s.InsertProviderConfig(t.Context(), config1))
-	require.NoError(t, s.InsertProviderConfig(t.Context(), config2))
+	require.NoError(t, s.UpsertProviderConfig(t.Context(), config1))
+	require.NoError(t, s.UpsertProviderConfig(t.Context(), config2))
 
 	got, err := s.GetProviderConfig(t.Context(), config1.ID)
 	require.NoError(t, err)
@@ -414,6 +414,32 @@ func TestStorage_InsertGetAndListProviderConfigs(t *testing.T) {
 	require.NotNil(t, gotSecond.BaseURL)
 	assert.Equal(t, baseURL, *gotSecond.BaseURL)
 	assert.JSONEq(t, string(config2.Metadata), string(gotSecond.Metadata))
+
+	updatedBaseURL := "https://api.openai.test"
+	updated := &llm.ProviderConfig{
+		Provider:    llm.ProviderOpenAI,
+		DisplayName: "OpenAI Updated",
+		APIKeyEnc:   "enc-openai-updated",
+		BaseURL:     &updatedBaseURL,
+		IsEnabled:   false,
+		Metadata:    json.RawMessage(`{"region":"eu"}`),
+	}
+	require.NoError(t, s.UpsertProviderConfig(t.Context(), updated))
+	assert.Equal(t, config1.ID, updated.ID)
+	assert.Equal(t, config1.CreatedAt, updated.CreatedAt)
+	assert.GreaterOrEqual(t, updated.UpdatedAt.UnixNano(), config1.UpdatedAt.UnixNano())
+
+	openAIConfigs, err := s.ListProviderConfigs(t.Context(), chatstorage.ProviderConfigsFilter{
+		Provider: []llm.Provider{llm.ProviderOpenAI},
+	})
+	require.NoError(t, err)
+	require.Len(t, openAIConfigs, 1)
+	assert.Equal(t, "OpenAI Updated", openAIConfigs[0].DisplayName)
+	assert.Equal(t, "enc-openai-updated", openAIConfigs[0].APIKeyEnc)
+	require.NotNil(t, openAIConfigs[0].BaseURL)
+	assert.Equal(t, updatedBaseURL, *openAIConfigs[0].BaseURL)
+	assert.False(t, openAIConfigs[0].IsEnabled)
+	assert.JSONEq(t, `{"region":"eu"}`, string(openAIConfigs[0].Metadata))
 }
 
 func TestStorage_UpsertAndListProviderModels(t *testing.T) {
@@ -425,7 +451,7 @@ func TestStorage_UpsertAndListProviderModels(t *testing.T) {
 		APIKeyEnc:   "enc-models",
 		IsEnabled:   true,
 	}
-	require.NoError(t, s.InsertProviderConfig(t.Context(), config))
+	require.NoError(t, s.UpsertProviderConfig(t.Context(), config))
 
 	model := &llm.ProviderModel{
 		ProviderConfigID: config.ID,

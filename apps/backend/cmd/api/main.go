@@ -20,7 +20,11 @@ import (
 	echoauth "github.com/Uncensored-Developer/datalk/apps/backend/servers/echo/api/authenticator"
 	authhandlers "github.com/Uncensored-Developer/datalk/apps/backend/servers/echo/handlers/resources/auth"
 	connectionhandlers "github.com/Uncensored-Developer/datalk/apps/backend/servers/echo/handlers/resources/connections"
+	conversationhandlers "github.com/Uncensored-Developer/datalk/apps/backend/servers/echo/handlers/resources/conversations"
+	modelhandlers "github.com/Uncensored-Developer/datalk/apps/backend/servers/echo/handlers/resources/models"
+	providerconfighandlers "github.com/Uncensored-Developer/datalk/apps/backend/servers/echo/handlers/resources/providerconfigs"
 	userhandlers "github.com/Uncensored-Developer/datalk/apps/backend/servers/echo/handlers/users"
+	chatservice "github.com/Uncensored-Developer/datalk/apps/backend/services/chat"
 	connectionsservice "github.com/Uncensored-Developer/datalk/apps/backend/services/connections"
 	schemasservice "github.com/Uncensored-Developer/datalk/apps/backend/services/schemas"
 	usersservice "github.com/Uncensored-Developer/datalk/apps/backend/services/users"
@@ -38,6 +42,9 @@ func main() {
 	cfg := config.MustLoad()
 	if cfg.JWTSecret == "" {
 		logger.Fatal("JWT_SECRET is required")
+	}
+	if cfg.ProviderConfigSecret == "" {
+		logger.Fatal("PROVIDER_CONFIG_SECRET is required")
 	}
 
 	log := logger.SetupLogger(cfg)
@@ -68,6 +75,7 @@ func main() {
 	if err != nil {
 		logger.Fatal("failed to create schemas service", logger.Err(err))
 	}
+	chatService := chatservice.New(cfg, conn, connectionsService.API, schemasService.API)
 
 	jwtAuthenticator := echoauth.NewJWTAuthenticator(cfg, usersService.API)
 	authMiddleware := echoauth.Middleware(jwtAuthenticator)
@@ -77,6 +85,10 @@ func main() {
 	authhandlers.New(usersService.API, log).RegisterProtected(protectedAPI)
 	userhandlers.New(usersService.API, log).Register(protectedAPI.Group("/users"))
 	connectionhandlers.New(connectionsService.API, log).Register(protectedAPI)
+	chatAPI := protectedAPI.Group("/chat")
+	conversationhandlers.New(chatService.API, log).Register(chatAPI)
+	modelhandlers.New(chatService.API, log).Register(chatAPI)
+	providerconfighandlers.New(chatService.API, log).Register(chatAPI)
 
 	embeddingSubscription, err := schemasService.SubscribeSnapshotEmbedding(ctx, pubsubBus)
 	if err != nil {

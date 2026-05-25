@@ -16,5 +16,7 @@ type Client interface {
 	ListConversations(ctx context.Context, userID int32, filter ListConversationsFilter) ([]*chattype.Conversation, error)
 	ListMessages(ctx context.Context, userID int32, filter ListMessagesFilter) ([]*chattype.MessageDetails, error)
 	SendMessage(ctx context.Context, params SendMessageParams) (*chattype.AssistantTurn, error)
+	ListProviderConfigs(ctx context.Context) ([]*llmtypes.ProviderConfig, error)
+	SaveProviderConfig(ctx context.Context, params SaveProviderConfigParams) (*llmtypes.ProviderConfig, error)
 	ListAvailableModels(ctx context.Context) ([]llmtypes.Model, error)
 }

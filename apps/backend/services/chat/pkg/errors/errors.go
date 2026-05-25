@@ -6,6 +6,7 @@ var (
 	ErrConversationNotFound     = xerrors.New("conversation not found")
 	ErrMessageNotFound          = xerrors.New("message not found")
 	ErrConnectionAccessDenied   = xerrors.New("connection access denied")
+	ErrInvalidProviderConfig    = xerrors.New("invalid provider config")
 	ErrProviderNotAvailable     = xerrors.New("provider not available")
 	ErrModelNotAvailable        = xerrors.New("model not available")
 	ErrEmbeddedSnapshotNotReady = xerrors.New("embedded snapshot not ready")

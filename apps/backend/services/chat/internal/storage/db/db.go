@@ -12,6 +12,7 @@ import (
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/chat/pkg/llm"
 	"github.com/mdobak/go-xerrors"
 	"github.com/stephenafamo/bob"
+	"github.com/stephenafamo/bob/dialect/psql"
 	"github.com/stephenafamo/bob/dialect/psql/dialect"
 	"github.com/stephenafamo/bob/dialect/psql/im"
 )
@@ -277,8 +278,20 @@ func (s *Storage) ListLLMCalls(ctx context.Context, filter chatstorage.LLMCallsF
 	return llmCallsFromDB(dbCalls)
 }
 
-func (s *Storage) InsertProviderConfig(ctx context.Context, config *llm.ProviderConfig) error {
-	dbConfig, err := models.LLMProviderConfigs.Insert(providerConfigToDB(config)).One(ctx, s.Executor(ctx))
+func (s *Storage) UpsertProviderConfig(ctx context.Context, config *llm.ProviderConfig) error {
+	dbConfig, err := models.LLMProviderConfigs.Insert(
+		providerConfigToDB(config),
+		im.OnConflict(info.LLMProviderConfigs.Columns.Provider.Name).DoUpdate(
+			im.SetExcluded(
+				info.LLMProviderConfigs.Columns.DisplayName.Name,
+				info.LLMProviderConfigs.Columns.APIKeyEnc.Name,
+				info.LLMProviderConfigs.Columns.BaseURL.Name,
+				info.LLMProviderConfigs.Columns.IsEnabled.Name,
+				info.LLMProviderConfigs.Columns.Metadata.Name,
+			),
+			im.SetCol(info.LLMProviderConfigs.Columns.UpdatedAt.Name).To(psql.Raw("CURRENT_TIMESTAMP")),
+		),
+	).One(ctx, s.Executor(ctx))
 	if err != nil {
 		return err
 	}

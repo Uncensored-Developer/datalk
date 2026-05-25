@@ -91,7 +91,7 @@ type Storage interface {
 	InsertLLMCall(ctx context.Context, call *chattype.MessageLLMCall) error
 	ListLLMCalls(ctx context.Context, filter LLMCallsFilter) ([]*chattype.MessageLLMCall, error)
 
-	InsertProviderConfig(ctx context.Context, config *llm.ProviderConfig) error
+	UpsertProviderConfig(ctx context.Context, config *llm.ProviderConfig) error
 	GetProviderConfig(ctx context.Context, id int64) (*llm.ProviderConfig, error)
 	ListProviderConfigs(ctx context.Context, filter ProviderConfigsFilter) ([]*llm.ProviderConfig, error)
 

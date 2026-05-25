@@ -7,6 +7,10 @@ import (
 
 	chat "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/pkg/chat"
 
+	internalchat "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/internal/chat"
+
+	llm "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/pkg/llm"
+
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -128,6 +132,66 @@ func (_m *Service) ListMessages(ctx context.Context, userID int32, filter chat.L
 
 	if rf, ok := ret.Get(1).(func(context.Context, int32, chat.ListMessagesFilter) error); ok {
 		r1 = rf(ctx, userID, filter)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ListProviderConfigs provides a mock function with given fields: ctx
+func (_m *Service) ListProviderConfigs(ctx context.Context) ([]*llm.ProviderConfig, error) {
+	ret := _m.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListProviderConfigs")
+	}
+
+	var r0 []*llm.ProviderConfig
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context) ([]*llm.ProviderConfig, error)); ok {
+		return rf(ctx)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context) []*llm.ProviderConfig); ok {
+		r0 = rf(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*llm.ProviderConfig)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// SaveProviderConfig provides a mock function with given fields: ctx, params
+func (_m *Service) SaveProviderConfig(ctx context.Context, params internalchat.SaveProviderConfigParams) (*llm.ProviderConfig, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SaveProviderConfig")
+	}
+
+	var r0 *llm.ProviderConfig
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, internalchat.SaveProviderConfigParams) (*llm.ProviderConfig, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, internalchat.SaveProviderConfigParams) *llm.ProviderConfig); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*llm.ProviderConfig)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, internalchat.SaveProviderConfigParams) error); ok {
+		r1 = rf(ctx, params)
 	} else {
 		r1 = ret.Error(1)
 	}

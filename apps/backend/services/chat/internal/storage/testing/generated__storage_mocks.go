@@ -259,24 +259,6 @@ func (_m *Storage) InsertMessage(ctx context.Context, message *chat.Message) err
 	return r0
 }
 
-// InsertProviderConfig provides a mock function with given fields: ctx, config
-func (_m *Storage) InsertProviderConfig(ctx context.Context, config *llm.ProviderConfig) error {
-	ret := _m.Called(ctx, config)
-
-	if len(ret) == 0 {
-		panic("no return value specified for InsertProviderConfig")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *llm.ProviderConfig) error); ok {
-		r0 = rf(ctx, config)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
 // InsertRetrieval provides a mock function with given fields: ctx, retrieval
 func (_m *Storage) InsertRetrieval(ctx context.Context, retrieval *chat.MessageRetrieval) error {
 	ret := _m.Called(ctx, retrieval)
@@ -443,6 +425,24 @@ func (_m *Storage) ListProviderModels(ctx context.Context, filter storage.Provid
 	}
 
 	return r0, r1
+}
+
+// UpsertProviderConfig provides a mock function with given fields: ctx, config
+func (_m *Storage) UpsertProviderConfig(ctx context.Context, config *llm.ProviderConfig) error {
+	ret := _m.Called(ctx, config)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpsertProviderConfig")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *llm.ProviderConfig) error); ok {
+		r0 = rf(ctx, config)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
 }
 
 // UpsertProviderModel provides a mock function with given fields: ctx, model

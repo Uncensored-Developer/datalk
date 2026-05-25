@@ -34,6 +34,8 @@ type Config struct {
 	JWTRefreshTTL time.Duration `env:"JWT_REFRESH_TTL" envDefault:"720h"`
 	JWTIssuer     string        `env:"JWT_ISSUER"`
 
+	ProviderConfigSecret string `env:"PROVIDER_CONFIG_SECRET"`
+
 	EmbeddingEnabled     bool          `env:"EMBEDDING_ENABLED" envDefault:"true"`
 	OllamaBaseURL        string        `env:"OLLAMA_BASE_URL" envDefault:"http://localhost:11434"`
 	EmbeddingBatchSize   int           `env:"EMBEDDING_BATCH_SIZE" envDefault:"16"`

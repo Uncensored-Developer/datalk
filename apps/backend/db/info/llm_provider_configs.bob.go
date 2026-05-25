@@ -137,6 +137,23 @@ var LLMProviderConfigs = Table[
 			Where:         "",
 			Include:       []string{},
 		},
+		LLMProviderConfigsProviderKey: index{
+			Type: "btree",
+			Name: "llm_provider_configs_provider_key",
+			Columns: []indexColumn{
+				{
+					Name:         "provider",
+					Desc:         null.FromCond(false, true),
+					IsExpression: false,
+				},
+			},
+			Unique:        true,
+			Comment:       "",
+			NullsFirst:    []bool{false},
+			NullsDistinct: false,
+			Where:         "",
+			Include:       []string{},
+		},
 	},
 	PrimaryKey: &constraint{
 		Name:    "llm_provider_configs_pkey",
@@ -176,13 +193,14 @@ func (c llmProviderConfigColumns) AsSlice() []column {
 }
 
 type llmProviderConfigIndexes struct {
-	LLMProviderConfigsPkey       index
-	LLMProviderConfigsEnabledIdx index
+	LLMProviderConfigsPkey        index
+	LLMProviderConfigsEnabledIdx  index
+	LLMProviderConfigsProviderKey index
 }
 
 func (i llmProviderConfigIndexes) AsSlice() []index {
 	return []index{
-		i.LLMProviderConfigsPkey, i.LLMProviderConfigsEnabledIdx,
+		i.LLMProviderConfigsPkey, i.LLMProviderConfigsEnabledIdx, i.LLMProviderConfigsProviderKey,
 	}
 }
 

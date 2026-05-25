@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Uncensored-Developer/datalk/apps/backend/config"
+	"github.com/Uncensored-Developer/datalk/apps/backend/pkg/secrets"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/base"
 	chatllm "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/internal/chat/llm"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/chat/internal/chat/sqlrunner"
@@ -41,6 +42,7 @@ type Service struct {
 	schemaRetriever SchemaRetriever
 	clientResolver  chatllm.ClientResolver
 	sqlRunner       sqlrunner.SQLRunner
+	cipher          secrets.Cipher
 }
 
 func NewService(
@@ -51,7 +53,13 @@ func NewService(
 	schemaRetriever SchemaRetriever,
 	clientResolver chatllm.ClientResolver,
 	sqlRunner sqlrunner.SQLRunner,
+	ciphers ...secrets.Cipher,
 ) *Service {
+	cipher := secrets.Cipher(secrets.PlaintextCipher{})
+	if len(ciphers) > 0 && ciphers[0] != nil {
+		cipher = ciphers[0]
+	}
+
 	return &Service{
 		Base:            base.NewBase("chat-core", logger, cfg),
 		storage:         storage,
@@ -59,5 +67,6 @@ func NewService(
 		schemaRetriever: schemaRetriever,
 		clientResolver:  clientResolver,
 		sqlRunner:       sqlRunner,
+		cipher:          cipher,
 	}
 }

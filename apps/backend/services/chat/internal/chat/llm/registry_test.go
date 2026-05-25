@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/Uncensored-Developer/datalk/apps/backend/pkg/secrets"
 	chatstorage "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/internal/storage"
 	storagetesting "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/internal/storage/testing"
 	chaterrors "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/pkg/errors"
@@ -17,6 +18,21 @@ import (
 type stubClient struct {
 	models []llmtypes.Model
 	err    error
+}
+
+type testCipher struct {
+	decryptErr error
+}
+
+func (c testCipher) Encrypt(plaintext string) (string, error) {
+	return "enc:" + plaintext, nil
+}
+
+func (c testCipher) Decrypt(ciphertext string) (string, error) {
+	if c.decryptErr != nil {
+		return "", c.decryptErr
+	}
+	return "plain:" + ciphertext, nil
 }
 
 func (s stubClient) ListModels(context.Context) ([]llmtypes.Model, error) {
@@ -212,6 +228,66 @@ func TestRegistry_ResolveModel_NormalizesQualifiedModelID(t *testing.T) {
 	assert.Equal(t, "gpt-5.2", resolved.ProviderModelID)
 	assert.Equal(t, "openai:gpt-5.2", resolved.QualifiedModelID)
 	assert.Equal(t, "openai:gpt-5.2", resolved.Model.ID)
+}
+
+func TestRegistry_ClientForConfig_DecryptsKeyWithoutMutatingStoredConfig(t *testing.T) {
+	t.Parallel()
+
+	stored := &llmtypes.ProviderConfig{
+		ID:        1,
+		Provider:  llmtypes.ProviderOpenAI,
+		APIKeyEnc: "ciphertext",
+	}
+	registry := NewRegistry(nil, map[llmtypes.Provider]ClientFactory{
+		llmtypes.ProviderOpenAI: func(config *llmtypes.ProviderConfig) (Client, error) {
+			assert.Equal(t, "plain:ciphertext", config.APIKeyEnc)
+			assert.Equal(t, "ciphertext", stored.APIKeyEnc)
+			return stubClient{}, nil
+		},
+	}, testCipher{})
+
+	_, err := registry.clientForConfig(stored)
+	require.NoError(t, err)
+	assert.Equal(t, "ciphertext", stored.APIKeyEnc)
+}
+
+func TestRegistry_ClientForConfig_DecryptFailureReturnsProviderUnavailable(t *testing.T) {
+	t.Parallel()
+
+	registry := NewRegistry(nil, map[llmtypes.Provider]ClientFactory{
+		llmtypes.ProviderOpenAI: func(config *llmtypes.ProviderConfig) (Client, error) {
+			require.FailNow(t, "factory should not be called")
+			return nil, nil
+		},
+	}, testCipher{decryptErr: errors.New("decrypt failed")})
+
+	_, err := registry.clientForConfig(&llmtypes.ProviderConfig{
+		Provider:  llmtypes.ProviderOpenAI,
+		APIKeyEnc: "secret",
+	})
+
+	require.ErrorIs(t, err, chaterrors.ErrProviderNotAvailable)
+	assert.NotContains(t, err.Error(), "secret")
+}
+
+func TestRegistry_ClientForConfig_AllowsLegacyUnversionedKey(t *testing.T) {
+	t.Parallel()
+
+	cipher, err := secrets.NewAESCipher("test-secret")
+	require.NoError(t, err)
+
+	registry := NewRegistry(nil, map[llmtypes.Provider]ClientFactory{
+		llmtypes.ProviderOpenAI: func(config *llmtypes.ProviderConfig) (Client, error) {
+			assert.Equal(t, "legacy-key", config.APIKeyEnc)
+			return stubClient{}, nil
+		},
+	}, cipher)
+
+	_, err = registry.clientForConfig(&llmtypes.ProviderConfig{
+		Provider:  llmtypes.ProviderOpenAI,
+		APIKeyEnc: "legacy-key",
+	})
+	require.NoError(t, err)
 }
 
 func TestParseQualifiedModelID(t *testing.T) {

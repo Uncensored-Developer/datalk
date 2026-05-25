@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/Uncensored-Developer/datalk/apps/backend/pkg/secrets"
 	chatstorage "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/internal/storage"
 	chaterrors "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/pkg/errors"
 	llmtypes "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/pkg/llm"
@@ -18,6 +19,7 @@ import (
 type Registry struct {
 	storage   chatstorage.Storage
 	factories map[llmtypes.Provider]ClientFactory
+	cipher    secrets.Cipher
 }
 
 type ResolvedModel struct {
@@ -37,10 +39,16 @@ type ClientResolver interface {
 	ResolveClient(ctx context.Context, provider llmtypes.Provider, modelID string) (*ResolvedClient, error)
 }
 
-func NewRegistry(storage chatstorage.Storage, factories map[llmtypes.Provider]ClientFactory) *Registry {
+func NewRegistry(storage chatstorage.Storage, factories map[llmtypes.Provider]ClientFactory, ciphers ...secrets.Cipher) *Registry {
+	cipher := secrets.Cipher(secrets.PlaintextCipher{})
+	if len(ciphers) > 0 && ciphers[0] != nil {
+		cipher = ciphers[0]
+	}
+
 	return &Registry{
 		storage:   storage,
 		factories: maps.Clone(factories),
+		cipher:    cipher,
 	}
 }
 
@@ -196,7 +204,14 @@ func (r *Registry) clientForConfig(config *llmtypes.ProviderConfig) (Client, err
 		return nil, xerrors.Newf("provider %s is not configured in registry: %w", config.Provider, chaterrors.ErrProviderNotAvailable)
 	}
 
-	client, err := factory(config)
+	decryptedConfig := *config
+	apiKey, err := r.cipher.Decrypt(config.APIKeyEnc)
+	if err != nil {
+		return nil, xerrors.Newf("provider %s credentials are unavailable: %w", config.Provider, chaterrors.ErrProviderNotAvailable)
+	}
+	decryptedConfig.APIKeyEnc = apiKey
+
+	client, err := factory(&decryptedConfig)
 	if err != nil {
 		return nil, xerrors.Newf("failed to create provider client for %s: %w", config.Provider, err)
 	}
