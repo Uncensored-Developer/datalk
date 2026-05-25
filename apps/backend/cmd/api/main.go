@@ -23,6 +23,7 @@ import (
 	conversationhandlers "github.com/Uncensored-Developer/datalk/apps/backend/servers/echo/handlers/resources/conversations"
 	modelhandlers "github.com/Uncensored-Developer/datalk/apps/backend/servers/echo/handlers/resources/models"
 	providerconfighandlers "github.com/Uncensored-Developer/datalk/apps/backend/servers/echo/handlers/resources/providerconfigs"
+	schemahandlers "github.com/Uncensored-Developer/datalk/apps/backend/servers/echo/handlers/resources/schemas"
 	userhandlers "github.com/Uncensored-Developer/datalk/apps/backend/servers/echo/handlers/users"
 	chatservice "github.com/Uncensored-Developer/datalk/apps/backend/services/chat"
 	connectionsservice "github.com/Uncensored-Developer/datalk/apps/backend/services/connections"
@@ -85,6 +86,7 @@ func main() {
 	authhandlers.New(usersService.API, log).RegisterProtected(protectedAPI)
 	userhandlers.New(usersService.API, log).Register(protectedAPI.Group("/users"))
 	connectionhandlers.New(connectionsService.API, log).Register(protectedAPI)
+	schemahandlers.New(schemasService.API, log).Register(protectedAPI)
 	chatAPI := protectedAPI.Group("/chat")
 	conversationhandlers.New(chatService.API, log).Register(chatAPI)
 	modelhandlers.New(chatService.API, log).Register(chatAPI)
