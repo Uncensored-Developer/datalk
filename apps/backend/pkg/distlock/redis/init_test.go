@@ -50,7 +50,8 @@ func TestMain(m *testing.M) {
 	slogLogger := logger.SetupLogger(cfg)
 	locker, cleanup, err := setupTestRedis(cfg)
 	if err != nil {
-		logger.Fatal("failed to setup test redis", logger.Err(err))
+		slogLogger.Warn("failed to setup test redis", logger.Err(err))
+		return
 	}
 	distLocker = locker
 
