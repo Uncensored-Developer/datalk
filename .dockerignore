@@ -1,0 +1,15 @@
+.git
+.idea
+.env
+.gocache
+tmp
+datalk.db
+datalk-api
+
+apps/web/.tsbuildinfo
+apps/web/.vite
+apps/web/dist
+apps/web/node_modules
+
+apps/backend/datalk-api
+apps/backend/servers/echo/staticweb/dist/assets

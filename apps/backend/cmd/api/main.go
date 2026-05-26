@@ -25,6 +25,7 @@ import (
 	providerconfighandlers "github.com/Uncensored-Developer/datalk/apps/backend/servers/echo/handlers/resources/providerconfigs"
 	schemahandlers "github.com/Uncensored-Developer/datalk/apps/backend/servers/echo/handlers/resources/schemas"
 	userhandlers "github.com/Uncensored-Developer/datalk/apps/backend/servers/echo/handlers/users"
+	"github.com/Uncensored-Developer/datalk/apps/backend/servers/echo/staticweb"
 	chatservice "github.com/Uncensored-Developer/datalk/apps/backend/services/chat"
 	connectionsservice "github.com/Uncensored-Developer/datalk/apps/backend/services/connections"
 	schemasservice "github.com/Uncensored-Developer/datalk/apps/backend/services/schemas"
@@ -91,6 +92,7 @@ func main() {
 	conversationhandlers.New(chatService.API, log).Register(chatAPI)
 	modelhandlers.New(chatService.API, log).Register(chatAPI)
 	providerconfighandlers.New(chatService.API, log).Register(chatAPI)
+	staticweb.Register(e)
 
 	embeddingSubscription, err := schemasService.SubscribeSnapshotEmbedding(ctx, pubsubBus)
 	if err != nil {

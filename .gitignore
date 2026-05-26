@@ -8,3 +8,4 @@ apps/web/.tsbuildinfo/
 apps/web/.vite/
 apps/web/dist/
 apps/web/node_modules/
+apps/backend/servers/echo/staticweb/dist/assets/
