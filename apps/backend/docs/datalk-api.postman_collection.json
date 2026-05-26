@@ -1,0 +1,819 @@
+{
+  "info": {
+    "_postman_id": "5c83d352-1c0f-4f6f-9c76-datalk-backend-api",
+    "name": "Datalk Backend API",
+    "description": "Postman collection for the Datalk backend HTTP API. Import this collection, set `baseUrl`, then run Setup or Login to populate `accessToken` and `refreshToken`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080/api",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "targetUserId",
+      "value": "2",
+      "type": "string"
+    },
+    {
+      "key": "connectionId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "conversationId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "provider",
+      "value": "openai",
+      "type": "string"
+    },
+    {
+      "key": "model",
+      "value": "openai:gpt-5.2",
+      "type": "string"
+    },
+    {
+      "key": "email",
+      "value": "root@example.com",
+      "type": "string"
+    },
+    {
+      "key": "password",
+      "value": "change-me",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "description": "Public session endpoints plus protected logout.",
+      "item": [
+        {
+          "name": "Setup First User",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Root User\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/setup",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "setup"
+              ]
+            },
+            "description": "Creates the initial owner/admin account. Available only while setup is allowed. Saves returned access and refresh tokens into collection variables."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('accessToken', body.tokens.access_token);",
+                  "  pm.collectionVariables.set('refreshToken', body.tokens.refresh_token);",
+                  "  pm.collectionVariables.set('userId', String(body.user.id));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Logs in and saves access/refresh tokens into collection variables."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('accessToken', body.tokens.access_token);",
+                  "  pm.collectionVariables.set('refreshToken', body.tokens.refresh_token);",
+                  "  pm.collectionVariables.set('userId', String(body.user.id));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh Session",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "refresh"
+              ]
+            },
+            "description": "Exchanges a refresh token for a new session and updates token variables."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('accessToken', body.tokens.access_token);",
+                  "  pm.collectionVariables.set('refreshToken', body.tokens.refresh_token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Revokes/logs out the supplied refresh token. Requires bearer auth. Returns 204 with no body."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "description": "Current-user and admin user management endpoints.",
+      "item": [
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "me"
+              ]
+            },
+            "description": "Returns the authenticated user."
+          }
+        },
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users"
+              ]
+            },
+            "description": "Admin-only. Lists all users."
+          }
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Analyst\",\n  \"email\": \"analyst@example.com\",\n  \"password\": \"temporary-password\",\n  \"role\": \"member\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users"
+              ]
+            },
+            "description": "Admin-only. Creates a user. Role defaults to member if omitted."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('targetUserId', String(body.id));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Analyst\",\n  \"role\": \"admin\",\n  \"is_active\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/{{targetUserId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "{{targetUserId}}"
+              ]
+            },
+            "description": "Admin-only partial update. Only name, role, and is_active are editable. Role must be owner, admin, or member."
+          }
+        },
+        {
+          "name": "Change Current User Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"current_password\": \"{{password}}\",\n  \"new_password\": \"new-password\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/me/password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "me",
+                "password"
+              ]
+            },
+            "description": "Changes the authenticated user's password."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Connections",
+      "description": "Connection registration, access grants, and schema snapshot refresh.",
+      "item": [
+        {
+          "name": "List Connections",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/connections",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "connections"
+              ]
+            },
+            "description": "Lists visible connections. Admins/owners receive all connections; members receive connections with an access grant. DSNs are encrypted server-side and not returned."
+          }
+        },
+        {
+          "name": "Create Connection",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Warehouse\",\n  \"database\": \"postgres\",\n  \"dsn\": \"postgres://user:pass@localhost:5432/datalk?sslmode=disable\",\n  \"metadata\": {\n    \"include_namespaces\": [\"public\"],\n    \"exclude_namespaces\": [\"information_schema\"],\n    \"include_tables_by_namespace\": {},\n    \"exclude_tables_by_namespace\": {},\n    \"include_views\": true,\n    \"include_indexes\": true,\n    \"include_foreign_keys\": true,\n    \"include_comments\": false\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/connections",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "connections"
+              ]
+            },
+            "description": "Admin-only. Supported database values: postgres, mysql, cql. DSN is encrypted server-side and not returned. Metadata controls schema introspection filters/options."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('connectionId', String(body.id));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Edit Connection",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Warehouse Primary\",\n  \"database\": \"postgres\",\n  \"dsn\": \"postgres://user:pass@localhost:5432/datalk?sslmode=disable\",\n  \"is_enabled\": true,\n  \"metadata\": {\n    \"include_namespaces\": [\"public\", \"analytics\"],\n    \"exclude_namespaces\": [],\n    \"include_tables_by_namespace\": {},\n    \"exclude_tables_by_namespace\": {},\n    \"include_views\": true,\n    \"include_indexes\": true,\n    \"include_foreign_keys\": true,\n    \"include_comments\": true\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/connections/{{connectionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "connections",
+                "{{connectionId}}"
+              ]
+            },
+            "description": "Admin-only partial update. Include only fields that should change. DSN is write-only, encrypted server-side, and not returned."
+          }
+        },
+        {
+          "name": "Delete Connection",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/connections/{{connectionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "connections",
+                "{{connectionId}}"
+              ]
+            },
+            "description": "Admin-only. Deletes a connection by id. Returns 204 on success."
+          }
+        },
+        {
+          "name": "Grant Connection Access",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": {{targetUserId}},\n  \"can_query\": true,\n  \"allow_writes\": false,\n  \"can_manage\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/connections/{{connectionId}}/access",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "connections",
+                "{{connectionId}}",
+                "access"
+              ]
+            },
+            "description": "Admin-only. Grants or updates query/manage permissions for a user on a connection."
+          }
+        },
+        {
+          "name": "Refresh Schema Snapshot",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/connections/{{connectionId}}/schema-snapshot/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "connections",
+                "{{connectionId}}",
+                "schema-snapshot",
+                "refresh"
+              ]
+            },
+            "description": "Triggers schema introspection refresh for the connection. Requires authentication. Returns 202 after current synchronous refresh completes."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Chat Provider Configs",
+      "description": "Admin-only LLM provider configuration endpoints. API keys are never returned.",
+      "item": [
+        {
+          "name": "List Provider Configs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/provider-configs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat",
+                "provider-configs"
+              ]
+            },
+            "description": "Admin-only. Lists redacted provider configs with has_api_key."
+          }
+        },
+        {
+          "name": "Save Provider Config",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"display_name\": \"OpenAI\",\n  \"api_key\": \"sk-example\",\n  \"base_url\": \"https://api.openai.com\",\n  \"is_enabled\": true,\n  \"metadata\": {}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/chat/provider-configs/{{provider}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat",
+                "provider-configs",
+                "{{provider}}"
+              ]
+            },
+            "description": "Admin-only. Upserts by provider. Omit api_key on update to preserve existing key. Ollama can be saved without api_key."
+          }
+        },
+        {
+          "name": "Save Ollama Provider Config",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"display_name\": \"Local Ollama\",\n  \"base_url\": \"http://localhost:11434\",\n  \"is_enabled\": true,\n  \"metadata\": {}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/chat/provider-configs/ollama",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat",
+                "provider-configs",
+                "ollama"
+              ]
+            },
+            "description": "Admin-only. Credentialless local Ollama provider config."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Models",
+      "description": "Available LLM model catalog endpoints.",
+      "item": [
+        {
+          "name": "List Available Models",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/models",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat",
+                "models"
+              ]
+            },
+            "description": "Lists models discovered from enabled provider configs. Model IDs are qualified as provider:model."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Chat Conversations",
+      "description": "Conversation, message history, and send-message endpoints.",
+      "item": [
+        {
+          "name": "Create Conversation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"connection_id\": {{connectionId}},\n  \"title\": \"Revenue questions\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/chat/conversations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat",
+                "conversations"
+              ]
+            },
+            "description": "Creates a chat conversation for the authenticated user and connection."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('conversationId', String(body.id));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Conversations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/conversations?connection_id={{connectionId}}&limit=20&offset=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat",
+                "conversations"
+              ],
+              "query": [
+                {
+                  "key": "connection_id",
+                  "value": "{{connectionId}}"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "Lists conversations for the authenticated user, optionally filtered by connection."
+          }
+        },
+        {
+          "name": "Get Conversation",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/conversations/{{conversationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat",
+                "conversations",
+                "{{conversationId}}"
+              ]
+            },
+            "description": "Fetches one conversation by id for the authenticated user."
+          }
+        },
+        {
+          "name": "Delete Conversation",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/conversations/{{conversationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat",
+                "conversations",
+                "{{conversationId}}"
+              ]
+            },
+            "description": "Deletes a conversation owned by the authenticated user. Related messages and records are removed by cascade. Returns 204 on success."
+          }
+        },
+        {
+          "name": "List Messages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/conversations/{{conversationId}}/messages?limit=50&offset=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat",
+                "conversations",
+                "{{conversationId}}",
+                "messages"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "Lists messages with optional execution and schema retrieval summary details. Retrieval chunks are intentionally omitted from the API response."
+          }
+        },
+        {
+          "name": "Send Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"How many users signed up last week?\",\n  \"provider\": \"{{provider}}\",\n  \"model\": \"{{model}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/chat/conversations/{{conversationId}}/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat",
+                "conversations",
+                "{{conversationId}}",
+                "messages"
+              ]
+            },
+            "description": "Sends a prompt, generates SQL using the selected model, executes it, and returns the assistant turn. Retrieval chunks are intentionally omitted from the API response."
+          }
+        }
+      ]
+    }
+  ]
+}
