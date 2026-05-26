@@ -4,6 +4,7 @@ import { SetupPage } from "./pages/auth/SetupPage";
 import { OverviewPage } from "./pages/dashboard/OverviewPage";
 import { PlaceholderPage } from "./pages/dashboard/PlaceholderPage";
 import { ProfilePage } from "./pages/dashboard/ProfilePage";
+import { ConnectionsPage } from "./pages/connections/ConnectionsPage";
 import { UsersPage } from "./pages/users/UsersPage";
 import { AdminRoute } from "./routes/AdminRoute";
 import { DashboardLayout } from "./routes/DashboardLayout";
@@ -29,7 +30,7 @@ export const router = createBrowserRouter([
           { path: "/chat", element: <PlaceholderPage title="Chat" /> },
           {
             path: "/connections",
-            element: <PlaceholderPage title="Connections" />,
+            element: <ConnectionsPage />,
           },
           {
             element: <AdminRoute />,
