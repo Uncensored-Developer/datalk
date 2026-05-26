@@ -14,6 +14,9 @@ import (
 type Service interface {
 	CreateConnection(ctx context.Context, params connectionsservice.NewConnection) (*connections.Connection, error)
 	GetConnection(ctx context.Context, ID int32) (*connections.Connection, error)
+	ListConnections(ctx context.Context, params connectionsservice.ListConnections) ([]*connections.Connection, error)
+	UpdateConnection(ctx context.Context, params connectionsservice.UpdateConnection) (*connections.Connection, error)
+	DeleteConnection(ctx context.Context, ID int32) error
 	CreateAccess(ctx context.Context, params connectionsservice.NewAccess) (*connections.Access, error)
 	GetAccess(ctx context.Context, userID int32, connectionID int32) (*connections.Access, error)
 }
@@ -36,11 +39,34 @@ func (a *Api) CreateConnection(ctx context.Context, params NewConnectionParams) 
 		Database: params.Database,
 		DSN:      params.DSN,
 		UserID:   params.UserID,
+		Metadata: params.Metadata,
 	})
 }
 
 func (a *Api) GetConnection(ctx context.Context, connectionID int32) (*connections.Connection, error) {
 	return a.service.GetConnection(ctx, connectionID)
+}
+
+func (a *Api) ListConnections(ctx context.Context, params ListConnectionsParams) ([]*connections.Connection, error) {
+	return a.service.ListConnections(ctx, connectionsservice.ListConnections{
+		UserID:  params.UserID,
+		IsAdmin: params.IsAdmin,
+	})
+}
+
+func (a *Api) UpdateConnection(ctx context.Context, params UpdateConnectionParams) (*connections.Connection, error) {
+	return a.service.UpdateConnection(ctx, connectionsservice.UpdateConnection{
+		ID:        params.ID,
+		Name:      params.Name,
+		Database:  params.Database,
+		DSN:       params.DSN,
+		IsEnabled: params.IsEnabled,
+		Metadata:  params.Metadata,
+	})
+}
+
+func (a *Api) DeleteConnection(ctx context.Context, connectionID int32) error {
+	return a.service.DeleteConnection(ctx, connectionID)
 }
 
 func (a *Api) CreateAccess(ctx context.Context, params NewAccessParams) (*connections.Access, error) {

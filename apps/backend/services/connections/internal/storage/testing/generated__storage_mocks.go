@@ -17,6 +17,24 @@ type Storage struct {
 	mock.Mock
 }
 
+// DeleteConnection provides a mock function with given fields: ctx, id
+func (_m *Storage) DeleteConnection(ctx context.Context, id int32) error {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteConnection")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32) error); ok {
+		r0 = rf(ctx, id)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // ListAccess provides a mock function with given fields: ctx, params
 func (_m *Storage) ListAccess(ctx context.Context, params storage.ListAccessParam) ([]*connections.Access, error) {
 	ret := _m.Called(ctx, params)
@@ -75,6 +93,24 @@ func (_m *Storage) ListConnections(ctx context.Context, params storage.ListConne
 	}
 
 	return r0, r1
+}
+
+// UpdateConnection provides a mock function with given fields: ctx, connection
+func (_m *Storage) UpdateConnection(ctx context.Context, connection *connections.Connection) error {
+	ret := _m.Called(ctx, connection)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateConnection")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *connections.Connection) error); ok {
+		r0 = rf(ctx, connection)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
 }
 
 // UpsertAccess provides a mock function with given fields: ctx, access

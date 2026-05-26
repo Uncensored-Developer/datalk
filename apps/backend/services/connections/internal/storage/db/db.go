@@ -9,6 +9,7 @@ import (
 	"github.com/Uncensored-Developer/datalk/apps/backend/db/models"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/connections/internal/storage"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/connections/pkg/connections"
+	serviceerrors "github.com/Uncensored-Developer/datalk/apps/backend/services/connections/pkg/errors"
 	"github.com/mdobak/go-xerrors"
 	"github.com/stephenafamo/bob"
 	"github.com/stephenafamo/bob/dialect/psql/dialect"
@@ -39,6 +40,7 @@ func (s *Storage) UpsertConnection(ctx context.Context, connection *connections.
 				info.Connections.Columns.DSN.Name,
 				info.Connections.Columns.IsEnabled.Name,
 				info.Connections.Columns.UserID.Name,
+				info.Connections.Columns.Metadata.Name,
 			),
 		),
 	).One(ctx, s.Executor(ctx))
@@ -60,6 +62,47 @@ func (s *Storage) UpsertConnection(ctx context.Context, connection *connections.
 	connection.Metadata = upsertedConnection.Metadata
 	connection.CreatedAt = upsertedConnection.CreatedAt
 	return nil
+}
+
+func (s *Storage) UpdateConnection(ctx context.Context, connection *connections.Connection) error {
+	if connection.ID <= 0 {
+		return serviceerrors.ErrConnectionNotFound
+	}
+
+	dbConnection, err := models.FindConnection(ctx, s.Executor(ctx), connection.ID)
+	if err := common.Err.HandleIgnoreNoRows(err); err != nil {
+		return xerrors.Newf("failed to fetch connection: %w", err)
+	}
+	if dbConnection == nil {
+		return serviceerrors.ErrConnectionNotFound
+	}
+
+	setter, err := connectionToDB(connection)
+	if err != nil {
+		return xerrors.Newf("failed to map connection to db: %w", err)
+	}
+	if err := dbConnection.Update(ctx, s.Executor(ctx), setter); err != nil {
+		return err
+	}
+
+	updatedConnection, err := connectionFromDB(dbConnection)
+	if err != nil {
+		return xerrors.Newf("failed to map db connection: %w", err)
+	}
+	*connection = *updatedConnection
+	return nil
+}
+
+func (s *Storage) DeleteConnection(ctx context.Context, id int32) error {
+	dbConnection, err := models.FindConnection(ctx, s.Executor(ctx), id)
+	if err := common.Err.HandleIgnoreNoRows(err); err != nil {
+		return xerrors.Newf("failed to fetch connection: %w", err)
+	}
+	if dbConnection == nil {
+		return serviceerrors.ErrConnectionNotFound
+	}
+
+	return dbConnection.Delete(ctx, s.Executor(ctx))
 }
 
 func (s *Storage) ListConnections(ctx context.Context, params storage.ListConnectionsParam) ([]*connections.Connection, error) {

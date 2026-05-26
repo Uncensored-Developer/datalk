@@ -17,5 +17,9 @@ func (s *Service) GetConnection(ctx context.Context, ID int32) (*connections.Con
 	if len(fetchedConnections) == 0 {
 		return nil, serviceerrors.ErrConnectionNotFound
 	}
-	return fetchedConnections[0], nil
+	connection := fetchedConnections[0]
+	if err := s.decryptConnectionDSN(connection); err != nil {
+		return nil, err
+	}
+	return connection, nil
 }

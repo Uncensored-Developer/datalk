@@ -77,6 +77,24 @@ func (_m *Service) CreateConnection(ctx context.Context, params connections.NewC
 	return r0, r1
 }
 
+// DeleteConnection provides a mock function with given fields: ctx, ID
+func (_m *Service) DeleteConnection(ctx context.Context, ID int32) error {
+	ret := _m.Called(ctx, ID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteConnection")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32) error); ok {
+		r0 = rf(ctx, ID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // GetAccess provides a mock function with given fields: ctx, userID, connectionID
 func (_m *Service) GetAccess(ctx context.Context, userID int32, connectionID int32) (*pkgconnections.Access, error) {
 	ret := _m.Called(ctx, userID, connectionID)
@@ -130,6 +148,66 @@ func (_m *Service) GetConnection(ctx context.Context, ID int32) (*pkgconnections
 
 	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
 		r1 = rf(ctx, ID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ListConnections provides a mock function with given fields: ctx, params
+func (_m *Service) ListConnections(ctx context.Context, params connections.ListConnections) ([]*pkgconnections.Connection, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListConnections")
+	}
+
+	var r0 []*pkgconnections.Connection
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, connections.ListConnections) ([]*pkgconnections.Connection, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, connections.ListConnections) []*pkgconnections.Connection); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*pkgconnections.Connection)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, connections.ListConnections) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// UpdateConnection provides a mock function with given fields: ctx, params
+func (_m *Service) UpdateConnection(ctx context.Context, params connections.UpdateConnection) (*pkgconnections.Connection, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateConnection")
+	}
+
+	var r0 *pkgconnections.Connection
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, connections.UpdateConnection) (*pkgconnections.Connection, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, connections.UpdateConnection) *pkgconnections.Connection); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*pkgconnections.Connection)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, connections.UpdateConnection) error); ok {
+		r1 = rf(ctx, params)
 	} else {
 		r1 = ret.Error(1)
 	}

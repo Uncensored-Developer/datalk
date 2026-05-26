@@ -51,8 +51,14 @@ func (s *Service) CreateConnection(ctx context.Context, newConnection NewConnect
 		CreatedAt: time.Now().UTC(),
 		Metadata:  newConnection.Metadata,
 	}
+	if err := s.encryptConnectionDSN(&connection); err != nil {
+		return nil, err
+	}
 	if err := s.storage.UpsertConnection(ctx, &connection); err != nil {
 		return nil, xerrors.Newf("failed to insert connection: %w", err)
+	}
+	if err := s.decryptConnectionDSN(&connection); err != nil {
+		return nil, err
 	}
 
 	s.Logger().Info(

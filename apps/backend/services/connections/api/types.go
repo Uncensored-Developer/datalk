@@ -7,6 +7,21 @@ type NewConnectionParams struct {
 	Database connections.Database
 	DSN      string
 	UserID   int32
+	Metadata connections.Metadata
+}
+
+type UpdateConnectionParams struct {
+	ID        int32
+	Name      *string
+	Database  *connections.Database
+	DSN       *string
+	IsEnabled *bool
+	Metadata  *connections.Metadata
+}
+
+type ListConnectionsParams struct {
+	UserID  int32
+	IsAdmin bool
 }
 
 type NewAccessParams struct {

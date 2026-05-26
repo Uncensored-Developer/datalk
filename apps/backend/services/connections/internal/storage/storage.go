@@ -20,6 +20,8 @@ type ListAccessParam struct {
 //go:generate go tool with-modfile mockery --name Storage --outpkg testing --output ./testing --filename generated__storage_mocks.go
 type Storage interface {
 	UpsertConnection(ctx context.Context, connection *connections.Connection) error
+	UpdateConnection(ctx context.Context, connection *connections.Connection) error
+	DeleteConnection(ctx context.Context, id int32) error
 
 	ListConnections(ctx context.Context, params ListConnectionsParam) ([]*connections.Connection, error)
 
