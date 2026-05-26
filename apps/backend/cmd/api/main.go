@@ -76,7 +76,7 @@ func main() {
 	if err != nil {
 		logger.Fatal("failed to create schemas service", logger.Err(err))
 	}
-	chatService := chatservice.New(cfg, conn, connectionsService.API, schemasService.API)
+	chatService := chatservice.New(cfg, conn, connectionsService.API, usersService.API, schemasService.API)
 
 	jwtAuthenticator := echoauth.NewJWTAuthenticator(cfg, usersService.API)
 	authMiddleware := echoauth.Middleware(jwtAuthenticator)

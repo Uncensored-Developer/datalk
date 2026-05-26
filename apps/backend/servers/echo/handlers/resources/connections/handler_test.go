@@ -59,6 +59,41 @@ func TestHandler_CreateConnection(t *testing.T) {
 	assert.Equal(t, true, body["is_enabled"])
 }
 
+func TestHandler_ListConnections(t *testing.T) {
+	t.Parallel()
+
+	mockService := connectionsapitesting.NewService(t)
+	mockService.
+		On("ListConnections", mock.Anything, mock.MatchedBy(func(params any) bool {
+			value := reflect.ValueOf(params)
+			return int32(value.FieldByName("UserID").Int()) == 7 &&
+				value.FieldByName("IsAdmin").Bool()
+		})).
+		Return([]*connectiontypes.Connection{
+			{
+				ID:        10,
+				Name:      "warehouse",
+				Database:  connectiontypes.DatabasePostgres,
+				UserID:    1,
+				IsEnabled: true,
+			},
+		}, nil).
+		Once()
+
+	e := newConnectionsTestEcho(mockService, &usertypes.User{ID: 7, Role: usertypes.RoleAdmin})
+	req := httptest.NewRequest(http.MethodGet, "/api/connections", nil)
+	rec := httptest.NewRecorder()
+
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var body []map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	require.Len(t, body, 1)
+	assert.Equal(t, float64(10), body[0]["id"])
+	assert.Equal(t, "warehouse", body[0]["name"])
+}
+
 func TestHandler_CreateConnection_RejectsNonAdmin(t *testing.T) {
 	t.Parallel()
 

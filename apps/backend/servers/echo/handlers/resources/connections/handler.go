@@ -25,6 +25,9 @@ func New(connections *connectionsapi.Api, logger *slog.Logger) *Handler {
 }
 
 func (h *Handler) Register(group *echo.Group) {
+	group.GET("/connections", h.ListConnections)
 	group.POST("/connections", h.CreateConnection)
+	group.PUT("/connections/:"+connectionIDParam, h.UpdateConnection)
+	group.DELETE("/connections/:"+connectionIDParam, h.DeleteConnection)
 	group.POST("/connections/:"+connectionIDParam+"/access", h.CreateAccess)
 }

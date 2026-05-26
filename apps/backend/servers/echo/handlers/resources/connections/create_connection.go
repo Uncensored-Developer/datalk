@@ -11,17 +11,19 @@ import (
 )
 
 type createConnectionRequest struct {
-	Name     string `json:"name"`
-	Database string `json:"database"`
-	DSN      string `json:"dsn"`
+	Name     string                   `json:"name"`
+	Database string                   `json:"database"`
+	DSN      string                   `json:"dsn"`
+	Metadata connectiontypes.Metadata `json:"metadata"`
 }
 
 type connectionResponse struct {
-	ID        int32  `json:"id"`
-	Name      string `json:"name"`
-	Database  string `json:"database"`
-	UserID    int32  `json:"user_id"`
-	IsEnabled bool   `json:"is_enabled"`
+	ID        int32                    `json:"id"`
+	Name      string                   `json:"name"`
+	Database  string                   `json:"database"`
+	UserID    int32                    `json:"user_id"`
+	IsEnabled bool                     `json:"is_enabled"`
+	Metadata  connectiontypes.Metadata `json:"metadata"`
 }
 
 func (h *Handler) CreateConnection(c echo.Context) error {
@@ -43,6 +45,7 @@ func (h *Handler) CreateConnection(c echo.Context) error {
 		Database: connectiontypes.Database(req.Database),
 		DSN:      req.DSN,
 		UserID:   user.ID,
+		Metadata: req.Metadata,
 	})
 	if err != nil {
 		return echohandlers.Error(c, h.logger, err)
@@ -57,5 +60,6 @@ func toConnectionResponse(connection *connectiontypes.Connection) connectionResp
 		Database:  string(connection.Database),
 		UserID:    connection.UserID,
 		IsEnabled: connection.IsEnabled,
+		Metadata:  connection.Metadata,
 	}
 }

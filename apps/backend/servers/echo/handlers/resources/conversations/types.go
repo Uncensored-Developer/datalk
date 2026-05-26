@@ -1,7 +1,6 @@
 package conversations
 
 import (
-	"encoding/json"
 	"time"
 
 	chattype "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/pkg/chat"
@@ -58,20 +57,10 @@ type executionResponse struct {
 }
 
 type retrievalResponse struct {
-	MessageID   int64                    `json:"message_id"`
-	SnapshotID  int32                    `json:"snapshot_id"`
-	QueryText   string                   `json:"query_text"`
-	Chunks      []retrievedChunkResponse `json:"chunks"`
-	RetrievedAt time.Time                `json:"retrieved_at"`
-}
-
-type retrievedChunkResponse struct {
-	ChunkID    int64           `json:"chunk_id"`
-	ObjectType string          `json:"object_type"`
-	ObjectName string          `json:"object_name"`
-	Content    string          `json:"content"`
-	SchemaJSON json.RawMessage `json:"schema_json"`
-	Similarity float32         `json:"similarity"`
+	MessageID   int64     `json:"message_id"`
+	SnapshotID  int32     `json:"snapshot_id"`
+	QueryText   string    `json:"query_text"`
+	RetrievedAt time.Time `json:"retrieved_at"`
 }
 
 type assistantTurnResponse struct {

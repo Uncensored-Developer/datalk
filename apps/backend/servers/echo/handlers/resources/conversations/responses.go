@@ -2,7 +2,6 @@ package conversations
 
 import (
 	chattype "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/pkg/chat"
-	schematypes "github.com/Uncensored-Developer/datalk/apps/backend/services/schemas/pkg/schemas"
 )
 
 func toConversationResponses(conversations []*chattype.Conversation) []conversationResponse {
@@ -110,23 +109,6 @@ func toRetrievalResponse(retrieval *chattype.MessageRetrieval) *retrievalRespons
 		MessageID:   retrieval.MessageID,
 		SnapshotID:  retrieval.SnapshotID,
 		QueryText:   retrieval.QueryText,
-		Chunks:      toRetrievedChunkResponses(retrieval.Chunks),
 		RetrievedAt: retrieval.RetrievedAt,
 	}
-}
-
-func toRetrievedChunkResponses(chunks []schematypes.RetrievedChunk) []retrievedChunkResponse {
-	out := make([]retrievedChunkResponse, 0, len(chunks))
-	for _, chunk := range chunks {
-		out = append(out, retrievedChunkResponse{
-			ChunkID:    chunk.ChunkID,
-			ObjectType: chunk.ObjectType,
-			ObjectName: chunk.ObjectName,
-			Content:    chunk.Content,
-			SchemaJSON: chunk.SchemaJSON,
-			Similarity: chunk.Similarity,
-		})
-	}
-
-	return out
 }

@@ -89,7 +89,7 @@ func Error(c echo.Context, logger *slog.Logger, err error) error {
 		status = http.StatusForbidden
 	case errors.Is(err, usererrors.ErrUserNotFound):
 		status = http.StatusNotFound
-	case errors.Is(err, usererrors.ErrSetupUnavailable):
+	case errors.Is(err, usererrors.ErrSetupUnavailable), errors.Is(err, usererrors.ErrEmailAlreadyExists):
 		status = http.StatusConflict
 	case errors.Is(err, usererrors.ErrInactiveUser):
 		status = http.StatusForbidden
