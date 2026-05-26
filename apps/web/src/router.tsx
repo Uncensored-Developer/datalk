@@ -5,6 +5,7 @@ import { OverviewPage } from "./pages/dashboard/OverviewPage";
 import { PlaceholderPage } from "./pages/dashboard/PlaceholderPage";
 import { ProfilePage } from "./pages/dashboard/ProfilePage";
 import { ConnectionsPage } from "./pages/connections/ConnectionsPage";
+import { ProviderConfigsPage } from "./pages/providerConfigs/ProviderConfigsPage";
 import { UsersPage } from "./pages/users/UsersPage";
 import { AdminRoute } from "./routes/AdminRoute";
 import { DashboardLayout } from "./routes/DashboardLayout";
@@ -37,8 +38,13 @@ export const router = createBrowserRouter([
             children: [{ path: "/users", element: <UsersPage /> }],
           },
           {
-            path: "/provider-configs",
-            element: <PlaceholderPage title="Provider Configs" />,
+            element: <AdminRoute />,
+            children: [
+              {
+                path: "/provider-configs",
+                element: <ProviderConfigsPage />,
+              },
+            ],
           },
           { path: "*", element: <OverviewPage /> },
         ],
