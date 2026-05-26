@@ -97,11 +97,25 @@ describe("ConnectionsPage", () => {
 
   it("creates a connection with structured metadata", async () => {
     window.localStorage.setItem("datalk.session", JSON.stringify(ownerSession));
-    const fetchMock = vi
-      .spyOn(window, "fetch")
-      .mockResolvedValueOnce(jsonResponse([]))
-      .mockResolvedValueOnce(jsonResponse(warehouseConnection, { status: 201 }))
-      .mockResolvedValueOnce(jsonResponse([]));
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
+      const path = requestPath(input);
+      const method = init?.method ?? "GET";
+
+      if (method === "GET" && path === "/connections") {
+        return jsonResponse([]);
+      }
+      if (method === "POST" && path === "/connections") {
+        return jsonResponse(warehouseConnection, { status: 201 });
+      }
+      if (
+        method === "POST" &&
+        path === "/connections/10/schema-snapshot/refresh"
+      ) {
+        return jsonResponse({ connection_id: 10, status: "accepted" }, { status: 202 });
+      }
+
+      return jsonResponse({ error: `Unhandled ${method} ${path}` }, { status: 500 });
+    });
 
     renderConnectionsRoute();
 
@@ -146,6 +160,12 @@ describe("ConnectionsPage", () => {
         include_comments: false,
       },
     });
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/connections/10/schema-snapshot/refresh",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
   });
 
   it("refreshes a connection schema", async () => {
@@ -175,13 +195,23 @@ describe("ConnectionsPage", () => {
 
   it("edits, grants access, and deletes through admin actions", async () => {
     window.localStorage.setItem("datalk.session", JSON.stringify(ownerSession));
-    const fetchMock = vi
-      .spyOn(window, "fetch")
-      .mockResolvedValueOnce(jsonResponse([warehouseConnection]))
-      .mockResolvedValueOnce(jsonResponse({ ...warehouseConnection, name: "Warehouse Primary" }))
-      .mockResolvedValueOnce(jsonResponse([warehouseConnection]))
-      .mockResolvedValueOnce(
-        jsonResponse([
+    let currentConnections = [warehouseConnection];
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+
+      if (url.startsWith("/api/chat/conversations")) {
+        return Promise.resolve(jsonResponse([]));
+      }
+      if (url === "/api/connections" && method === "GET") {
+        return Promise.resolve(jsonResponse(currentConnections));
+      }
+      if (url === "/api/connections/10" && method === "PUT") {
+        currentConnections = [{ ...warehouseConnection, name: "Warehouse Primary" }];
+        return Promise.resolve(jsonResponse(currentConnections[0]));
+      }
+      if (url === "/api/users" && method === "GET") {
+        return Promise.resolve(jsonResponse([
           {
             id: 2,
             email: "analyst@example.com",
@@ -190,10 +220,21 @@ describe("ConnectionsPage", () => {
             is_active: true,
             must_change_password: false,
           },
-        ]),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse(
+        ]));
+      }
+      if (url === "/api/connections/10/access" && method === "GET") {
+        return Promise.resolve(jsonResponse([
+          {
+            user_id: 2,
+            connection_id: 10,
+            can_query: true,
+            allow_writes: true,
+            can_manage: true,
+          },
+        ]));
+      }
+      if (url === "/api/connections/10/access" && method === "POST") {
+        return Promise.resolve(jsonResponse(
           {
             user_id: 2,
             connection_id: 10,
@@ -202,10 +243,15 @@ describe("ConnectionsPage", () => {
             can_manage: false,
           },
           { status: 201 },
-        ),
-      )
-      .mockResolvedValueOnce(new Response(null, { status: 204 }))
-      .mockResolvedValueOnce(jsonResponse([]));
+        ));
+      }
+      if (url === "/api/connections/10" && method === "DELETE") {
+        currentConnections = [];
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
+
+      return Promise.resolve(jsonResponse({ error: "unexpected request" }, { status: 500 }));
+    });
 
     renderConnectionsRoute();
 
@@ -224,10 +270,14 @@ describe("ConnectionsPage", () => {
       );
     });
 
-    await userEvent.click(await screen.findByRole("button", { name: "Grant access for Warehouse" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: /Grant access for Warehouse/ }),
+    );
     await userEvent.click(await screen.findByLabelText("User"));
     await userEvent.click(await screen.findByRole("option", { name: "Analyst (analyst@example.com)" }));
-    await userEvent.click(screen.getByRole("button", { name: "Grant access" }));
+    await userEvent.click(screen.getByLabelText("Allow writes"));
+    await userEvent.click(screen.getByLabelText("Can manage"));
+    await userEvent.click(screen.getByRole("button", { name: "Save access" }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -244,7 +294,9 @@ describe("ConnectionsPage", () => {
       );
     });
 
-    await userEvent.click(await screen.findByRole("button", { name: "Delete Warehouse" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: /Delete Warehouse/ }),
+    );
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
 
     await waitFor(() => {
@@ -262,4 +314,15 @@ function jsonResponse(body: unknown, init: ResponseInit = {}) {
     headers: { "Content-Type": "application/json" },
     ...init,
   });
+}
+
+function requestPath(input: RequestInfo | URL) {
+  const rawPath =
+    typeof input === "string"
+      ? input
+      : input instanceof Request
+        ? input.url
+        : input.toString();
+
+  return rawPath.replace(/^\/api/, "");
 }

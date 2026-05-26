@@ -1,5 +1,6 @@
 import Alert from "@mui/material/Alert";
 import Button from "@mui/material/Button";
+import CircularProgress from "@mui/material/CircularProgress";
 import Link from "@mui/material/Link";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
@@ -9,6 +10,7 @@ import { useForm } from "react-hook-form";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { ApiError } from "../../api/client";
 import { useAuth } from "../../auth/AuthProvider";
+import { SecretTextField } from "../../components/common/SecretTextField";
 import type { AuthSession } from "../../types/api";
 import { errorMessage } from "../../utils/errors";
 import { AuthLayout } from "./AuthLayout";
@@ -40,7 +42,7 @@ export function SetupPage() {
         auth: false,
       });
       setSession(session);
-      navigate("/", { replace: true });
+      navigate("/connections?onboarding=1", { replace: true });
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
         setSetupUnavailable(true);
@@ -87,16 +89,21 @@ export function SetupPage() {
           fullWidth
           {...register("email", { required: "Email is required" })}
         />
-        <TextField
+        <SecretTextField
           autoComplete="new-password"
           error={Boolean(errors.password)}
           helperText={errors.password?.message}
           label="Password"
-          type="password"
           fullWidth
           {...register("password", { required: "Password is required" })}
         />
-        <Button disabled={isSubmitting} type="submit" variant="contained" fullWidth>
+        <Button
+          disabled={isSubmitting}
+          startIcon={isSubmitting ? <CircularProgress color="inherit" size={16} /> : undefined}
+          type="submit"
+          variant="contained"
+          fullWidth
+        >
           Create owner account
         </Button>
         <Typography color="text.secondary" variant="body2">

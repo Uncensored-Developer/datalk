@@ -5,7 +5,7 @@ import { App } from "./App";
 import { AppProviders } from "./providers/AppProviders";
 
 describe("App", () => {
-  it("renders the frontend foundation shell", () => {
+  it("renders the start conversation call to action", () => {
     render(
       <AppProviders>
         <MemoryRouter>
@@ -15,7 +15,10 @@ describe("App", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "React app foundation" }),
+      screen.getByRole("heading", { name: "Start a conversation" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Start conversation" }),
     ).toBeInTheDocument();
   });
 });

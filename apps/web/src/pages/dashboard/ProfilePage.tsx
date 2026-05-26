@@ -4,13 +4,13 @@ import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
+import { SecretTextField } from "../../components/common/SecretTextField";
 import { useAuth } from "../../auth/AuthProvider";
 import type { User } from "../../types/api";
 import { errorMessage } from "../../utils/errors";
@@ -109,7 +109,13 @@ export function ProfilePage() {
 
           <Divider />
 
-          <Stack component="form" spacing={2} onSubmit={onSubmit} noValidate>
+          <Stack
+            component="form"
+            id="change-password"
+            spacing={2}
+            onSubmit={onSubmit}
+            noValidate
+          >
             <Stack spacing={0.5}>
               <Typography component="h2" variant="h2">
                 Change password
@@ -120,23 +126,21 @@ export function ProfilePage() {
             </Stack>
             {successMessage ? <Alert severity="success">{successMessage}</Alert> : null}
             {submitError ? <Alert severity="error">{submitError}</Alert> : null}
-            <TextField
+            <SecretTextField
               autoComplete="current-password"
               error={Boolean(errors.current_password)}
               helperText={errors.current_password?.message}
               label="Current password"
-              type="password"
               fullWidth
               {...register("current_password", {
                 required: "Current password is required",
               })}
             />
-            <TextField
+            <SecretTextField
               autoComplete="new-password"
               error={Boolean(errors.new_password)}
               helperText={errors.new_password?.message}
               label="New password"
-              type="password"
               fullWidth
               {...register("new_password", {
                 required: "New password is required",

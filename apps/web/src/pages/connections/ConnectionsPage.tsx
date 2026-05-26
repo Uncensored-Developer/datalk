@@ -7,6 +7,7 @@ import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
+import CircularProgress from "@mui/material/CircularProgress";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
@@ -25,13 +26,15 @@ import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { useEffect, useMemo, useState } from "react";
+import { Controller, useForm, useWatch } from "react-hook-form";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../auth/AuthProvider";
 import { ConfirmDialog } from "../../components/common/ConfirmDialog";
 import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
+import { SecretTextField } from "../../components/common/SecretTextField";
 import type {
   Connection,
   ConnectionAccessGrant,
@@ -69,8 +72,12 @@ type AccessFormValues = {
 export function ConnectionsPage() {
   const { apiClient, user } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isOnboarding = searchParams.get("onboarding") === "1";
   const isAdmin = user?.role === "owner" || user?.role === "admin";
   const [createOpen, setCreateOpen] = useState(false);
+  const [createDismissed, setCreateDismissed] = useState(false);
   const [editingConnection, setEditingConnection] = useState<Connection | null>(null);
   const [grantConnection, setGrantConnection] = useState<Connection | null>(null);
   const [deletingConnection, setDeletingConnection] = useState<Connection | null>(null);
@@ -115,6 +122,17 @@ export function ConnectionsPage() {
   }
 
   const connections = connectionsQuery.data ?? [];
+  const createDialogOpen =
+    createOpen ||
+    (isOnboarding && isAdmin && connections.length === 0 && !createDismissed);
+  const openCreateDialog = () => {
+    setCreateDismissed(false);
+    setCreateOpen(true);
+  };
+  const closeCreateDialog = () => {
+    setCreateDismissed(true);
+    setCreateOpen(false);
+  };
 
   return (
     <Stack spacing={3}>
@@ -134,7 +152,7 @@ export function ConnectionsPage() {
           <Button
             startIcon={<AddOutlinedIcon />}
             variant="contained"
-            onClick={() => setCreateOpen(true)}
+            onClick={openCreateDialog}
           >
             Create connection
           </Button>
@@ -144,6 +162,24 @@ export function ConnectionsPage() {
       {refreshMessage ? (
         <Alert severity="success" onClose={() => setRefreshMessage(null)}>
           {refreshMessage}
+        </Alert>
+      ) : null}
+      {isOnboarding && isAdmin ? (
+        <Alert
+          severity="info"
+          action={
+            connections.length > 0 ? (
+              <Button
+                color="inherit"
+                onClick={() => navigate("/provider-configs?onboarding=1", { replace: true })}
+                size="small"
+              >
+                Continue
+              </Button>
+            ) : null
+          }
+        >
+          Create a database connection before configuring provider access.
         </Alert>
       ) : null}
       {refreshMutation.isError ? (
@@ -163,7 +199,7 @@ export function ConnectionsPage() {
           }
           action={
             isAdmin ? (
-              <Button variant="contained" onClick={() => setCreateOpen(true)}>
+              <Button variant="contained" onClick={openCreateDialog}>
                 Create connection
               </Button>
             ) : null
@@ -190,7 +226,15 @@ export function ConnectionsPage() {
         </Grid>
       )}
 
-      <ConnectionDialog open={createOpen} onClose={() => setCreateOpen(false)} />
+      <ConnectionDialog
+        open={createDialogOpen}
+        onClose={closeCreateDialog}
+        onSaved={() => {
+          if (isOnboarding) {
+            navigate("/provider-configs?onboarding=1", { replace: true });
+          }
+        }}
+      />
       <ConnectionDialog
         connection={editingConnection}
         open={Boolean(editingConnection)}
@@ -348,10 +392,12 @@ function ConnectionDialog({
   connection,
   open,
   onClose,
+  onSaved,
 }: {
   connection?: Connection | null;
   open: boolean;
   onClose: () => void;
+  onSaved?: (connection: Connection) => void;
 }) {
   const { apiClient } = useAuth();
   const queryClient = useQueryClient();
@@ -374,11 +420,24 @@ function ConnectionDialog({
         ? apiClient.put<Connection>(`/connections/${connection?.id}`, payload)
         : apiClient.post<Connection>("/connections", payload);
     },
-    onSuccess() {
+    onSuccess(savedConnection, values) {
       setSubmitError(null);
       reset();
       onClose();
+      onSaved?.(savedConnection);
       void queryClient.invalidateQueries({ queryKey: ["connections"] });
+      if (shouldRefreshSchemaAfterSave(connection, values, isEdit)) {
+        void apiClient
+          .post<SchemaRefreshResponse>(
+            `/connections/${savedConnection.id}/schema-snapshot/refresh`,
+          )
+          .then(() =>
+            queryClient.invalidateQueries({
+              queryKey: ["connections"],
+            }),
+          )
+          .catch(() => undefined);
+      }
     },
     onError(error) {
       setSubmitError(errorMessage(error));
@@ -430,9 +489,8 @@ function ConnectionDialog({
                 />
               </Grid>
               <Grid size={{ xs: 12 }}>
-                <TextField
+                <SecretTextField
                   label="DSN"
-                  type="password"
                   fullWidth
                   error={Boolean(errors.dsn)}
                   helperText={
@@ -473,7 +531,12 @@ function ConnectionDialog({
         </DialogContent>
         <DialogActions>
           <Button onClick={close}>Cancel</Button>
-          <Button disabled={mutation.isPending} type="submit" variant="contained">
+          <Button
+            disabled={mutation.isPending}
+            startIcon={mutation.isPending ? <CircularProgress color="inherit" size={16} /> : undefined}
+            type="submit"
+            variant="contained"
+          >
             {isEdit ? "Save" : "Create"}
           </Button>
         </DialogActions>
@@ -574,12 +637,14 @@ function AccessGrantDialog({
   onClose: () => void;
 }) {
   const { apiClient } = useAuth();
+  const queryClient = useQueryClient();
   const [submitError, setSubmitError] = useState<string | null>(null);
   const {
     control,
     formState: { errors },
     handleSubmit,
     reset,
+    setValue,
   } = useForm<AccessFormValues>({
     defaultValues: {
       user_id: "",
@@ -588,12 +653,46 @@ function AccessGrantDialog({
       can_manage: false,
     },
   });
+  const selectedUserID = useWatch({ control, name: "user_id" });
 
   const usersQuery = useQuery({
     queryKey: ["users", "connection-access"],
     queryFn: () => apiClient.get<User[]>("/users"),
     enabled: open,
   });
+  const accessQuery = useQuery({
+    queryKey: ["connection-access", connection?.id],
+    queryFn: () =>
+      apiClient.get<ConnectionAccessGrant[]>(
+        `/connections/${connection?.id}/access`,
+      ),
+    enabled: open && Boolean(connection?.id),
+  });
+  const usersByID = useMemo(
+    () => new Map((usersQuery.data ?? []).map((user) => [String(user.id), user])),
+    [usersQuery.data],
+  );
+  const accessByUserID = useMemo(
+    () =>
+      new Map(
+        (accessQuery.data ?? []).map((access) => [
+          String(access.user_id),
+          access,
+        ]),
+      ),
+    [accessQuery.data],
+  );
+
+  useEffect(() => {
+    if (!selectedUserID) {
+      return;
+    }
+
+    const access = accessByUserID.get(selectedUserID);
+    setValue("can_query", access?.can_query ?? true);
+    setValue("allow_writes", access?.allow_writes ?? false);
+    setValue("can_manage", access?.can_manage ?? false);
+  }, [accessByUserID, selectedUserID, setValue]);
 
   const mutation = useMutation({
     mutationFn: (values: AccessFormValues) =>
@@ -610,6 +709,9 @@ function AccessGrantDialog({
       setSubmitError(null);
       reset();
       onClose();
+      void queryClient.invalidateQueries({
+        queryKey: ["connection-access", connection?.id],
+      });
     },
     onError(error) {
       setSubmitError(errorMessage(error));
@@ -627,7 +729,7 @@ function AccessGrantDialog({
   return (
     <Dialog fullWidth maxWidth="sm" open={open} onClose={close}>
       <Box component="form" onSubmit={handleSubmit((values) => mutation.mutate(values))}>
-        <DialogTitle>Grant connection access</DialogTitle>
+        <DialogTitle>Manage connection access</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             <Typography color="text.secondary" variant="body2">
@@ -636,6 +738,9 @@ function AccessGrantDialog({
             {submitError ? <Alert severity="error">{submitError}</Alert> : null}
             {usersQuery.isError ? (
               <Alert severity="error">{errorMessage(usersQuery.error)}</Alert>
+            ) : null}
+            {accessQuery.isError ? (
+              <Alert severity="error">{errorMessage(accessQuery.error)}</Alert>
             ) : null}
             <Controller
               control={control}
@@ -648,7 +753,7 @@ function AccessGrantDialog({
                     {...field}
                     label="User"
                     labelId="grant-user-label"
-                    disabled={usersQuery.isLoading}
+                    disabled={usersQuery.isLoading || accessQuery.isLoading}
                   >
                     {(usersQuery.data ?? []).map((user) => (
                       <MenuItem key={user.id} value={String(user.id)}>
@@ -659,6 +764,39 @@ function AccessGrantDialog({
                 </FormControl>
               )}
             />
+            {accessQuery.isLoading ? (
+              <LoadingState label="Loading access grants" />
+            ) : null}
+            {!accessQuery.isLoading && (accessQuery.data ?? []).length > 0 ? (
+              <Paper variant="outlined" sx={{ p: 1.5 }}>
+                <Stack spacing={1}>
+                  <Typography fontWeight={800} variant="body2">
+                    Existing grants
+                  </Typography>
+                  {(accessQuery.data ?? []).map((access) => {
+                    const user = usersByID.get(String(access.user_id));
+                    return (
+                      <Stack
+                        key={`${access.connection_id}-${access.user_id}`}
+                        direction={{ xs: "column", sm: "row" }}
+                        spacing={1}
+                        alignItems={{ xs: "flex-start", sm: "center" }}
+                        justifyContent="space-between"
+                      >
+                        <Typography variant="body2">
+                          {user ? `${user.name} (${user.email})` : `User ${access.user_id}`}
+                        </Typography>
+                        <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+                          {access.can_query ? <Chip label="query" size="small" /> : null}
+                          {access.allow_writes ? <Chip label="writes" size="small" /> : null}
+                          {access.can_manage ? <Chip label="manage" size="small" /> : null}
+                        </Stack>
+                      </Stack>
+                    );
+                  })}
+                </Stack>
+              </Paper>
+            ) : null}
             {[
               ["can_query", "Can query"],
               ["allow_writes", "Allow writes"],
@@ -685,8 +823,13 @@ function AccessGrantDialog({
         </DialogContent>
         <DialogActions>
           <Button onClick={close}>Cancel</Button>
-          <Button disabled={mutation.isPending} type="submit" variant="contained">
-            Grant access
+          <Button
+            disabled={mutation.isPending || accessQuery.isLoading}
+            startIcon={mutation.isPending ? <CircularProgress color="inherit" size={16} /> : undefined}
+            type="submit"
+            variant="contained"
+          >
+            Save access
           </Button>
         </DialogActions>
       </Box>
@@ -745,6 +888,59 @@ function payloadFromConnectionForm(values: ConnectionFormValues, isEdit: boolean
   }
 
   return payload;
+}
+
+function shouldRefreshSchemaAfterSave(
+  connection: Connection | null | undefined,
+  values: ConnectionFormValues,
+  isEdit: boolean,
+) {
+  if (!isEdit || !connection) {
+    return true;
+  }
+
+  if (values.database !== connection.database) {
+    return true;
+  }
+  if (values.dsn.trim()) {
+    return true;
+  }
+  if (values.is_enabled !== connection.is_enabled) {
+    return true;
+  }
+
+  return (
+    JSON.stringify(metadataFromConnectionForm(values)) !==
+    JSON.stringify(normalizedConnectionMetadata(connection.metadata))
+  );
+}
+
+function metadataFromConnectionForm(values: ConnectionFormValues): ConnectionMetadata {
+  return {
+    include_namespaces: parseList(values.include_namespaces),
+    exclude_namespaces: parseList(values.exclude_namespaces),
+    include_tables_by_namespace: parseMap(values.include_tables_by_namespace),
+    exclude_tables_by_namespace: parseMap(values.exclude_tables_by_namespace),
+    include_views: values.include_views,
+    include_indexes: values.include_indexes,
+    include_foreign_keys: values.include_foreign_keys,
+    include_comments: values.include_comments,
+  };
+}
+
+function normalizedConnectionMetadata(
+  metadata?: ConnectionMetadata | null,
+): ConnectionMetadata {
+  return {
+    include_namespaces: metadata?.include_namespaces ?? [],
+    exclude_namespaces: metadata?.exclude_namespaces ?? [],
+    include_tables_by_namespace: metadata?.include_tables_by_namespace ?? {},
+    exclude_tables_by_namespace: metadata?.exclude_tables_by_namespace ?? {},
+    include_views: Boolean(metadata?.include_views),
+    include_indexes: Boolean(metadata?.include_indexes),
+    include_foreign_keys: Boolean(metadata?.include_foreign_keys),
+    include_comments: Boolean(metadata?.include_comments),
+  };
 }
 
 function parseList(value: string) {

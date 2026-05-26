@@ -7,6 +7,7 @@ import { DashboardLayout } from "./DashboardLayout";
 import { ProtectedRoute } from "./ProtectedRoute";
 import { PublicOnlyRoute } from "./PublicOnlyRoute";
 import { LoginPage } from "../pages/auth/LoginPage";
+import { SetupPage } from "../pages/auth/SetupPage";
 import { OverviewPage } from "../pages/dashboard/OverviewPage";
 import { ProfilePage } from "../pages/dashboard/ProfilePage";
 
@@ -15,7 +16,10 @@ function renderRouter(initialEntries: string[]) {
     [
       {
         element: <PublicOnlyRoute />,
-        children: [{ path: "/login", element: <LoginPage /> }],
+        children: [
+          { path: "/login", element: <LoginPage /> },
+          { path: "/setup", element: <SetupPage /> },
+        ],
       },
       {
         element: <ProtectedRoute />,
@@ -25,6 +29,7 @@ function renderRouter(initialEntries: string[]) {
             children: [
               { path: "/", element: <OverviewPage /> },
               { path: "/profile", element: <ProfilePage /> },
+              { path: "/connections", element: <div>Connections onboarding</div> },
             ],
           },
         ],
@@ -53,9 +58,10 @@ describe("auth routes", () => {
   });
 
   it("stores the returned session after login", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
+    vi.spyOn(window, "fetch")
+      .mockResolvedValueOnce(jsonResponse({ setup_required: false }))
+      .mockResolvedValueOnce(
+        jsonResponse({
           user: {
             id: 1,
             email: "root@example.com",
@@ -70,12 +76,7 @@ describe("auth routes", () => {
           },
           must_change_password: false,
         }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        },
-      ),
-    );
+      );
 
     renderRouter(["/login"]);
 
@@ -88,6 +89,43 @@ describe("auth routes", () => {
         "access-token",
       );
     });
+  });
+
+  it("redirects login to setup when the first owner is required", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValueOnce(
+      jsonResponse({ setup_required: true }),
+    );
+
+    renderRouter(["/login"]);
+
+    expect(
+      await screen.findByRole("heading", { name: "Set up Datalk" }),
+    ).toBeInTheDocument();
+  });
+
+  it("sends authenticated setup visits to connection onboarding", async () => {
+    window.localStorage.setItem(
+      "datalk.session",
+      JSON.stringify({
+        user: {
+          id: 1,
+          email: "root@example.com",
+          name: "Root User",
+          role: "owner",
+          must_change_password: false,
+        },
+        tokens: {
+          access_token: "access-token",
+          refresh_token: "refresh-token",
+          expires_at: "2026-05-25T12:00:00Z",
+        },
+        must_change_password: false,
+      }),
+    );
+
+    renderRouter(["/setup"]);
+
+    expect(await screen.findByText("Connections onboarding")).toBeInTheDocument();
   });
 
   it("does not refresh the session when logout receives a 401", async () => {
@@ -109,12 +147,21 @@ describe("auth routes", () => {
         must_change_password: false,
       }),
     );
-    const fetchMock = vi.spyOn(window, "fetch").mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "unauthorized" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url === "/api/connections" || url.startsWith("/api/chat/conversations")) {
+        return Promise.resolve(jsonResponse([]));
+      }
+      if (url === "/api/auth/logout") {
+        return Promise.resolve(
+          new Response(JSON.stringify({ error: "unauthorized" }), {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      }
+      return Promise.resolve(jsonResponse({ setup_required: false }));
+    });
 
     renderRouter(["/"]);
 
@@ -123,8 +170,14 @@ describe("auth routes", () => {
     await waitFor(() => {
       expect(window.localStorage.getItem("datalk.session")).toBeNull();
     });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/auth/logout");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/logout",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      "/api/auth/refresh",
+      expect.anything(),
+    );
   });
 
   it("loads profile data with the active session instead of a previous user's cache", async () => {
@@ -169,3 +222,11 @@ describe("auth routes", () => {
     expect(screen.queryByText("Root User")).not.toBeInTheDocument();
   });
 });
+
+function jsonResponse(body: unknown, init: ResponseInit = {}) {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+    ...init,
+  });
+}

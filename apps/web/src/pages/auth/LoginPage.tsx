@@ -1,14 +1,14 @@
 import Alert from "@mui/material/Alert";
 import Button from "@mui/material/Button";
-import Link from "@mui/material/Link";
+import CircularProgress from "@mui/material/CircularProgress";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/AuthProvider";
-import type { AuthSession } from "../../types/api";
+import { SecretTextField } from "../../components/common/SecretTextField";
+import type { AuthSession, SetupStatus } from "../../types/api";
 import { errorMessage } from "../../utils/errors";
 import { AuthLayout } from "./AuthLayout";
 
@@ -28,6 +28,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [checkingSetup, setCheckingSetup] = useState(true);
   const {
     formState: { errors, isSubmitting },
     handleSubmit,
@@ -36,6 +37,30 @@ export function LoginPage() {
     defaultValues: { email: "", password: "" },
   });
 
+  useEffect(() => {
+    let isActive = true;
+
+    apiClient
+      .get<SetupStatus>("/auth/setup/status", { auth: false })
+      .then((status) => {
+        if (isActive && status.setup_required) {
+          navigate("/setup", { replace: true });
+        }
+      })
+      .catch(() => {
+        // Keep login available if the status probe fails.
+      })
+      .finally(() => {
+        if (isActive) {
+          setCheckingSetup(false);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [apiClient, navigate]);
+
   const onSubmit = handleSubmit(async (values) => {
     setSubmitError(null);
     try {
@@ -43,6 +68,11 @@ export function LoginPage() {
         auth: false,
       });
       setSession(session);
+      if (session.user.must_change_password || session.must_change_password) {
+        navigate("/profile#change-password", { replace: true });
+        return;
+      }
+
       const state = location.state as LocationState | null;
       navigate(state?.from?.pathname ?? "/", { replace: true });
     } catch (error) {
@@ -67,24 +97,23 @@ export function LoginPage() {
           fullWidth
           {...register("email", { required: "Email is required" })}
         />
-        <TextField
+        <SecretTextField
           autoComplete="current-password"
           error={Boolean(errors.password)}
           helperText={errors.password?.message}
           label="Password"
-          type="password"
           fullWidth
           {...register("password", { required: "Password is required" })}
         />
-        <Button disabled={isSubmitting} type="submit" variant="contained" fullWidth>
-          Sign in
+        <Button
+          disabled={checkingSetup || isSubmitting}
+          startIcon={isSubmitting ? <CircularProgress color="inherit" size={16} /> : undefined}
+          type="submit"
+          variant="contained"
+          fullWidth
+        >
+          {checkingSetup ? "Checking setup" : "Sign in"}
         </Button>
-        <Typography color="text.secondary" variant="body2">
-          First time here?{" "}
-          <Link component={RouterLink} to="/setup">
-            Set up the first owner
-          </Link>
-        </Typography>
       </Stack>
     </AuthLayout>
   );

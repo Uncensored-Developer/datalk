@@ -65,9 +65,13 @@ describe("ProviderConfigsPage", () => {
   });
 
   it("renders provider configs and available models", async () => {
-    vi.spyOn(window, "fetch")
-      .mockResolvedValueOnce(
-        jsonResponse([
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url === "/api/connections" || url.startsWith("/api/chat/conversations")) {
+        return Promise.resolve(jsonResponse([]));
+      }
+      if (url === "/api/chat/provider-configs") {
+        return Promise.resolve(jsonResponse([
           {
             id: 1,
             provider: "openai",
@@ -79,10 +83,10 @@ describe("ProviderConfigsPage", () => {
             created_at: "2026-05-25T12:00:00Z",
             updated_at: "2026-05-25T12:00:00Z",
           },
-        ]),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse([
+        ]));
+      }
+      if (url === "/api/chat/models") {
+        return Promise.resolve(jsonResponse([
           {
             id: "openai:gpt-5.2",
             provider: "openai",
@@ -99,8 +103,10 @@ describe("ProviderConfigsPage", () => {
               max_output_tokens: 8192,
             },
           },
-        ]),
-      );
+        ]));
+      }
+      return Promise.resolve(jsonResponse({ error: "unexpected request" }, { status: 500 }));
+    });
 
     renderProviderConfigsRoute();
 
@@ -110,10 +116,18 @@ describe("ProviderConfigsPage", () => {
   });
 
   it("requires an API key when creating a remote provider config", async () => {
-    const fetchMock = vi
-      .spyOn(window, "fetch")
-      .mockResolvedValueOnce(jsonResponse([]))
-      .mockResolvedValueOnce(jsonResponse([]));
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (
+        url === "/api/connections" ||
+        url.startsWith("/api/chat/conversations") ||
+        url === "/api/chat/provider-configs" ||
+        url === "/api/chat/models"
+      ) {
+        return Promise.resolve(jsonResponse([]));
+      }
+      return Promise.resolve(jsonResponse({ error: "unexpected request" }, { status: 500 }));
+    });
 
     renderProviderConfigsRoute();
 
@@ -123,16 +137,28 @@ describe("ProviderConfigsPage", () => {
     expect(
       await screen.findByText("API key is required when creating this provider"),
     ).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      "/api/chat/provider-configs/openai",
+      expect.objectContaining({ method: "PUT" }),
+    );
   });
 
   it("saves provider config payloads and metadata", async () => {
-    const fetchMock = vi
-      .spyOn(window, "fetch")
-      .mockResolvedValueOnce(jsonResponse([]))
-      .mockResolvedValueOnce(jsonResponse([]))
-      .mockResolvedValueOnce(
-        jsonResponse({
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (
+        url === "/api/connections" ||
+        url.startsWith("/api/chat/conversations") ||
+        url === "/api/chat/models"
+      ) {
+        return Promise.resolve(jsonResponse([]));
+      }
+      if (url === "/api/chat/provider-configs" && method === "GET") {
+        return Promise.resolve(jsonResponse([]));
+      }
+      if (url === "/api/chat/provider-configs/openai" && method === "PUT") {
+        return Promise.resolve(jsonResponse({
           id: 1,
           provider: "openai",
           display_name: "OpenAI",
@@ -142,10 +168,10 @@ describe("ProviderConfigsPage", () => {
           metadata: { project: "analytics" },
           created_at: "2026-05-25T12:00:00Z",
           updated_at: "2026-05-25T12:00:00Z",
-        }),
-      )
-      .mockResolvedValueOnce(jsonResponse([]))
-      .mockResolvedValueOnce(jsonResponse([]));
+        }));
+      }
+      return Promise.resolve(jsonResponse({ error: "unexpected request" }, { status: 500 }));
+    });
 
     renderProviderConfigsRoute();
 
@@ -176,10 +202,18 @@ describe("ProviderConfigsPage", () => {
   });
 
   it("omits api_key when updating an existing provider with a stored key", async () => {
-    const fetchMock = vi
-      .spyOn(window, "fetch")
-      .mockResolvedValueOnce(
-        jsonResponse([
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (
+        url === "/api/connections" ||
+        url.startsWith("/api/chat/conversations") ||
+        url === "/api/chat/models"
+      ) {
+        return Promise.resolve(jsonResponse([]));
+      }
+      if (url === "/api/chat/provider-configs" && method === "GET") {
+        return Promise.resolve(jsonResponse([
           {
             id: 1,
             provider: "openai",
@@ -191,11 +225,10 @@ describe("ProviderConfigsPage", () => {
             created_at: "2026-05-25T12:00:00Z",
             updated_at: "2026-05-25T12:00:00Z",
           },
-        ]),
-      )
-      .mockResolvedValueOnce(jsonResponse([]))
-      .mockResolvedValueOnce(
-        jsonResponse({
+        ]));
+      }
+      if (url === "/api/chat/provider-configs/openai" && method === "PUT") {
+        return Promise.resolve(jsonResponse({
           id: 1,
           provider: "openai",
           display_name: "OpenAI",
@@ -205,10 +238,10 @@ describe("ProviderConfigsPage", () => {
           metadata: {},
           created_at: "2026-05-25T12:00:00Z",
           updated_at: "2026-05-25T12:00:00Z",
-        }),
-      )
-      .mockResolvedValueOnce(jsonResponse([]))
-      .mockResolvedValueOnce(jsonResponse([]));
+        }));
+      }
+      return Promise.resolve(jsonResponse({ error: "unexpected request" }, { status: 500 }));
+    });
 
     renderProviderConfigsRoute();
 
@@ -235,11 +268,22 @@ describe("ProviderConfigsPage", () => {
   });
 
   it("shows model availability errors", async () => {
-    vi.spyOn(window, "fetch")
-      .mockResolvedValueOnce(jsonResponse([]))
-      .mockResolvedValueOnce(
-        jsonResponse({ error: "provider unavailable" }, { status: 400 }),
-      );
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (
+        url === "/api/connections" ||
+        url.startsWith("/api/chat/conversations") ||
+        url === "/api/chat/provider-configs"
+      ) {
+        return Promise.resolve(jsonResponse([]));
+      }
+      if (url === "/api/chat/models") {
+        return Promise.resolve(
+          jsonResponse({ error: "provider unavailable" }, { status: 400 }),
+        );
+      }
+      return Promise.resolve(jsonResponse({ error: "unexpected request" }, { status: 500 }));
+    });
 
     renderProviderConfigsRoute();
 

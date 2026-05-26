@@ -21,6 +21,10 @@ export type AuthSession = {
   must_change_password: boolean;
 };
 
+export type SetupStatus = {
+  setup_required: boolean;
+};
+
 export type ApiErrorShape = {
   error: string;
 };

@@ -4,6 +4,7 @@ import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
+import CircularProgress from "@mui/material/CircularProgress";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
@@ -34,7 +35,8 @@ import { useAuth } from "../../auth/AuthProvider";
 import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
-import type { User, UserRole } from "../../types/api";
+import { SecretTextField } from "../../components/common/SecretTextField";
+import type { Connection, ConnectionAccessGrant, User, UserRole } from "../../types/api";
 import { errorMessage } from "../../utils/errors";
 
 const roles: UserRole[] = ["owner", "admin", "member"];
@@ -44,6 +46,10 @@ type CreateUserForm = {
   email: string;
   password: string;
   role: UserRole;
+  connection_ids: string[];
+  can_query: boolean;
+  allow_writes: boolean;
+  can_manage: boolean;
 };
 
 type EditUserForm = {
@@ -222,16 +228,51 @@ function CreateUserDialog({
       email: "",
       password: "",
       role: "member",
+      connection_ids: [],
+      can_query: true,
+      allow_writes: false,
+      can_manage: false,
     },
+  });
+  const connectionsQuery = useQuery({
+    queryKey: ["connections", "create-user-access"],
+    queryFn: () => apiClient.get<Connection[]>("/connections"),
+    enabled: open,
   });
 
   const createMutation = useMutation({
-    mutationFn: (values: CreateUserForm) => apiClient.post<User>("/users", values),
+    mutationFn: async (values: CreateUserForm) => {
+      const user = await apiClient.post<User>("/users", {
+        name: values.name,
+        email: values.email,
+        password: values.password,
+        role: values.role,
+      });
+
+      if (values.connection_ids.length > 0) {
+        await Promise.all(
+          values.connection_ids.map((connectionID) =>
+            apiClient.post<ConnectionAccessGrant>(
+              `/connections/${connectionID}/access`,
+              {
+                user_id: user.id,
+                can_query: values.can_query,
+                allow_writes: values.allow_writes,
+                can_manage: values.can_manage,
+              },
+            ),
+          ),
+        );
+      }
+
+      return user;
+    },
     onSuccess() {
       setSubmitError(null);
       reset();
       onClose();
       void queryClient.invalidateQueries({ queryKey: ["users"] });
+      void queryClient.invalidateQueries({ queryKey: ["connection-access"] });
     },
     onError(error) {
       setSubmitError(errorMessage(error));
@@ -269,9 +310,8 @@ function CreateUserDialog({
               fullWidth
               {...register("email", { required: "Email is required" })}
             />
-            <TextField
+            <SecretTextField
               label="Temporary password"
-              type="password"
               error={Boolean(errors.password)}
               helperText={errors.password?.message}
               fullWidth
@@ -293,11 +333,93 @@ function CreateUserDialog({
                 </FormControl>
               )}
             />
+            {connectionsQuery.isLoading ? (
+              <LoadingState label="Loading connections" />
+            ) : null}
+            {connectionsQuery.isError ? (
+              <Alert severity="error">{errorMessage(connectionsQuery.error)}</Alert>
+            ) : null}
+            {!connectionsQuery.isLoading &&
+            !connectionsQuery.isError &&
+            (connectionsQuery.data ?? []).length > 0 ? (
+              <Paper variant="outlined" sx={{ p: 2 }}>
+                <Stack spacing={2}>
+                  <Stack spacing={0.5}>
+                    <Typography component="h3" fontWeight={800}>
+                      Connection access
+                    </Typography>
+                    <Typography color="text.secondary" variant="body2">
+                      Grant access after the user account is created.
+                    </Typography>
+                  </Stack>
+                  <Controller
+                    control={control}
+                    name="connection_ids"
+                    render={({ field }) => (
+                      <FormControl fullWidth>
+                        <InputLabel id="create-user-connections-label">
+                          Connections
+                        </InputLabel>
+                        <Select
+                          {...field}
+                          label="Connections"
+                          labelId="create-user-connections-label"
+                          multiple
+                          renderValue={(selected) =>
+                            selected
+                              .map((id) => {
+                                const connection = connectionsQuery.data?.find(
+                                  (item) => String(item.id) === id,
+                                );
+                                return connection?.name ?? id;
+                              })
+                              .join(", ")
+                          }
+                        >
+                          {(connectionsQuery.data ?? []).map((connection) => (
+                            <MenuItem key={connection.id} value={String(connection.id)}>
+                              {connection.name}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    )}
+                  />
+                  {[
+                    ["can_query", "Can query"],
+                    ["allow_writes", "Allow writes"],
+                    ["can_manage", "Can manage"],
+                  ].map(([name, label]) => (
+                    <Controller
+                      key={name}
+                      control={control}
+                      name={name as keyof CreateUserForm}
+                      render={({ field }) => (
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              checked={Boolean(field.value)}
+                              onChange={(event) => field.onChange(event.target.checked)}
+                            />
+                          }
+                          label={label}
+                        />
+                      )}
+                    />
+                  ))}
+                </Stack>
+              </Paper>
+            ) : null}
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={close}>Cancel</Button>
-          <Button disabled={createMutation.isPending} type="submit" variant="contained">
+          <Button
+            disabled={createMutation.isPending}
+            startIcon={createMutation.isPending ? <CircularProgress color="inherit" size={16} /> : undefined}
+            type="submit"
+            variant="contained"
+          >
             Create
           </Button>
         </DialogActions>

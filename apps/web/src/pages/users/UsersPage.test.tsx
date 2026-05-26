@@ -82,8 +82,13 @@ describe("UsersPage", () => {
 
   it("lists users for admins", async () => {
     window.localStorage.setItem("datalk.session", JSON.stringify(ownerSession));
-    vi.spyOn(window, "fetch").mockResolvedValueOnce(
-      jsonResponse([
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url === "/api/connections" || url.startsWith("/api/chat/conversations")) {
+        return Promise.resolve(jsonResponse([]));
+      }
+      if (url === "/api/users") {
+        return Promise.resolve(jsonResponse([
         {
           id: 1,
           email: "owner@example.com",
@@ -100,8 +105,10 @@ describe("UsersPage", () => {
           is_active: false,
           must_change_password: true,
         },
-      ]),
-    );
+        ]));
+      }
+      return Promise.resolve(jsonResponse({ error: "unexpected request" }, { status: 500 }));
+    });
 
     renderUsersRoute();
 
@@ -112,11 +119,29 @@ describe("UsersPage", () => {
 
   it("creates a user through the admin API", async () => {
     window.localStorage.setItem("datalk.session", JSON.stringify(ownerSession));
-    const fetchMock = vi
-      .spyOn(window, "fetch")
-      .mockResolvedValueOnce(jsonResponse([]))
-      .mockResolvedValueOnce(
-        jsonResponse(
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (url.startsWith("/api/chat/conversations")) {
+        return Promise.resolve(jsonResponse([]));
+      }
+      if (url === "/api/connections") {
+        return Promise.resolve(jsonResponse([
+          {
+            id: 10,
+            name: "Warehouse",
+            database: "postgres",
+            user_id: 1,
+            is_enabled: true,
+            metadata: {},
+          },
+        ]));
+      }
+      if (url === "/api/users" && method === "GET") {
+        return Promise.resolve(jsonResponse([]));
+      }
+      if (url === "/api/users" && method === "POST") {
+        return Promise.resolve(jsonResponse(
           {
             id: 4,
             email: "new@example.com",
@@ -126,9 +151,22 @@ describe("UsersPage", () => {
             must_change_password: true,
           },
           { status: 201 },
-        ),
-      )
-      .mockResolvedValueOnce(jsonResponse([]));
+        ));
+      }
+      if (url === "/api/connections/10/access") {
+        return Promise.resolve(jsonResponse(
+          {
+            user_id: 4,
+            connection_id: 10,
+            can_query: true,
+            allow_writes: true,
+            can_manage: false,
+          },
+          { status: 201 },
+        ));
+      }
+      return Promise.resolve(jsonResponse({ error: "unexpected request" }, { status: 500 }));
+    });
 
     renderUsersRoute();
 
@@ -139,6 +177,10 @@ describe("UsersPage", () => {
     await userEvent.type(screen.getByLabelText("Name"), "New User");
     await userEvent.type(screen.getByLabelText("Email"), "new@example.com");
     await userEvent.type(screen.getByLabelText("Temporary password"), "temporary");
+    await userEvent.click(await screen.findByLabelText("Connections"));
+    await userEvent.click(await screen.findByRole("option", { name: "Warehouse" }));
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(screen.getByLabelText("Allow writes"));
     await userEvent.click(screen.getByRole("button", { name: "Create" }));
 
     await waitFor(() => {
@@ -155,14 +197,32 @@ describe("UsersPage", () => {
         }),
       );
     });
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/connections/10/access",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            user_id: 4,
+            can_query: true,
+            allow_writes: true,
+            can_manage: false,
+          }),
+        }),
+      );
+    });
   });
 
   it("updates only editable user fields", async () => {
     window.localStorage.setItem("datalk.session", JSON.stringify(ownerSession));
-    const fetchMock = vi
-      .spyOn(window, "fetch")
-      .mockResolvedValueOnce(
-        jsonResponse([
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (url === "/api/connections" || url.startsWith("/api/chat/conversations")) {
+        return Promise.resolve(jsonResponse([]));
+      }
+      if (url === "/api/users" && method === "GET") {
+        return Promise.resolve(jsonResponse([
           {
             id: 3,
             email: "analyst@example.com",
@@ -171,19 +231,20 @@ describe("UsersPage", () => {
             is_active: true,
             must_change_password: false,
           },
-        ]),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
+        ]));
+      }
+      if (url === "/api/users/3" && method === "PUT") {
+        return Promise.resolve(jsonResponse({
           id: 3,
           email: "analyst@example.com",
           name: "Updated Analyst",
           role: "admin",
           is_active: false,
           must_change_password: false,
-        }),
-      )
-      .mockResolvedValueOnce(jsonResponse([]));
+        }));
+      }
+      return Promise.resolve(jsonResponse({ error: "unexpected request" }, { status: 500 }));
+    });
 
     renderUsersRoute();
 

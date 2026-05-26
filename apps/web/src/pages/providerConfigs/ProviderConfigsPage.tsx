@@ -5,6 +5,7 @@ import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
+import CircularProgress from "@mui/material/CircularProgress";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
@@ -21,10 +22,12 @@ import Typography from "@mui/material/Typography";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../auth/AuthProvider";
 import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
+import { SecretTextField } from "../../components/common/SecretTextField";
 import type { ChatModel, Provider, ProviderConfig } from "../../types/api";
 import { errorMessage } from "../../utils/errors";
 
@@ -70,6 +73,9 @@ type ProviderConfigForm = {
 
 export function ProviderConfigsPage() {
   const { apiClient } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isOnboarding = searchParams.get("onboarding") === "1";
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null);
 
   const configsQuery = useQuery({
@@ -109,6 +115,25 @@ export function ProviderConfigsPage() {
         </Typography>
       </Stack>
 
+      {isOnboarding ? (
+        <Alert
+          severity="info"
+          action={
+            configs.length > 0 ? (
+              <Button
+                color="inherit"
+                onClick={() => navigate("/chat", { replace: true })}
+                size="small"
+              >
+                Go to chat
+              </Button>
+            ) : null
+          }
+        >
+          Configure at least one enabled provider so Datalk can list models and answer chat messages.
+        </Alert>
+      ) : null}
+
       <Grid container spacing={2}>
         {knownProviders.map((providerInfo) => (
           <Grid key={providerInfo.provider} size={{ xs: 12, md: 6 }}>
@@ -134,6 +159,11 @@ export function ProviderConfigsPage() {
         provider={editingProvider}
         open={Boolean(editingProvider)}
         onClose={() => setEditingProvider(null)}
+        onSaved={() => {
+          if (isOnboarding) {
+            navigate("/chat", { replace: true });
+          }
+        }}
       />
     </Stack>
   );
@@ -298,11 +328,13 @@ function ProviderConfigDialog({
   provider,
   open,
   onClose,
+  onSaved,
 }: {
   config?: ProviderConfig;
   provider: Provider | null;
   open: boolean;
   onClose: () => void;
+  onSaved?: (config: ProviderConfig) => void;
 }) {
   const { apiClient } = useAuth();
   const queryClient = useQueryClient();
@@ -354,10 +386,11 @@ function ProviderConfigDialog({
         payload,
       );
     },
-    onSuccess() {
+    onSuccess(savedConfig) {
       setSubmitError(null);
       reset();
       onClose();
+      onSaved?.(savedConfig);
       void queryClient.invalidateQueries({ queryKey: ["provider-configs"] });
       void queryClient.invalidateQueries({ queryKey: ["chat-models"] });
     },
@@ -415,9 +448,8 @@ function ProviderConfigDialog({
               fullWidth
               {...register("base_url", { required: "Base URL is required" })}
             />
-            <TextField
+            <SecretTextField
               label="API key"
-              type="password"
               error={Boolean(errors.api_key)}
               helperText={
                 errors.api_key?.message ??
@@ -459,7 +491,12 @@ function ProviderConfigDialog({
         </DialogContent>
         <DialogActions>
           <Button onClick={close}>Cancel</Button>
-          <Button disabled={mutation.isPending} type="submit" variant="contained">
+          <Button
+            disabled={mutation.isPending}
+            startIcon={mutation.isPending ? <CircularProgress color="inherit" size={16} /> : undefined}
+            type="submit"
+            variant="contained"
+          >
             Save
           </Button>
         </DialogActions>

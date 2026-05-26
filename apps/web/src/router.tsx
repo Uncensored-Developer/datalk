@@ -1,8 +1,8 @@
 import { createBrowserRouter } from "react-router-dom";
 import { LoginPage } from "./pages/auth/LoginPage";
 import { SetupPage } from "./pages/auth/SetupPage";
+import { ChatPage } from "./pages/chat/ChatPage";
 import { OverviewPage } from "./pages/dashboard/OverviewPage";
-import { PlaceholderPage } from "./pages/dashboard/PlaceholderPage";
 import { ProfilePage } from "./pages/dashboard/ProfilePage";
 import { ConnectionsPage } from "./pages/connections/ConnectionsPage";
 import { ProviderConfigsPage } from "./pages/providerConfigs/ProviderConfigsPage";
@@ -28,7 +28,8 @@ export const router = createBrowserRouter([
         children: [
           { path: "/", element: <OverviewPage /> },
           { path: "/profile", element: <ProfilePage /> },
-          { path: "/chat", element: <PlaceholderPage title="Chat" /> },
+          { path: "/chat", element: <ChatPage /> },
+          { path: "/chat/:conversationID", element: <ChatPage /> },
           {
             path: "/connections",
             element: <ConnectionsPage />,
