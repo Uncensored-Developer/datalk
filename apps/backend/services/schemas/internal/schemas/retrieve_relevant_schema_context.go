@@ -2,6 +2,7 @@ package schemas
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -17,9 +18,9 @@ const (
 	// Eight chunks is a conservative default for schema RAG: usually enough to cover
 	// the primary tables plus a couple of supporting relations without bloating the prompt.
 	defaultRetrievalLimit = 8
-	// We intentionally over-fetch before deduping because vector search often returns
-	// several chunks for the same object; pulling 2x gives the deduper room to keep
-	// `limit` distinct schema objects without a second DB round-trip.
+	// We intentionally over-fetch before deduping because vector search can return
+	// duplicate rows around the same score boundary; pulling 2x gives the deduper
+	// room to keep `limit` chunks without a second DB round-trip.
 	retrievalSearchMultiple = 2
 )
 
@@ -141,12 +142,13 @@ func dedupeRetrievedChunks(chunks []*schemas.RetrievedChunk, limit int) []schema
 		if chunk == nil {
 			continue
 		}
-		// ObjectName is the dedupe key because multiple chunks for the same table/view
-		// add less prompt value than covering another relevant schema object.
-		if _, ok := seen[chunk.ObjectName]; ok {
+		// Split schema objects can produce multiple useful chunks with the same
+		// ObjectName, so only suppress exact duplicate chunk rows.
+		key := retrievedChunkDedupeKey(chunk)
+		if _, ok := seen[key]; ok {
 			continue
 		}
-		seen[chunk.ObjectName] = struct{}{}
+		seen[key] = struct{}{}
 		deduped = append(deduped, *chunk)
 		if len(deduped) == limit {
 			break
@@ -154,4 +156,12 @@ func dedupeRetrievedChunks(chunks []*schemas.RetrievedChunk, limit int) []schema
 	}
 
 	return deduped
+}
+
+func retrievedChunkDedupeKey(chunk *schemas.RetrievedChunk) string {
+	if chunk.ChunkID != 0 {
+		return fmt.Sprintf("id:%d", chunk.ChunkID)
+	}
+
+	return fmt.Sprintf("content:%s:%s:%s", chunk.ObjectType, chunk.ObjectName, chunk.Content)
 }

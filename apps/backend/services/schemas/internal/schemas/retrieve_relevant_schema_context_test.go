@@ -79,7 +79,7 @@ func TestService_RetrieveRelevantSchemaContext(t *testing.T) {
 			},
 		},
 		{
-			name: "success uses latest completed snapshot and dedupes chunks",
+			name: "success uses latest completed snapshot and keeps distinct chunks",
 			params: schematypes.RetrieveRelevantSchemaContextParams{
 				ConnectionID: connectionID,
 				QueryText:    "how many users subscribed this month",
@@ -133,8 +133,8 @@ func TestService_RetrieveRelevantSchemaContext(t *testing.T) {
 				require.Len(t, got.Chunks, 2)
 				assert.Equal(t, int64(1), got.Chunks[0].ChunkID)
 				assert.Equal(t, "public.users", got.Chunks[0].ObjectName)
-				assert.Equal(t, int64(3), got.Chunks[1].ChunkID)
-				assert.Equal(t, "public.subscriptions", got.Chunks[1].ObjectName)
+				assert.Equal(t, int64(2), got.Chunks[1].ChunkID)
+				assert.Equal(t, "public.users", got.Chunks[1].ObjectName)
 				assert.False(t, got.RetrievedAt.IsZero())
 			},
 		},
@@ -233,10 +233,12 @@ func TestDedupeRetrievedChunks(t *testing.T) {
 		nil,
 		{ChunkID: 1, ObjectName: "public.users"},
 		{ChunkID: 2, ObjectName: "public.users"},
+		{ChunkID: 2, ObjectName: "public.users"},
 		{ChunkID: 3, ObjectName: "public.subscriptions"},
-	}, 2)
+	}, 3)
 
-	require.Len(t, got, 2)
+	require.Len(t, got, 3)
 	assert.Equal(t, int64(1), got[0].ChunkID)
-	assert.Equal(t, int64(3), got[1].ChunkID)
+	assert.Equal(t, int64(2), got[1].ChunkID)
+	assert.Equal(t, int64(3), got[2].ChunkID)
 }

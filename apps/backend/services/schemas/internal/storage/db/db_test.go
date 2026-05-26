@@ -413,6 +413,46 @@ func TestStorage_ReplaceChunks(t *testing.T) {
 	assert.Equal(t, "public.orders", dbChunks[0].ObjectName)
 }
 
+func TestStorage_ReplaceChunks_AllowsSplitObjectChunks(t *testing.T) {
+	t.Parallel()
+
+	createdConn := createConnection(t, "replace-split-chunks-connection")
+	snapshot := insertSnapshot(t, createdConn.ID, "hash-replace-split")
+
+	replacementChunks := []*schemas.Chunk{
+		{
+			SnapshotID:   snapshot.ID,
+			ConnectionID: snapshot.ConnectionID,
+			ObjectType:   "table",
+			ObjectName:   "public.large_table",
+			SchemaJSON:   json.RawMessage(`{"table":"large_table"}`),
+			Content:      "large table part one",
+			Embedding:    testEmbeddingVector(0.1),
+			Metadata:     []byte(`{"qualified_name":"public.large_table","chunk_part":1,"chunk_total":2}`),
+		},
+		{
+			SnapshotID:   snapshot.ID,
+			ConnectionID: snapshot.ConnectionID,
+			ObjectType:   "table",
+			ObjectName:   "public.large_table",
+			SchemaJSON:   json.RawMessage(`{"table":"large_table"}`),
+			Content:      "large table part two",
+			Embedding:    testEmbeddingVector(0.2),
+			Metadata:     []byte(`{"qualified_name":"public.large_table","chunk_part":2,"chunk_total":2}`),
+		},
+	}
+
+	require.NoError(t, s.ReplaceChunks(t.Context(), snapshot.ID, replacementChunks))
+
+	dbChunks, err := models.SchemaChunks.Query(
+		models.SelectWhere.SchemaChunks.SnapshotID.EQ(snapshot.ID),
+	).All(t.Context(), runner.BobConn)
+	require.NoError(t, err)
+	require.Len(t, dbChunks, 2)
+	assert.Equal(t, "public.large_table", dbChunks[0].ObjectName)
+	assert.Equal(t, "public.large_table", dbChunks[1].ObjectName)
+}
+
 func createConnection(t *testing.T, name string) *models.Connection {
 	t.Helper()
 

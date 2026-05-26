@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -205,6 +207,65 @@ func TestService_EmbedSnapshotContent(t *testing.T) {
 
 			require.NoError(t, err)
 		})
+	}
+}
+
+func TestSplitChunkContent(t *testing.T) {
+	t.Parallel()
+
+	t.Run("keeps short content unchanged", func(t *testing.T) {
+		t.Parallel()
+
+		content := "database_kind: postgres\nqualified_name: public.users"
+
+		assert.Equal(t, []string{content}, splitChunkContent(content, chunkObjectTypeTable, "public.users"))
+	})
+
+	t.Run("splits oversized content without dropping later lines", func(t *testing.T) {
+		t.Parallel()
+
+		lines := make([]string, 0, 900)
+		for i := range 900 {
+			lines = append(lines, "column_"+fmt.Sprintf("%04d", i)+": text nullable")
+		}
+		content := strings.Join(lines, "\n")
+		got := splitChunkContent(content, chunkObjectTypeTable, "public.large_table")
+
+		require.Greater(t, len(got), 1)
+		for _, part := range got {
+			assert.LessOrEqual(t, len([]rune(part)), maxChunkContentRunes)
+		}
+
+		combined := strings.Join(got, "\n")
+		assert.Contains(t, combined, "chunk_part: 1/")
+		assert.Contains(t, combined, "column_0000")
+		assert.Contains(t, combined, "column_0899")
+	})
+}
+
+func TestBuildObjectChunksAddsSplitMetadata(t *testing.T) {
+	t.Parallel()
+
+	snapshot := &schematypes.Snapshot{ID: 10, ConnectionID: 20, SchemaHash: "schema-hash"}
+	content := strings.Repeat("column_name: text nullable\n", 400)
+
+	chunks, err := buildObjectChunks(snapshot, "public", "public.large_table", chunkObjectTypeTable, []byte(`{}`), content)
+	require.NoError(t, err)
+	require.Greater(t, len(chunks), 1)
+
+	for i, chunk := range chunks {
+		assert.Equal(t, snapshot.ID, chunk.SnapshotID)
+		assert.Equal(t, snapshot.ConnectionID, chunk.ConnectionID)
+		assert.Equal(t, chunkObjectTypeTable, chunk.ObjectType)
+		assert.Equal(t, "public.large_table", chunk.ObjectName)
+		assert.LessOrEqual(t, len([]rune(chunk.Content)), maxChunkContentRunes)
+
+		var metadata chunkMetadata
+		require.NoError(t, json.Unmarshal(chunk.Metadata, &metadata))
+		assert.Equal(t, "public", metadata.Namespace)
+		assert.Equal(t, "public.large_table", metadata.QualifiedName)
+		assert.Equal(t, i+1, metadata.ChunkPart)
+		assert.Equal(t, len(chunks), metadata.ChunkTotal)
 	}
 }
 
