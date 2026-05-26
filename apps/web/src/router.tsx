@@ -4,6 +4,8 @@ import { SetupPage } from "./pages/auth/SetupPage";
 import { OverviewPage } from "./pages/dashboard/OverviewPage";
 import { PlaceholderPage } from "./pages/dashboard/PlaceholderPage";
 import { ProfilePage } from "./pages/dashboard/ProfilePage";
+import { UsersPage } from "./pages/users/UsersPage";
+import { AdminRoute } from "./routes/AdminRoute";
 import { DashboardLayout } from "./routes/DashboardLayout";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
 import { PublicOnlyRoute } from "./routes/PublicOnlyRoute";
@@ -29,7 +31,10 @@ export const router = createBrowserRouter([
             path: "/connections",
             element: <PlaceholderPage title="Connections" />,
           },
-          { path: "/users", element: <PlaceholderPage title="Users" /> },
+          {
+            element: <AdminRoute />,
+            children: [{ path: "/users", element: <UsersPage /> }],
+          },
           {
             path: "/provider-configs",
             element: <PlaceholderPage title="Provider Configs" />,
