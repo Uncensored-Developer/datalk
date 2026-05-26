@@ -3,10 +3,11 @@
 package testing
 
 import (
+	auth "github.com/Uncensored-Developer/datalk/apps/backend/pkg/auth"
+	api "github.com/Uncensored-Developer/datalk/apps/backend/services/users/api"
+
 	context "context"
 
-	"github.com/Uncensored-Developer/datalk/apps/backend/pkg/auth"
-	api "github.com/Uncensored-Developer/datalk/apps/backend/services/users/api"
 	internalusers "github.com/Uncensored-Developer/datalk/apps/backend/services/users/internal/users"
 
 	mock "github.com/stretchr/testify/mock"
@@ -270,6 +271,36 @@ func (_m *API) Setup(ctx context.Context, params api.NewUserParams) (*auth.Sessi
 
 	if rf, ok := ret.Get(1).(func(context.Context, api.NewUserParams) error); ok {
 		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// SetupStatus provides a mock function with given fields: ctx
+func (_m *API) SetupStatus(ctx context.Context) (*api.SetupStatus, error) {
+	ret := _m.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SetupStatus")
+	}
+
+	var r0 *api.SetupStatus
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context) (*api.SetupStatus, error)); ok {
+		return rf(ctx)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context) *api.SetupStatus); ok {
+		r0 = rf(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*api.SetupStatus)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
 	} else {
 		r1 = ret.Error(1)
 	}

@@ -13,6 +13,7 @@ import (
 
 //go:generate go tool with-modfile mockery --name Service --outpkg testing --output ./testing --filename generated__users_service_mocks.go
 type Service interface {
+	SetupStatus(ctx context.Context) (*usersservice.SetupStatus, error)
 	CreateUser(ctx context.Context, params usersservice.NewUser) (*users.User, error)
 	GetUser(ctx context.Context, ID int32) (*users.User, error)
 	ListUsers(ctx context.Context) ([]*users.User, error)
@@ -44,6 +45,15 @@ func (a *Api) CreateUser(ctx context.Context, params NewUserParams) (*users.User
 		Role:               params.Role,
 		MustChangePassword: true,
 	})
+}
+
+func (a *Api) SetupStatus(ctx context.Context) (*SetupStatus, error) {
+	status, err := a.service.SetupStatus(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &SetupStatus{SetupRequired: status.SetupRequired}, nil
 }
 
 func (a *Api) RegisterUser(ctx context.Context, newUser usersservice.NewUser) (*users.User, error) {

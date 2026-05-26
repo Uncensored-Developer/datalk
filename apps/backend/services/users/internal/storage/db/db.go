@@ -76,6 +76,10 @@ func (s *Storage) ListUsers(ctx context.Context, params storage.ListUsersParam) 
 		queryMods = append(queryMods, models.SelectWhere.Users.Email.In(params.Email...))
 	}
 
+	if len(params.Roles) > 0 {
+		queryMods = append(queryMods, models.SelectWhere.Users.Role.In(users.RolesToStrings(params.Roles)...))
+	}
+
 	dbUsers, err := models.Users.Query(queryMods...).All(ctx, s.Executor(ctx))
 	if err != nil {
 		return nil, err

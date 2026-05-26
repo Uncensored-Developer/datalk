@@ -11,6 +11,7 @@ import (
 type ListUsersParam struct {
 	Email []string
 	ID    []int32
+	Roles []users.Role
 }
 
 //go:generate go tool with-modfile mockery --name Storage --outpkg testing --output ./testing --filename generated__storage_mocks.go

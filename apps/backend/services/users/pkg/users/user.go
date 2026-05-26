@@ -31,3 +31,11 @@ func (u *User) IsAdmin() bool {
 	}
 	return u.Role == RoleOwner || u.Role == RoleAdmin
 }
+
+func RolesToStrings(roles []Role) []string {
+	result := make([]string, len(roles))
+	for i, role := range roles {
+		result[i] = string(role)
+	}
+	return result
+}

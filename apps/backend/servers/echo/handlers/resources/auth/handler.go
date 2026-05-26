@@ -24,6 +24,7 @@ func New(users usersapi.Client, logger *slog.Logger) *Handler {
 }
 
 func (h *Handler) RegisterPublic(group *echo.Group) {
+	group.GET("/auth/setup/status", h.SetupStatus)
 	group.POST("/auth/setup", h.Setup)
 	group.POST("/auth/login", h.Login)
 	group.POST("/auth/refresh", h.Refresh)

@@ -9,6 +9,10 @@ type NewUserParams struct {
 	Role     users.Role
 }
 
+type SetupStatus struct {
+	SetupRequired bool
+}
+
 type LoginParams struct {
 	Email    string
 	Password string

@@ -13,11 +13,11 @@ import (
 )
 
 func (s *Service) Setup(ctx context.Context, newUser NewUser) (*userauth.Session, error) {
-	existingUsers, err := s.storage.ListUsers(ctx, storage.ListUsersParam{})
+	status, err := s.SetupStatus(ctx)
 	if err != nil {
-		return nil, xerrors.Newf("failed to list users: %w", err)
+		return nil, xerrors.Newf("failed to get setup status: %w", err)
 	}
-	if len(existingUsers) > 0 {
+	if !status.SetupRequired {
 		return nil, serviceerrors.ErrSetupUnavailable
 	}
 

@@ -124,6 +124,28 @@
           ]
         },
         {
+          "name": "Setup Status",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/setup/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "setup",
+                "status"
+              ]
+            },
+            "description": "Returns whether the installation still needs an owner/admin account."
+          }
+        },
+        {
           "name": "Login",
           "request": {
             "auth": {

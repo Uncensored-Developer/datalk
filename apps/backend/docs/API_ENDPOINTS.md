@@ -81,6 +81,22 @@ Timestamps are JSON strings. Auth token expiry uses RFC3339 format.
 
 ## Auth
 
+### Setup Status
+
+Returns whether the installation still needs an owner/admin account.
+
+```http
+GET /api/auth/setup/status
+```
+
+Response `200`:
+
+```json
+{
+  "setup_required": true
+}
+```
+
 ### Setup First User
 
 Creates the initial owner/admin account and returns a session.

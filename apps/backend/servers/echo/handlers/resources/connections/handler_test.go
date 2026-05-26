@@ -62,36 +62,52 @@ func TestHandler_CreateConnection(t *testing.T) {
 func TestHandler_ListConnections(t *testing.T) {
 	t.Parallel()
 
-	mockService := connectionsapitesting.NewService(t)
-	mockService.
-		On("ListConnections", mock.Anything, mock.MatchedBy(func(params any) bool {
-			value := reflect.ValueOf(params)
-			return int32(value.FieldByName("UserID").Int()) == 7 &&
-				value.FieldByName("IsAdmin").Bool()
-		})).
-		Return([]*connectiontypes.Connection{
-			{
-				ID:        10,
-				Name:      "warehouse",
-				Database:  connectiontypes.DatabasePostgres,
-				UserID:    1,
-				IsEnabled: true,
-			},
-		}, nil).
-		Once()
+	testCases := []struct {
+		name    string
+		role    usertypes.Role
+		isAdmin bool
+	}{
+		{name: "admin lists all connections", role: usertypes.RoleAdmin, isAdmin: true},
+		{name: "owner lists all connections", role: usertypes.RoleOwner, isAdmin: true},
+		{name: "member lists accessible connections", role: usertypes.RoleMember, isAdmin: false},
+	}
 
-	e := newConnectionsTestEcho(mockService, &usertypes.User{ID: 7, Role: usertypes.RoleAdmin})
-	req := httptest.NewRequest(http.MethodGet, "/api/connections", nil)
-	rec := httptest.NewRecorder()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	e.ServeHTTP(rec, req)
+			mockService := connectionsapitesting.NewService(t)
+			mockService.
+				On("ListConnections", mock.Anything, mock.MatchedBy(func(params any) bool {
+					value := reflect.ValueOf(params)
+					return int32(value.FieldByName("UserID").Int()) == 7 &&
+						value.FieldByName("IsAdmin").Bool() == tc.isAdmin
+				})).
+				Return([]*connectiontypes.Connection{
+					{
+						ID:        10,
+						Name:      "warehouse",
+						Database:  connectiontypes.DatabasePostgres,
+						UserID:    1,
+						IsEnabled: true,
+					},
+				}, nil).
+				Once()
 
-	require.Equal(t, http.StatusOK, rec.Code)
-	var body []map[string]any
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
-	require.Len(t, body, 1)
-	assert.Equal(t, float64(10), body[0]["id"])
-	assert.Equal(t, "warehouse", body[0]["name"])
+			e := newConnectionsTestEcho(mockService, &usertypes.User{ID: 7, Role: tc.role})
+			req := httptest.NewRequest(http.MethodGet, "/api/connections", nil)
+			rec := httptest.NewRecorder()
+
+			e.ServeHTTP(rec, req)
+
+			require.Equal(t, http.StatusOK, rec.Code)
+			var body []map[string]any
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+			require.Len(t, body, 1)
+			assert.Equal(t, float64(10), body[0]["id"])
+			assert.Equal(t, "warehouse", body[0]["name"])
+		})
+	}
 }
 
 func TestHandler_CreateConnection_RejectsNonAdmin(t *testing.T) {

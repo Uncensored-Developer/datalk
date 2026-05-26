@@ -12,6 +12,7 @@ import (
 //
 //go:generate go tool with-modfile mockery --name Client --structname API --outpkg testing --output ./testing --filename generated__users_api_mocks.go
 type Client interface {
+	SetupStatus(ctx context.Context) (*SetupStatus, error)
 	Setup(ctx context.Context, params NewUserParams) (*userauth.Session, error)
 	Login(ctx context.Context, params LoginParams) (*userauth.Session, error)
 	Refresh(ctx context.Context, refreshToken string) (*userauth.Session, error)

@@ -44,6 +44,45 @@ func TestHandler_Setup(t *testing.T) {
 	assertSessionResponse(t, rec.Body.Bytes(), session)
 }
 
+func TestHandler_SetupStatus(t *testing.T) {
+	t.Parallel()
+
+	mockUsers := usersapitesting.NewAPI(t)
+	mockUsers.
+		On("SetupStatus", mock.Anything).
+		Return(&usersapi.SetupStatus{SetupRequired: true}, nil).
+		Once()
+
+	e := newPublicTestEcho(mockUsers)
+	req := httptest.NewRequest(http.MethodGet, "/api/auth/setup/status", nil)
+	rec := httptest.NewRecorder()
+
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var body map[string]bool
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	assert.True(t, body["setup_required"])
+}
+
+func TestHandler_SetupStatus_Error(t *testing.T) {
+	t.Parallel()
+
+	mockUsers := usersapitesting.NewAPI(t)
+	mockUsers.
+		On("SetupStatus", mock.Anything).
+		Return(nil, usererrors.ErrSetupUnavailable).
+		Once()
+
+	e := newPublicTestEcho(mockUsers)
+	req := httptest.NewRequest(http.MethodGet, "/api/auth/setup/status", nil)
+	rec := httptest.NewRecorder()
+
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusConflict, rec.Code)
+}
+
 func TestHandler_Setup_RejectsInvalidPayload(t *testing.T) {
 	t.Parallel()
 
