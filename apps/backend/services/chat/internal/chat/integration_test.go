@@ -78,6 +78,7 @@ func TestService_SendMessageIntegration_PostgresFollowUpAndModelSwitching(t *tes
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 		storage,
 		connectionService,
+		nil,
 		schemaRetriever,
 		resolver,
 		sqlrunner.NewRunner(),

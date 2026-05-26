@@ -59,3 +59,15 @@ func (s *Service) ListConversations(ctx context.Context, userID int32, filter ch
 
 	return conversations, nil
 }
+
+func (s *Service) DeleteConversation(ctx context.Context, userID int32, conversationID int64) error {
+	if _, err := s.GetConversation(ctx, userID, conversationID); err != nil {
+		return err
+	}
+
+	if err := s.storage.DeleteConversation(ctx, conversationID); err != nil {
+		return xerrors.Newf("failed to delete conversation: %w", err)
+	}
+
+	return nil
+}

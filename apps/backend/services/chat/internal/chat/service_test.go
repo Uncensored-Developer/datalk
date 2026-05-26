@@ -14,5 +14,5 @@ func newTestService(
 	clientResolver chatllm.ClientResolver,
 	sqlRunner sqlrunner.SQLRunner,
 ) *Service {
-	return NewService(config.Config{}, nil, storage, connections, schemaRetriever, clientResolver, sqlRunner)
+	return NewService(config.Config{}, nil, storage, connections, nil, schemaRetriever, clientResolver, sqlRunner)
 }

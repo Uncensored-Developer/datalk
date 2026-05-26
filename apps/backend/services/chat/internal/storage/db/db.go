@@ -88,6 +88,18 @@ func (s *Storage) ListConversations(ctx context.Context, filter chatstorage.Conv
 	return conversationsFromDB(dbConversations)
 }
 
+func (s *Storage) DeleteConversation(ctx context.Context, id int64) error {
+	dbConversation, err := models.FindChatConversation(ctx, s.Executor(ctx), id)
+	if err := common.Err.HandleIgnoreNoRows(err); err != nil {
+		return xerrors.Newf("failed to fetch conversation: %w", err)
+	}
+	if dbConversation == nil {
+		return nil
+	}
+
+	return dbConversation.Delete(ctx, s.Executor(ctx))
+}
+
 func (s *Storage) InsertMessage(ctx context.Context, message *chattype.Message) error {
 	dbMessage, err := models.ChatMessages.Insert(messageToDB(message)).One(ctx, s.Executor(ctx))
 	if err != nil {

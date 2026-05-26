@@ -16,6 +16,7 @@ type Service interface {
 	CreateConversation(ctx context.Context, userID int32, params chattype.CreateConversationParams) (*chattype.Conversation, error)
 	GetConversation(ctx context.Context, userID int32, conversationID int64) (*chattype.Conversation, error)
 	ListConversations(ctx context.Context, userID int32, filter chattype.ListConversationsFilter) ([]*chattype.Conversation, error)
+	DeleteConversation(ctx context.Context, userID int32, conversationID int64) error
 	ListMessages(ctx context.Context, userID int32, filter chattype.ListMessagesFilter) ([]*chattype.MessageDetails, error)
 	SendMessage(ctx context.Context, params chattype.SendMessageParams) (*chattype.AssistantTurn, error)
 	ListProviderConfigs(ctx context.Context) ([]*llmtypes.ProviderConfig, error)
@@ -51,6 +52,10 @@ func (a *Api) GetConversation(ctx context.Context, userID int32, conversationID 
 
 func (a *Api) ListConversations(ctx context.Context, userID int32, filter ListConversationsFilter) ([]*chattype.Conversation, error) {
 	return a.service.ListConversations(ctx, userID, filter)
+}
+
+func (a *Api) DeleteConversation(ctx context.Context, userID int32, conversationID int64) error {
+	return a.service.DeleteConversation(ctx, userID, conversationID)
 }
 
 func (a *Api) ListMessages(ctx context.Context, userID int32, filter ListMessagesFilter) ([]*chattype.MessageDetails, error) {

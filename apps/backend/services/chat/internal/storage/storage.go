@@ -77,6 +77,7 @@ type Storage interface {
 	InsertConversation(ctx context.Context, conversation *chattype.Conversation) error
 	GetConversation(ctx context.Context, id int64) (*chattype.Conversation, error)
 	ListConversations(ctx context.Context, filter ConversationsFilter) ([]*chattype.Conversation, error)
+	DeleteConversation(ctx context.Context, id int64) error
 
 	InsertMessage(ctx context.Context, message *chattype.Message) error
 	GetMessage(ctx context.Context, id int64) (*chattype.Message, error)

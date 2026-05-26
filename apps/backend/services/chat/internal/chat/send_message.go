@@ -261,6 +261,16 @@ func (s *Service) getQueryableConnection(
 		return nil, chaterrors.ErrConnectionAccessDenied
 	}
 
+	if s.users != nil {
+		user, err := s.users.GetUser(ctx, userID)
+		if err != nil {
+			return nil, xerrors.Newf("failed to fetch user: %w", err)
+		}
+		if user.IsAdmin() {
+			return connection, nil
+		}
+	}
+
 	access, err := s.connections.GetAccess(ctx, userID, connectionID)
 	if err != nil {
 		if errors.Is(err, connectionerrors.ErrAccessNotFound) {

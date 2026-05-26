@@ -49,6 +49,24 @@ func (_m *API) CreateConversation(ctx context.Context, userID int32, params chat
 	return r0, r1
 }
 
+// DeleteConversation provides a mock function with given fields: ctx, userID, conversationID
+func (_m *API) DeleteConversation(ctx context.Context, userID int32, conversationID int64) error {
+	ret := _m.Called(ctx, userID, conversationID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteConversation")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32, int64) error); ok {
+		r0 = rf(ctx, userID, conversationID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // GetConversation provides a mock function with given fields: ctx, userID, conversationID
 func (_m *API) GetConversation(ctx context.Context, userID int32, conversationID int64) (*chat.Conversation, error) {
 	ret := _m.Called(ctx, userID, conversationID)

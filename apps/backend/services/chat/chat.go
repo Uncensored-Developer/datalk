@@ -31,6 +31,7 @@ func New(
 	cfg config.Config,
 	conn *sql.DB,
 	connections internalchat.ConnectionService,
+	users internalchat.UserService,
 	schemaRetriever internalchat.SchemaRetriever,
 ) Chat {
 	logger := pkglogger.SetupLogger(cfg)
@@ -47,6 +48,7 @@ func New(
 		logger,
 		storage,
 		connections,
+		users,
 		schemaRetriever,
 		modelCatalog,
 		sqlrunner.NewRunner(),

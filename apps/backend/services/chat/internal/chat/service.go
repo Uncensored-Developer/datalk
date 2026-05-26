@@ -13,6 +13,7 @@ import (
 	chatstorage "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/internal/storage"
 	connectiontypes "github.com/Uncensored-Developer/datalk/apps/backend/services/connections/pkg/connections"
 	schematypes "github.com/Uncensored-Developer/datalk/apps/backend/services/schemas/pkg/schemas"
+	usertypes "github.com/Uncensored-Developer/datalk/apps/backend/services/users/pkg/users"
 )
 
 const (
@@ -29,6 +30,10 @@ type ConnectionService interface {
 	GetAccess(ctx context.Context, userID int32, connectionID int32) (*connectiontypes.Access, error)
 }
 
+type UserService interface {
+	GetUser(ctx context.Context, userID int32) (*usertypes.User, error)
+}
+
 //go:generate go tool with-modfile mockery --name SchemaRetriever --outpkg testing --output ./testing --filename generated__schema_retriever_mocks.go
 type SchemaRetriever interface {
 	RetrieveRelevantSchemaContext(ctx context.Context, params schematypes.RetrieveRelevantSchemaContextParams) (*schematypes.RetrievedSchemaContext, error)
@@ -39,6 +44,7 @@ type Service struct {
 
 	storage         chatstorage.Storage
 	connections     ConnectionService
+	users           UserService
 	schemaRetriever SchemaRetriever
 	clientResolver  chatllm.ClientResolver
 	sqlRunner       sqlrunner.SQLRunner
@@ -50,6 +56,7 @@ func NewService(
 	logger *slog.Logger,
 	storage chatstorage.Storage,
 	connections ConnectionService,
+	users UserService,
 	schemaRetriever SchemaRetriever,
 	clientResolver chatllm.ClientResolver,
 	sqlRunner sqlrunner.SQLRunner,
@@ -64,6 +71,7 @@ func NewService(
 		Base:            base.NewBase("chat-core", logger, cfg),
 		storage:         storage,
 		connections:     connections,
+		users:           users,
 		schemaRetriever: schemaRetriever,
 		clientResolver:  clientResolver,
 		sqlRunner:       sqlRunner,

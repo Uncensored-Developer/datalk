@@ -26,7 +26,7 @@ func (testCipher) Decrypt(ciphertext string) (string, error) {
 }
 
 func newProviderConfigTestService(storage chatstorage.Storage) *Service {
-	return NewService(config.Config{}, nil, storage, nil, nil, nil, nil, testCipher{})
+	return NewService(config.Config{}, nil, storage, nil, nil, nil, nil, nil, testCipher{})
 }
 
 func TestService_ListProviderConfigs(t *testing.T) {

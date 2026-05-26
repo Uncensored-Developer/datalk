@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Uncensored-Developer/datalk/apps/backend/config"
 	chatllm "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/internal/chat/llm"
 	llmtesting "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/internal/chat/llm/testing"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/chat/internal/chat/sqlrunner"
@@ -21,11 +22,49 @@ import (
 	connectiontypes "github.com/Uncensored-Developer/datalk/apps/backend/services/connections/pkg/connections"
 	connectionerrors "github.com/Uncensored-Developer/datalk/apps/backend/services/connections/pkg/errors"
 	schematypes "github.com/Uncensored-Developer/datalk/apps/backend/services/schemas/pkg/schemas"
+	usertypes "github.com/Uncensored-Developer/datalk/apps/backend/services/users/pkg/users"
 	"github.com/gotidy/ptr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
+
+type staticUserService struct {
+	user *usertypes.User
+	err  error
+}
+
+func (s staticUserService) GetUser(context.Context, int32) (*usertypes.User, error) {
+	return s.user, s.err
+}
+
+func TestService_GetQueryableConnection_AllowsAdminsWithoutConnectionAccess(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	userID := int32(7)
+	connectionID := int32(42)
+	connection := &connectiontypes.Connection{ID: connectionID, Database: connectiontypes.DatabasePostgres}
+	mockConnections := chattesting.NewConnectionService(t)
+	mockConnections.On("GetConnection", ctx, connectionID).Return(connection, nil).Once()
+
+	service := NewService(
+		config.Config{},
+		nil,
+		nil,
+		mockConnections,
+		staticUserService{user: &usertypes.User{ID: userID, Role: usertypes.RoleAdmin}},
+		nil,
+		nil,
+		nil,
+	)
+
+	got, err := service.getQueryableConnection(ctx, userID, connectionID)
+
+	require.NoError(t, err)
+	assert.Equal(t, connection, got)
+	mockConnections.AssertNotCalled(t, "GetAccess", ctx, userID, connectionID)
+}
 
 func TestService_SendMessage_HappyPath(t *testing.T) {
 	t.Parallel()
