@@ -39,6 +39,21 @@ func TestGenerateSQLSystemPrompt(t *testing.T) {
 	assert.NotContains(t, prompt, "count users")
 }
 
+func TestGenerateSQLSchemaRequiresEveryProperty(t *testing.T) {
+	t.Parallel()
+
+	schema := GenerateSQLSchema()
+
+	assert.Equal(t, []string{"sql", "explanation", "assumptions", "confidence"}, schema["required"])
+	assert.False(t, schema["additionalProperties"].(bool))
+
+	properties := schema["properties"].(map[string]any)
+	assumptions := properties["assumptions"].(map[string]any)
+	confidence := properties["confidence"].(map[string]any)
+	assert.Equal(t, []string{"array", "null"}, assumptions["type"])
+	assert.Equal(t, []string{"number", "null"}, confidence["type"])
+}
+
 func TestGenerateSQLMessages(t *testing.T) {
 	t.Parallel()
 

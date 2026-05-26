@@ -154,6 +154,36 @@ func (_m *API) GetConnection(ctx context.Context, ID int32) (*connections.Connec
 	return r0, r1
 }
 
+// ListAccess provides a mock function with given fields: ctx, params
+func (_m *API) ListAccess(ctx context.Context, params api.ListAccessParams) ([]*connections.Access, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListAccess")
+	}
+
+	var r0 []*connections.Access
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, api.ListAccessParams) ([]*connections.Access, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, api.ListAccessParams) []*connections.Access); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*connections.Access)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, api.ListAccessParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // ListConnections provides a mock function with given fields: ctx, params
 func (_m *API) ListConnections(ctx context.Context, params api.ListConnectionsParams) ([]*connections.Connection, error) {
 	ret := _m.Called(ctx, params)

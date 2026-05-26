@@ -155,6 +155,36 @@ func (_m *Service) GetConnection(ctx context.Context, ID int32) (*pkgconnections
 	return r0, r1
 }
 
+// ListAccess provides a mock function with given fields: ctx, params
+func (_m *Service) ListAccess(ctx context.Context, params connections.ListAccess) ([]*pkgconnections.Access, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListAccess")
+	}
+
+	var r0 []*pkgconnections.Access
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, connections.ListAccess) ([]*pkgconnections.Access, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, connections.ListAccess) []*pkgconnections.Access); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*pkgconnections.Access)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, connections.ListAccess) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // ListConnections provides a mock function with given fields: ctx, params
 func (_m *Service) ListConnections(ctx context.Context, params connections.ListConnections) ([]*pkgconnections.Connection, error) {
 	ret := _m.Called(ctx, params)

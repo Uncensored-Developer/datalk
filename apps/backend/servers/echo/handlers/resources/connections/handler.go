@@ -29,5 +29,6 @@ func (h *Handler) Register(group *echo.Group) {
 	group.POST("/connections", h.CreateConnection)
 	group.PUT("/connections/:"+connectionIDParam, h.UpdateConnection)
 	group.DELETE("/connections/:"+connectionIDParam, h.DeleteConnection)
+	group.GET("/connections/:"+connectionIDParam+"/access", h.ListAccess)
 	group.POST("/connections/:"+connectionIDParam+"/access", h.CreateAccess)
 }

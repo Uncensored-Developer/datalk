@@ -508,6 +508,25 @@
           }
         },
         {
+          "name": "List Connection Access",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/connections/{{connectionId}}/access",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "connections",
+                "{{connectionId}}",
+                "access"
+              ]
+            },
+            "description": "Admin-only. Lists users with access grants for a connection."
+          }
+        },
+        {
           "name": "Grant Connection Access",
           "request": {
             "method": "POST",

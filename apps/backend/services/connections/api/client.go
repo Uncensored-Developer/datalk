@@ -16,5 +16,6 @@ type Client interface {
 	UpdateConnection(ctx context.Context, params UpdateConnectionParams) (*connections.Connection, error)
 	DeleteConnection(ctx context.Context, connectionID int32) error
 	CreateAccess(ctx context.Context, params NewAccessParams) (*connections.Access, error)
+	ListAccess(ctx context.Context, params ListAccessParams) ([]*connections.Access, error)
 	GetAccess(ctx context.Context, userID int32, connectionID int32) (*connections.Access, error)
 }

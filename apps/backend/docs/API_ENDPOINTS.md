@@ -483,6 +483,29 @@ Authorization: Bearer <access_token>
 
 Response `204`: empty body.
 
+### List Connection Access
+
+Admin-only.
+
+```http
+GET /api/connections/{connection_id}/access
+Authorization: Bearer <access_token>
+```
+
+Response `200`:
+
+```json
+[
+  {
+    "user_id": 2,
+    "connection_id": 10,
+    "can_query": true,
+    "allow_writes": false,
+    "can_manage": false
+  }
+]
+```
+
 ### Grant Connection Access
 
 Admin-only.

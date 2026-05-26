@@ -165,6 +165,58 @@ func TestHandler_CreateAccess(t *testing.T) {
 	assert.Equal(t, false, body["can_manage"])
 }
 
+func TestHandler_ListAccess(t *testing.T) {
+	t.Parallel()
+
+	mockService := connectionsapitesting.NewService(t)
+	mockService.
+		On("ListAccess", mock.Anything, mock.MatchedBy(func(params any) bool {
+			value := reflect.ValueOf(params)
+			connectionIDs := value.FieldByName("ConnectionID")
+			return connectionIDs.Len() == 1 && int32(connectionIDs.Index(0).Int()) == 10
+		})).
+		Return([]*connectiontypes.Access{
+			{
+				UserID:       9,
+				ConnectionID: 10,
+				CanQuery:     true,
+				AllowWrites:  false,
+				CanManage:    true,
+			},
+		}, nil).
+		Once()
+
+	e := newConnectionsTestEcho(mockService, &usertypes.User{ID: 7, Role: usertypes.RoleAdmin})
+	req := httptest.NewRequest(http.MethodGet, "/api/connections/10/access", nil)
+	rec := httptest.NewRecorder()
+
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var body []map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	require.Len(t, body, 1)
+	assert.Equal(t, float64(9), body[0]["user_id"])
+	assert.Equal(t, float64(10), body[0]["connection_id"])
+	assert.Equal(t, true, body[0]["can_query"])
+	assert.Equal(t, false, body[0]["allow_writes"])
+	assert.Equal(t, true, body[0]["can_manage"])
+}
+
+func TestHandler_ListAccess_RejectsNonAdmin(t *testing.T) {
+	t.Parallel()
+
+	mockService := connectionsapitesting.NewService(t)
+	e := newConnectionsTestEcho(mockService, &usertypes.User{ID: 7, Role: usertypes.RoleMember})
+	req := httptest.NewRequest(http.MethodGet, "/api/connections/10/access", nil)
+	rec := httptest.NewRecorder()
+
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+	mockService.AssertNotCalled(t, "ListAccess", mock.Anything, mock.Anything)
+}
+
 func newConnectionsTestEcho(service connectionsapi.Service, user *usertypes.User) *echo.Echo {
 	e := echo.New()
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {

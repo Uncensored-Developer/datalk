@@ -18,6 +18,7 @@ type Service interface {
 	UpdateConnection(ctx context.Context, params connectionsservice.UpdateConnection) (*connections.Connection, error)
 	DeleteConnection(ctx context.Context, ID int32) error
 	CreateAccess(ctx context.Context, params connectionsservice.NewAccess) (*connections.Access, error)
+	ListAccess(ctx context.Context, params connectionsservice.ListAccess) ([]*connections.Access, error)
 	GetAccess(ctx context.Context, userID int32, connectionID int32) (*connections.Access, error)
 }
 
@@ -76,6 +77,13 @@ func (a *Api) CreateAccess(ctx context.Context, params NewAccessParams) (*connec
 		CanQuery:     params.CanQuery,
 		AllowWrites:  params.AllowWrites,
 		CanManage:    params.CanManage,
+	})
+}
+
+func (a *Api) ListAccess(ctx context.Context, params ListAccessParams) ([]*connections.Access, error) {
+	return a.service.ListAccess(ctx, connectionsservice.ListAccess{
+		UserID:       params.UserID,
+		ConnectionID: params.ConnectionID,
 	})
 }
 

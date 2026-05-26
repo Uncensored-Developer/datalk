@@ -31,3 +31,8 @@ type NewAccessParams struct {
 	AllowWrites  bool
 	CanManage    bool
 }
+
+type ListAccessParams struct {
+	UserID       []int32
+	ConnectionID []int32
+}

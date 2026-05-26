@@ -35,18 +35,18 @@ func GenerateSQLSchema() map[string]any {
 				"description": "A brief explanation of what the SQL is doing.",
 			},
 			"assumptions": map[string]any{
-				"type": "array",
+				"type": []string{"array", "null"},
 				"items": map[string]any{
 					"type": "string",
 				},
 				"description": "Any assumptions made because the schema context was incomplete or ambiguous.",
 			},
 			"confidence": map[string]any{
-				"type":        "number",
+				"type":        []string{"number", "null"},
 				"description": "A confidence score from 0 to 1.",
 			},
 		},
-		"required":             []string{"sql", "explanation"},
+		"required":             []string{"sql", "explanation", "assumptions", "confidence"},
 		"additionalProperties": false,
 	}
 }
