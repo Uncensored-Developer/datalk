@@ -6,9 +6,9 @@ import (
 	context "context"
 
 	"github.com/Uncensored-Developer/datalk/apps/backend/pkg/auth"
-	mock "github.com/stretchr/testify/mock"
 
 	pkgusers "github.com/Uncensored-Developer/datalk/apps/backend/services/users/pkg/users"
+	mock "github.com/stretchr/testify/mock"
 
 	users "github.com/Uncensored-Developer/datalk/apps/backend/services/users/internal/users"
 )
@@ -101,6 +101,36 @@ func (_m *Service) GetUser(ctx context.Context, ID int32) (*pkgusers.User, error
 
 	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
 		r1 = rf(ctx, ID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ListUsers provides a mock function with given fields: ctx
+func (_m *Service) ListUsers(ctx context.Context) ([]*pkgusers.User, error) {
+	ret := _m.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListUsers")
+	}
+
+	var r0 []*pkgusers.User
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context) ([]*pkgusers.User, error)); ok {
+		return rf(ctx)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context) []*pkgusers.User); ok {
+		r0 = rf(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*pkgusers.User)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -208,6 +238,36 @@ func (_m *Service) Setup(ctx context.Context, params users.NewUser) (*auth.Sessi
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, users.NewUser) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// UpdateUser provides a mock function with given fields: ctx, params
+func (_m *Service) UpdateUser(ctx context.Context, params users.UpdateUserParams) (*pkgusers.User, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateUser")
+	}
+
+	var r0 *pkgusers.User
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, users.UpdateUserParams) (*pkgusers.User, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, users.UpdateUserParams) *pkgusers.User); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*pkgusers.User)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, users.UpdateUserParams) error); ok {
 		r1 = rf(ctx, params)
 	} else {
 		r1 = ret.Error(1)

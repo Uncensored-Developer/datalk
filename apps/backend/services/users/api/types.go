@@ -19,3 +19,10 @@ type ChangePasswordParams struct {
 	CurrentPassword string
 	NewPassword     string
 }
+
+type UpdateUserParams struct {
+	ID       int32
+	Name     *string
+	Role     *users.Role
+	IsActive *bool
+}

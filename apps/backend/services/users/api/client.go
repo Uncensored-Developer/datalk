@@ -20,4 +20,6 @@ type Client interface {
 	CreateUser(ctx context.Context, params NewUserParams) (*users.User, error)
 	RegisterUser(ctx context.Context, newUser usersservice.NewUser) (*users.User, error)
 	GetUser(ctx context.Context, ID int32) (*users.User, error)
+	ListUsers(ctx context.Context) ([]*users.User, error)
+	UpdateUser(ctx context.Context, params UpdateUserParams) (*users.User, error)
 }

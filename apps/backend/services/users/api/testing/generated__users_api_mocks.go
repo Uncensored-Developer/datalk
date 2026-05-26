@@ -109,6 +109,36 @@ func (_m *API) GetUser(ctx context.Context, ID int32) (*users.User, error) {
 	return r0, r1
 }
 
+// ListUsers provides a mock function with given fields: ctx
+func (_m *API) ListUsers(ctx context.Context) ([]*users.User, error) {
+	ret := _m.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListUsers")
+	}
+
+	var r0 []*users.User
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context) ([]*users.User, error)); ok {
+		return rf(ctx)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context) []*users.User); ok {
+		r0 = rf(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*users.User)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // Login provides a mock function with given fields: ctx, params
 func (_m *API) Login(ctx context.Context, params api.LoginParams) (*auth.Session, error) {
 	ret := _m.Called(ctx, params)
@@ -239,6 +269,36 @@ func (_m *API) Setup(ctx context.Context, params api.NewUserParams) (*auth.Sessi
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, api.NewUserParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// UpdateUser provides a mock function with given fields: ctx, params
+func (_m *API) UpdateUser(ctx context.Context, params api.UpdateUserParams) (*users.User, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateUser")
+	}
+
+	var r0 *users.User
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, api.UpdateUserParams) (*users.User, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, api.UpdateUserParams) *users.User); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*users.User)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, api.UpdateUserParams) error); ok {
 		r1 = rf(ctx, params)
 	} else {
 		r1 = ret.Error(1)

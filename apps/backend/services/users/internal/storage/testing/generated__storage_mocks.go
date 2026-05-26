@@ -6,9 +6,9 @@ import (
 	context "context"
 
 	"github.com/Uncensored-Developer/datalk/apps/backend/pkg/auth"
-	mock "github.com/stretchr/testify/mock"
 
 	storage "github.com/Uncensored-Developer/datalk/apps/backend/services/users/internal/storage"
+	mock "github.com/stretchr/testify/mock"
 
 	time "time"
 

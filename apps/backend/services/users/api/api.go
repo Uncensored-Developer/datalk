@@ -15,6 +15,8 @@ import (
 type Service interface {
 	CreateUser(ctx context.Context, params usersservice.NewUser) (*users.User, error)
 	GetUser(ctx context.Context, ID int32) (*users.User, error)
+	ListUsers(ctx context.Context) ([]*users.User, error)
+	UpdateUser(ctx context.Context, params usersservice.UpdateUserParams) (*users.User, error)
 	Setup(ctx context.Context, params usersservice.NewUser) (*userauth.Session, error)
 	Login(ctx context.Context, params usersservice.LoginParams) (*userauth.Session, error)
 	Refresh(ctx context.Context, refreshToken string) (*userauth.Session, error)
@@ -50,6 +52,19 @@ func (a *Api) RegisterUser(ctx context.Context, newUser usersservice.NewUser) (*
 
 func (a *Api) GetUser(ctx context.Context, userID int32) (*users.User, error) {
 	return a.service.GetUser(ctx, userID)
+}
+
+func (a *Api) ListUsers(ctx context.Context) ([]*users.User, error) {
+	return a.service.ListUsers(ctx)
+}
+
+func (a *Api) UpdateUser(ctx context.Context, params UpdateUserParams) (*users.User, error) {
+	return a.service.UpdateUser(ctx, usersservice.UpdateUserParams{
+		ID:       params.ID,
+		Name:     params.Name,
+		Role:     params.Role,
+		IsActive: params.IsActive,
+	})
 }
 
 func (a *Api) Setup(ctx context.Context, params NewUserParams) (*userauth.Session, error) {

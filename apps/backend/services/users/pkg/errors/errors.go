@@ -10,4 +10,5 @@ var (
 	ErrInactiveUser           = xerrors.New("user is inactive")
 	ErrPasswordChangeRequired = xerrors.New("password change required")
 	ErrRefreshTokenInvalid    = xerrors.New("refresh token invalid")
+	ErrEmailAlreadyExists     = xerrors.New("email already exists")
 )
