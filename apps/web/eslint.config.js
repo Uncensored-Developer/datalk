@@ -5,7 +5,7 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", "node_modules"] },
+  { ignores: ["dist", "node_modules", ".vite", ".tsbuildinfo"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -22,7 +22,10 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": [
         "warn",
-        { allowConstantExport: true },
+        {
+          allowConstantExport: true,
+          allowExportNames: ["useAuth", "useThemeMode"],
+        },
       ],
     },
   },
