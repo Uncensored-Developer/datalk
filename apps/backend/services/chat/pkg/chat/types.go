@@ -122,11 +122,12 @@ type CreateConversationParams struct {
 }
 
 type SendMessageParams struct {
-	UserID         int32
-	ConversationID int64
-	Content        string
-	Provider       llm.Provider
-	Model          string
+	UserID                 int32
+	ConversationID         int64
+	Content                string
+	Provider               llm.Provider
+	Model                  string
+	RequireNaturalResponse bool
 }
 
 type ListConversationsFilter struct {

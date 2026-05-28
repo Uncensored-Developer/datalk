@@ -13,9 +13,10 @@ type createConversationRequest struct {
 }
 
 type sendMessageRequest struct {
-	Content  string            `json:"content"`
-	Provider llmtypes.Provider `json:"provider"`
-	Model    string            `json:"model"`
+	Content                string            `json:"content"`
+	Provider               llmtypes.Provider `json:"provider"`
+	Model                  string            `json:"model"`
+	RequireNaturalResponse bool              `json:"require_natural_response"`
 }
 
 type conversationResponse struct {
@@ -28,15 +29,16 @@ type conversationResponse struct {
 }
 
 type messageResponse struct {
-	ID             int64                  `json:"id"`
-	ConversationID int64                  `json:"conversation_id"`
-	Role           chattype.MessageRole   `json:"role"`
-	Content        string                 `json:"content"`
-	Provider       *llmtypes.Provider     `json:"provider,omitempty"`
-	Model          *string                `json:"model,omitempty"`
-	Status         chattype.MessageStatus `json:"status"`
-	ErrorMessage   *string                `json:"error_message,omitempty"`
-	CreatedAt      time.Time              `json:"created_at"`
+	ID              int64                  `json:"id"`
+	ConversationID  int64                  `json:"conversation_id"`
+	Role            chattype.MessageRole   `json:"role"`
+	Content         string                 `json:"content"`
+	Provider        *llmtypes.Provider     `json:"provider,omitempty"`
+	Model           *string                `json:"model,omitempty"`
+	Status          chattype.MessageStatus `json:"status"`
+	ErrorMessage    *string                `json:"error_message,omitempty"`
+	NaturalResponse *string                `json:"natural_response,omitempty"`
+	CreatedAt       time.Time              `json:"created_at"`
 }
 
 type messageDetailsResponse struct {

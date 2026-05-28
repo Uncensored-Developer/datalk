@@ -71,15 +71,16 @@ func toMessageResponse(message *chattype.Message) messageResponse {
 	}
 
 	return messageResponse{
-		ID:             message.ID,
-		ConversationID: message.ConversationID,
-		Role:           message.Role,
-		Content:        message.Content,
-		Provider:       message.Provider,
-		Model:          message.Model,
-		Status:         message.Status,
-		ErrorMessage:   message.ErrorMessage,
-		CreatedAt:      message.CreatedAt,
+		ID:              message.ID,
+		ConversationID:  message.ConversationID,
+		Role:            message.Role,
+		Content:         message.Content,
+		Provider:        message.Provider,
+		Model:           message.Model,
+		Status:          message.Status,
+		ErrorMessage:    message.ErrorMessage,
+		NaturalResponse: message.NaturalResponse,
+		CreatedAt:       message.CreatedAt,
 	}
 }
 

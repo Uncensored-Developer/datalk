@@ -63,7 +63,14 @@ func TestHandler_ListMessages(t *testing.T) {
 			return true
 		})).
 		Return([]*chattype.MessageDetails{
-			{Message: &chattype.Message{ID: 100, ConversationID: 10, Role: chattype.MessageRoleUser, Content: "hi", Status: chattype.MessageStatusCompleted}},
+			{Message: &chattype.Message{
+				ID:              100,
+				ConversationID:  10,
+				Role:            chattype.MessageRoleAssistant,
+				Content:         "Counts users.",
+				Status:          chattype.MessageStatusCompleted,
+				NaturalResponse: ptr("There are 3 users."),
+			}},
 		}, nil).
 		Once()
 
@@ -79,7 +86,9 @@ func TestHandler_ListMessages(t *testing.T) {
 	require.Len(t, body, 1)
 	message := body[0]["message"].(map[string]any)
 	assert.Equal(t, float64(100), message["id"])
-	assert.Equal(t, "user", message["role"])
+	assert.Equal(t, "assistant", message["role"])
+	assert.Equal(t, "Counts users.", message["content"])
+	assert.Equal(t, "There are 3 users.", message["natural_response"])
 }
 
 func TestHandler_SendMessage_MapsDomainError(t *testing.T) {
@@ -93,6 +102,7 @@ func TestHandler_SendMessage_MapsDomainError(t *testing.T) {
 			assert.Equal(t, "how many users?", params.Content)
 			assert.Equal(t, llmtypes.ProviderOpenAI, params.Provider)
 			assert.Equal(t, "gpt-5.2", params.Model)
+			assert.False(t, params.RequireNaturalResponse)
 			return true
 		})).
 		Return((*chattype.AssistantTurn)(nil), chaterrors.ErrModelNotAvailable).
@@ -106,6 +116,58 @@ func TestHandler_SendMessage_MapsDomainError(t *testing.T) {
 	e.ServeHTTP(rec, req)
 
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestHandler_SendMessage_PassesRequireNaturalResponse(t *testing.T) {
+	t.Parallel()
+
+	naturalResponse := "There are 3 users."
+	mockService := chatapitesting.NewAPI(t)
+	mockService.
+		On("SendMessage", mock.Anything, mock.MatchedBy(func(params chattype.SendMessageParams) bool {
+			assert.Equal(t, int32(7), params.UserID)
+			assert.Equal(t, int64(10), params.ConversationID)
+			assert.Equal(t, "how many users?", params.Content)
+			assert.Equal(t, llmtypes.ProviderOpenAI, params.Provider)
+			assert.Equal(t, "gpt-5.2", params.Model)
+			assert.True(t, params.RequireNaturalResponse)
+			return true
+		})).
+		Return(&chattype.AssistantTurn{
+			Conversation: &chattype.Conversation{ID: 10, UserID: 7, ConnectionID: 42},
+			UserMessage: &chattype.Message{
+				ID:             100,
+				ConversationID: 10,
+				Role:           chattype.MessageRoleUser,
+				Content:        "how many users?",
+				Status:         chattype.MessageStatusCompleted,
+			},
+			AssistantMessage: &chattype.Message{
+				ID:              101,
+				ConversationID:  10,
+				Role:            chattype.MessageRoleAssistant,
+				Content:         "Counts users.",
+				Provider:        ptr(llmtypes.ProviderOpenAI),
+				Model:           ptr("gpt-5.2"),
+				Status:          chattype.MessageStatusCompleted,
+				NaturalResponse: &naturalResponse,
+			},
+		}, nil).
+		Once()
+
+	e := newTestEcho(mockService)
+	req := httptest.NewRequest(http.MethodPost, "/api/chat/conversations/10/messages", bytes.NewBufferString(`{"content":"how many users?","provider":"openai","model":"gpt-5.2","require_natural_response":true}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	assistantMessage := body["assistant_message"].(map[string]any)
+	assert.Equal(t, "Counts users.", assistantMessage["content"])
+	assert.Equal(t, naturalResponse, assistantMessage["natural_response"])
 }
 
 func TestHandler_SendMessage_RejectsEmptyContent(t *testing.T) {
@@ -133,4 +195,8 @@ func newTestEcho(service chatapi.Client) *echo.Echo {
 	})
 	New(service, nil).Register(e.Group("/api/chat"))
 	return e
+}
+
+func ptr[T any](value T) *T {
+	return &value
 }
