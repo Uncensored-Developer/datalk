@@ -29,11 +29,12 @@ func (h *Handler) SendMessage(c echo.Context) error {
 	}
 
 	turn, err := h.service.SendMessage(c.Request().Context(), chattype.SendMessageParams{
-		UserID:         userID,
-		ConversationID: conversationID,
-		Content:        req.Content,
-		Provider:       req.Provider,
-		Model:          req.Model,
+		UserID:                 userID,
+		ConversationID:         conversationID,
+		Content:                req.Content,
+		Provider:               req.Provider,
+		Model:                  req.Model,
+		RequireNaturalResponse: req.RequireNaturalResponse,
 	})
 	if err != nil {
 		return echohandlers.Error(c, h.logger, err)
