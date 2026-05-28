@@ -6,6 +6,8 @@ The project is built as a Go backend plus a React frontend. For local developmen
 
 For a detailed backend design overview, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
+![img.png](img.png)
+
 ## Features
 
 - Initial owner setup flow for new installations.
