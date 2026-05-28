@@ -27,15 +27,16 @@ import (
 
 // ChatMessage is an object representing the database table.
 type ChatMessage struct {
-	ID             int64            `db:"id,pk" `
-	ConversationID int64            `db:"conversation_id" `
-	Role           string           `db:"role" `
-	Content        string           `db:"content" `
-	Provider       null.Val[string] `db:"provider" `
-	Model          null.Val[string] `db:"model" `
-	Status         string           `db:"status" `
-	ErrorMessage   null.Val[string] `db:"error_message" `
-	CreatedAt      time.Time        `db:"created_at" `
+	ID              int64            `db:"id,pk" `
+	ConversationID  int64            `db:"conversation_id" `
+	Role            string           `db:"role" `
+	Content         string           `db:"content" `
+	Provider        null.Val[string] `db:"provider" `
+	Model           null.Val[string] `db:"model" `
+	Status          string           `db:"status" `
+	ErrorMessage    null.Val[string] `db:"error_message" `
+	CreatedAt       time.Time        `db:"created_at" `
+	NaturalResponse null.Val[string] `db:"natural_response" `
 
 	R chatMessageR `db:"-" `
 
@@ -74,7 +75,7 @@ type chatMessageRLoaded struct {
 
 func buildChatMessageColumns(tableName string) chatMessageColumns {
 	columnsExpr := expr.NewColumnsExpr(
-		"id", "conversation_id", "role", "content", "provider", "model", "status", "error_message", "created_at",
+		"id", "conversation_id", "role", "content", "provider", "model", "status", "error_message", "created_at", "natural_response",
 	)
 
 	if tableName != "" {
@@ -82,32 +83,34 @@ func buildChatMessageColumns(tableName string) chatMessageColumns {
 	}
 
 	return chatMessageColumns{
-		ColumnsExpr:    columnsExpr,
-		tableAlias:     tableName,
-		ID:             buildChatMessageColumn(tableName, "id"),
-		ConversationID: buildChatMessageColumn(tableName, "conversation_id"),
-		Role:           buildChatMessageColumn(tableName, "role"),
-		Content:        buildChatMessageColumn(tableName, "content"),
-		Provider:       buildChatMessageColumn(tableName, "provider"),
-		Model:          buildChatMessageColumn(tableName, "model"),
-		Status:         buildChatMessageColumn(tableName, "status"),
-		ErrorMessage:   buildChatMessageColumn(tableName, "error_message"),
-		CreatedAt:      buildChatMessageColumn(tableName, "created_at"),
+		ColumnsExpr:     columnsExpr,
+		tableAlias:      tableName,
+		ID:              buildChatMessageColumn(tableName, "id"),
+		ConversationID:  buildChatMessageColumn(tableName, "conversation_id"),
+		Role:            buildChatMessageColumn(tableName, "role"),
+		Content:         buildChatMessageColumn(tableName, "content"),
+		Provider:        buildChatMessageColumn(tableName, "provider"),
+		Model:           buildChatMessageColumn(tableName, "model"),
+		Status:          buildChatMessageColumn(tableName, "status"),
+		ErrorMessage:    buildChatMessageColumn(tableName, "error_message"),
+		CreatedAt:       buildChatMessageColumn(tableName, "created_at"),
+		NaturalResponse: buildChatMessageColumn(tableName, "natural_response"),
 	}
 }
 
 type chatMessageColumns struct {
 	expr.ColumnsExpr
-	tableAlias     string
-	ID             chatMessageColumn
-	ConversationID chatMessageColumn
-	Role           chatMessageColumn
-	Content        chatMessageColumn
-	Provider       chatMessageColumn
-	Model          chatMessageColumn
-	Status         chatMessageColumn
-	ErrorMessage   chatMessageColumn
-	CreatedAt      chatMessageColumn
+	tableAlias      string
+	ID              chatMessageColumn
+	ConversationID  chatMessageColumn
+	Role            chatMessageColumn
+	Content         chatMessageColumn
+	Provider        chatMessageColumn
+	Model           chatMessageColumn
+	Status          chatMessageColumn
+	ErrorMessage    chatMessageColumn
+	CreatedAt       chatMessageColumn
+	NaturalResponse chatMessageColumn
 }
 
 // Alias returns the current table alias for the columns set.
@@ -153,19 +156,20 @@ func (c chatMessageColumn) ShouldOmitParens() bool {
 // All values are optional, and do not have to be set
 // Generated columns are not included
 type ChatMessageSetter struct {
-	ID             omit.Val[int64]      `db:"id,pk" `
-	ConversationID omit.Val[int64]      `db:"conversation_id" `
-	Role           omit.Val[string]     `db:"role" `
-	Content        omit.Val[string]     `db:"content" `
-	Provider       omitnull.Val[string] `db:"provider" `
-	Model          omitnull.Val[string] `db:"model" `
-	Status         omit.Val[string]     `db:"status" `
-	ErrorMessage   omitnull.Val[string] `db:"error_message" `
-	CreatedAt      omit.Val[time.Time]  `db:"created_at" `
+	ID              omit.Val[int64]      `db:"id,pk" `
+	ConversationID  omit.Val[int64]      `db:"conversation_id" `
+	Role            omit.Val[string]     `db:"role" `
+	Content         omit.Val[string]     `db:"content" `
+	Provider        omitnull.Val[string] `db:"provider" `
+	Model           omitnull.Val[string] `db:"model" `
+	Status          omit.Val[string]     `db:"status" `
+	ErrorMessage    omitnull.Val[string] `db:"error_message" `
+	CreatedAt       omit.Val[time.Time]  `db:"created_at" `
+	NaturalResponse omitnull.Val[string] `db:"natural_response" `
 }
 
 func (s ChatMessageSetter) SetColumns() []string {
-	vals := make([]string, 0, 9)
+	vals := make([]string, 0, 10)
 	if s.ID.IsValue() {
 		vals = append(vals, "id")
 	}
@@ -192,6 +196,9 @@ func (s ChatMessageSetter) SetColumns() []string {
 	}
 	if s.CreatedAt.IsValue() {
 		vals = append(vals, "created_at")
+	}
+	if !s.NaturalResponse.IsUnset() {
+		vals = append(vals, "natural_response")
 	}
 	return vals
 }
@@ -224,6 +231,9 @@ func (s ChatMessageSetter) Overwrite(t *ChatMessage) {
 	if s.CreatedAt.IsValue() {
 		t.CreatedAt = s.CreatedAt.MustGet()
 	}
+	if !s.NaturalResponse.IsUnset() {
+		t.NaturalResponse = s.NaturalResponse.MustGetNull()
+	}
 }
 
 func (s *ChatMessageSetter) Apply(q *dialect.InsertQuery) {
@@ -232,7 +242,7 @@ func (s *ChatMessageSetter) Apply(q *dialect.InsertQuery) {
 	})
 
 	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.StringWriter, d bob.Dialect, start int) ([]any, error) {
-		vals := make([]bob.Expression, 9)
+		vals := make([]bob.Expression, 10)
 		if s.ID.IsValue() {
 			vals[0] = psql.Arg(s.ID.MustGet())
 		} else {
@@ -287,6 +297,12 @@ func (s *ChatMessageSetter) Apply(q *dialect.InsertQuery) {
 			vals[8] = psql.Raw("DEFAULT")
 		}
 
+		if !s.NaturalResponse.IsUnset() {
+			vals[9] = psql.Arg(s.NaturalResponse.MustGetNull())
+		} else {
+			vals[9] = psql.Raw("DEFAULT")
+		}
+
 		return bob.ExpressSlice(ctx, w, d, start, vals, "", ", ", "")
 	}))
 }
@@ -296,7 +312,7 @@ func (s ChatMessageSetter) UpdateMod() bob.Mod[*dialect.UpdateQuery] {
 }
 
 func (s ChatMessageSetter) Expressions(prefix ...string) []bob.Expression {
-	exprs := make([]bob.Expression, 0, 9)
+	exprs := make([]bob.Expression, 0, 10)
 
 	if s.ID.IsValue() {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
@@ -358,6 +374,13 @@ func (s ChatMessageSetter) Expressions(prefix ...string) []bob.Expression {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "created_at")...),
 			psql.Arg(s.CreatedAt),
+		}})
+	}
+
+	if !s.NaturalResponse.IsUnset() {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "natural_response")...),
+			psql.Arg(s.NaturalResponse),
 		}})
 	}
 
@@ -927,15 +950,16 @@ func (chatMessage0 *ChatMessage) AttachConversationChatConversation(ctx context.
 }
 
 type chatMessageWhere[Q psql.Filterable] struct {
-	ID             psql.WhereMod[Q, int64]
-	ConversationID psql.WhereMod[Q, int64]
-	Role           psql.WhereMod[Q, string]
-	Content        psql.WhereMod[Q, string]
-	Provider       psql.WhereNullMod[Q, string]
-	Model          psql.WhereNullMod[Q, string]
-	Status         psql.WhereMod[Q, string]
-	ErrorMessage   psql.WhereNullMod[Q, string]
-	CreatedAt      psql.WhereMod[Q, time.Time]
+	ID              psql.WhereMod[Q, int64]
+	ConversationID  psql.WhereMod[Q, int64]
+	Role            psql.WhereMod[Q, string]
+	Content         psql.WhereMod[Q, string]
+	Provider        psql.WhereNullMod[Q, string]
+	Model           psql.WhereNullMod[Q, string]
+	Status          psql.WhereMod[Q, string]
+	ErrorMessage    psql.WhereNullMod[Q, string]
+	CreatedAt       psql.WhereMod[Q, time.Time]
+	NaturalResponse psql.WhereNullMod[Q, string]
 }
 
 func (chatMessageWhere[Q]) AliasedAs(alias string) chatMessageWhere[Q] {
@@ -944,15 +968,16 @@ func (chatMessageWhere[Q]) AliasedAs(alias string) chatMessageWhere[Q] {
 
 func buildChatMessageWhere[Q psql.Filterable](cols chatMessageColumns) chatMessageWhere[Q] {
 	return chatMessageWhere[Q]{
-		ID:             psql.Where[Q, int64](cols.ID.Expression),
-		ConversationID: psql.Where[Q, int64](cols.ConversationID.Expression),
-		Role:           psql.Where[Q, string](cols.Role.Expression),
-		Content:        psql.Where[Q, string](cols.Content.Expression),
-		Provider:       psql.WhereNull[Q, string](cols.Provider.Expression),
-		Model:          psql.WhereNull[Q, string](cols.Model.Expression),
-		Status:         psql.Where[Q, string](cols.Status.Expression),
-		ErrorMessage:   psql.WhereNull[Q, string](cols.ErrorMessage.Expression),
-		CreatedAt:      psql.Where[Q, time.Time](cols.CreatedAt.Expression),
+		ID:              psql.Where[Q, int64](cols.ID.Expression),
+		ConversationID:  psql.Where[Q, int64](cols.ConversationID.Expression),
+		Role:            psql.Where[Q, string](cols.Role.Expression),
+		Content:         psql.Where[Q, string](cols.Content.Expression),
+		Provider:        psql.WhereNull[Q, string](cols.Provider.Expression),
+		Model:           psql.WhereNull[Q, string](cols.Model.Expression),
+		Status:          psql.Where[Q, string](cols.Status.Expression),
+		ErrorMessage:    psql.WhereNull[Q, string](cols.ErrorMessage.Expression),
+		CreatedAt:       psql.Where[Q, time.Time](cols.CreatedAt.Expression),
+		NaturalResponse: psql.WhereNull[Q, string](cols.NaturalResponse.Expression),
 	}
 }
 

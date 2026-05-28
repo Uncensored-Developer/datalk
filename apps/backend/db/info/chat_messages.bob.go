@@ -96,6 +96,15 @@ var ChatMessages = Table[
 			Generated: false,
 			AutoIncr:  false,
 		},
+		NaturalResponse: column{
+			Name:      "natural_response",
+			DBType:    "text",
+			Default:   "NULL",
+			Comment:   "",
+			Nullable:  true,
+			Generated: false,
+			AutoIncr:  false,
+		},
 	},
 	Indexes: chatMessageIndexes{
 		ChatMessagesPkey: index{
@@ -185,20 +194,21 @@ var ChatMessages = Table[
 }
 
 type chatMessageColumns struct {
-	ID             column
-	ConversationID column
-	Role           column
-	Content        column
-	Provider       column
-	Model          column
-	Status         column
-	ErrorMessage   column
-	CreatedAt      column
+	ID              column
+	ConversationID  column
+	Role            column
+	Content         column
+	Provider        column
+	Model           column
+	Status          column
+	ErrorMessage    column
+	CreatedAt       column
+	NaturalResponse column
 }
 
 func (c chatMessageColumns) AsSlice() []column {
 	return []column{
-		c.ID, c.ConversationID, c.Role, c.Content, c.Provider, c.Model, c.Status, c.ErrorMessage, c.CreatedAt,
+		c.ID, c.ConversationID, c.Role, c.Content, c.Provider, c.Model, c.Status, c.ErrorMessage, c.CreatedAt, c.NaturalResponse,
 	}
 }
 
