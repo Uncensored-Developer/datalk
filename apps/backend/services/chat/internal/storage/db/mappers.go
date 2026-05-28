@@ -70,14 +70,15 @@ func messageToDB(message *chattype.Message) *models.ChatMessageSetter {
 	}
 
 	return &models.ChatMessageSetter{
-		ConversationID: omit.From(message.ConversationID),
-		Role:           omit.From(string(message.Role)),
-		Content:        omit.From(message.Content),
-		Provider:       provider,
-		Model:          omitnull.FromPtr(message.Model),
-		Status:         omit.From(string(message.Status)),
-		ErrorMessage:   omitnull.FromPtr(message.ErrorMessage),
-		CreatedAt:      createdAt,
+		ConversationID:  omit.From(message.ConversationID),
+		Role:            omit.From(string(message.Role)),
+		Content:         omit.From(message.Content),
+		Provider:        provider,
+		Model:           omitnull.FromPtr(message.Model),
+		Status:          omit.From(string(message.Status)),
+		ErrorMessage:    omitnull.FromPtr(message.ErrorMessage),
+		CreatedAt:       createdAt,
+		NaturalResponse: omitnull.FromPtr(message.NaturalResponse),
 	}
 }
 
@@ -98,16 +99,22 @@ func messageFromDB(dbMessage *models.ChatMessage) (*chattype.Message, error) {
 		errorMessage = &val
 	}
 
+	var naturalResponse *string
+	if val, ok := dbMessage.NaturalResponse.Get(); ok {
+		naturalResponse = &val
+	}
+
 	return &chattype.Message{
-		ID:             dbMessage.ID,
-		ConversationID: dbMessage.ConversationID,
-		Role:           chattype.MessageRole(dbMessage.Role),
-		Content:        dbMessage.Content,
-		Provider:       provider,
-		Model:          model,
-		Status:         chattype.MessageStatus(dbMessage.Status),
-		ErrorMessage:   errorMessage,
-		CreatedAt:      dbMessage.CreatedAt,
+		ID:              dbMessage.ID,
+		ConversationID:  dbMessage.ConversationID,
+		Role:            chattype.MessageRole(dbMessage.Role),
+		Content:         dbMessage.Content,
+		Provider:        provider,
+		Model:           model,
+		Status:          chattype.MessageStatus(dbMessage.Status),
+		ErrorMessage:    errorMessage,
+		NaturalResponse: naturalResponse,
+		CreatedAt:       dbMessage.CreatedAt,
 	}, nil
 }
 

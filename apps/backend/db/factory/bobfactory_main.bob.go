@@ -276,6 +276,7 @@ func (f *Factory) fromExistingChatMessage(ctx context.Context, m *models.ChatMes
 	o.Status = func() string { return m.Status }
 	o.ErrorMessage = func() null.Val[string] { return m.ErrorMessage }
 	o.CreatedAt = func() time.Time { return m.CreatedAt }
+	o.NaturalResponse = func() null.Val[string] { return m.NaturalResponse }
 
 	if visited, ok := factoryVisitedCtx.Value(ctx); ok {
 		ptr := uintptr(unsafe.Pointer(m))
