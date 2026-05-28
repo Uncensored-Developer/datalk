@@ -37,15 +37,16 @@ func (mods ChatMessageModSlice) Apply(ctx context.Context, n *ChatMessageTemplat
 // ChatMessageTemplate is an object representing the database table.
 // all columns are optional and should be set by mods
 type ChatMessageTemplate struct {
-	ID             func() int64
-	ConversationID func() int64
-	Role           func() string
-	Content        func() string
-	Provider       func() null.Val[string]
-	Model          func() null.Val[string]
-	Status         func() string
-	ErrorMessage   func() null.Val[string]
-	CreatedAt      func() time.Time
+	ID              func() int64
+	ConversationID  func() int64
+	Role            func() string
+	Content         func() string
+	Provider        func() null.Val[string]
+	Model           func() null.Val[string]
+	Status          func() string
+	ErrorMessage    func() null.Val[string]
+	CreatedAt       func() time.Time
+	NaturalResponse func() null.Val[string]
 
 	r chatMessageR
 	f *Factory
@@ -160,6 +161,10 @@ func (o ChatMessageTemplate) BuildSetter() *models.ChatMessageSetter {
 		val := o.CreatedAt()
 		m.CreatedAt = omit.From(val)
 	}
+	if o.NaturalResponse != nil {
+		val := o.NaturalResponse()
+		m.NaturalResponse = omitnull.FromNull(val)
+	}
 
 	return m
 }
@@ -208,6 +213,9 @@ func (o ChatMessageTemplate) Build() *models.ChatMessage {
 	}
 	if o.CreatedAt != nil {
 		m.CreatedAt = o.CreatedAt()
+	}
+	if o.NaturalResponse != nil {
+		m.NaturalResponse = o.NaturalResponse()
 	}
 
 	o.setModelRels(m)
@@ -459,6 +467,7 @@ func (m chatMessageMods) RandomizeAllColumns(f *faker.Faker) ChatMessageMod {
 		ChatMessageMods.RandomStatus(f),
 		ChatMessageMods.RandomErrorMessage(f),
 		ChatMessageMods.RandomCreatedAt(f),
+		ChatMessageMods.RandomNaturalResponse(f),
 	}
 }
 
@@ -803,6 +812,59 @@ func (m chatMessageMods) RandomCreatedAt(f *faker.Faker) ChatMessageMod {
 	return ChatMessageModFunc(func(_ context.Context, o *ChatMessageTemplate) {
 		o.CreatedAt = func() time.Time {
 			return random_time_Time(f)
+		}
+	})
+}
+
+// Set the model columns to this value
+func (m chatMessageMods) NaturalResponse(val null.Val[string]) ChatMessageMod {
+	return ChatMessageModFunc(func(_ context.Context, o *ChatMessageTemplate) {
+		o.NaturalResponse = func() null.Val[string] { return val }
+	})
+}
+
+// Set the Column from the function
+func (m chatMessageMods) NaturalResponseFunc(f func() null.Val[string]) ChatMessageMod {
+	return ChatMessageModFunc(func(_ context.Context, o *ChatMessageTemplate) {
+		o.NaturalResponse = f
+	})
+}
+
+// Clear any values for the column
+func (m chatMessageMods) UnsetNaturalResponse() ChatMessageMod {
+	return ChatMessageModFunc(func(_ context.Context, o *ChatMessageTemplate) {
+		o.NaturalResponse = nil
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+// The generated value is sometimes null
+func (m chatMessageMods) RandomNaturalResponse(f *faker.Faker) ChatMessageMod {
+	return ChatMessageModFunc(func(_ context.Context, o *ChatMessageTemplate) {
+		o.NaturalResponse = func() null.Val[string] {
+			if f == nil {
+				f = &defaultFaker
+			}
+
+			val := random_string(f)
+			return null.From(val)
+		}
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+// The generated value is never null
+func (m chatMessageMods) RandomNaturalResponseNotNull(f *faker.Faker) ChatMessageMod {
+	return ChatMessageModFunc(func(_ context.Context, o *ChatMessageTemplate) {
+		o.NaturalResponse = func() null.Val[string] {
+			if f == nil {
+				f = &defaultFaker
+			}
+
+			val := random_string(f)
+			return null.From(val)
 		}
 	})
 }

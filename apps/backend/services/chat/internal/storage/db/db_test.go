@@ -116,12 +116,13 @@ func TestStorage_InsertGetAndListMessages(t *testing.T) {
 		ErrorMessage:   &errorMessage,
 	}
 	assistantCompleted := &chattype.Message{
-		ConversationID: conversation.ID,
-		Role:           chattype.MessageRoleAssistant,
-		Content:        "SELECT count(*) FROM users;",
-		Provider:       &assistantProvider,
-		Model:          &assistantModel,
-		Status:         chattype.MessageStatusCompleted,
+		ConversationID:  conversation.ID,
+		Role:            chattype.MessageRoleAssistant,
+		Content:         "SELECT count(*) FROM users;",
+		Provider:        &assistantProvider,
+		Model:           &assistantModel,
+		Status:          chattype.MessageStatusCompleted,
+		NaturalResponse: ptr.Of("There are 42 subscribed users this month."),
 	}
 
 	require.NoError(t, s.InsertMessage(t.Context(), userMessage))
@@ -140,6 +141,13 @@ func TestStorage_InsertGetAndListMessages(t *testing.T) {
 	assert.Equal(t, assistantModel, *got.Model)
 	require.NotNil(t, got.ErrorMessage)
 	assert.Equal(t, errorMessage, *got.ErrorMessage)
+	assert.Nil(t, got.NaturalResponse)
+
+	gotCompleted, err := s.GetMessage(t.Context(), assistantCompleted.ID)
+	require.NoError(t, err)
+	require.NotNil(t, gotCompleted)
+	require.NotNil(t, gotCompleted.NaturalResponse)
+	assert.Equal(t, "There are 42 subscribed users this month.", *gotCompleted.NaturalResponse)
 
 	filtered, err := s.ListMessages(t.Context(), chatstorage.MessagesFilter{
 		ConversationID: []int64{conversation.ID},
@@ -166,6 +174,9 @@ func TestStorage_InsertGetAndListMessages(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, paged, 2)
 	assert.Equal(t, []int64{assistantFailed.ID, assistantCompleted.ID}, messageIDs(paged))
+	assert.Nil(t, paged[0].NaturalResponse)
+	require.NotNil(t, paged[1].NaturalResponse)
+	assert.Equal(t, "There are 42 subscribed users this month.", *paged[1].NaturalResponse)
 }
 
 func TestStorage_InsertAndGetExecution(t *testing.T) {

@@ -34,15 +34,16 @@ type Conversation struct {
 }
 
 type Message struct {
-	ID             int64
-	ConversationID int64
-	Role           MessageRole
-	Content        string
-	Provider       *llm.Provider
-	Model          *string
-	Status         MessageStatus
-	ErrorMessage   *string
-	CreatedAt      time.Time
+	ID              int64
+	ConversationID  int64
+	Role            MessageRole
+	Content         string
+	Provider        *llm.Provider
+	Model           *string
+	Status          MessageStatus
+	ErrorMessage    *string
+	NaturalResponse *string
+	CreatedAt       time.Time
 }
 
 type MessageExecution struct {
