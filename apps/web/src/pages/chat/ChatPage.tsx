@@ -1,7 +1,9 @@
 import CloseFullscreenOutlinedIcon from "@mui/icons-material/CloseFullscreenOutlined";
 import CodeOutlinedIcon from "@mui/icons-material/CodeOutlined";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import KeyboardArrowRightOutlinedIcon from "@mui/icons-material/KeyboardArrowRightOutlined";
 import OpenInFullOutlinedIcon from "@mui/icons-material/OpenInFullOutlined";
+import PsychologyAltOutlinedIcon from "@mui/icons-material/PsychologyAltOutlined";
 import SendOutlinedIcon from "@mui/icons-material/SendOutlined";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
@@ -12,6 +14,7 @@ import Collapse from "@mui/material/Collapse";
 import Dialog from "@mui/material/Dialog";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
+import Divider from "@mui/material/Divider";
 import FormControl from "@mui/material/FormControl";
 import IconButton from "@mui/material/IconButton";
 import InputLabel from "@mui/material/InputLabel";
@@ -52,6 +55,7 @@ type SendForm = {
 };
 
 const lastChatModelKey = "datalk.chat.lastModel";
+const requireNaturalResponseKey = "datalk.chat.requireNaturalResponse";
 
 export function ChatPage() {
   const { apiClient } = useAuth();
@@ -150,6 +154,8 @@ function MessagePanel({
 }) {
   const queryClient = useQueryClient();
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const streamTimersRef = useRef<number[]>([]);
+  const [streamedNaturalResponses, setStreamedNaturalResponses] = useState<Record<number, string>>({});
   const lastMessageID = messages.at(-1)?.message.id;
 
   useEffect(() => {
@@ -157,6 +163,15 @@ function MessagePanel({
       messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
     }
   }, [lastMessageID]);
+
+  useEffect(() => {
+    const timers = streamTimersRef.current;
+    return () => {
+      for (const timer of timers) {
+        window.clearInterval(timer);
+      }
+    };
+  }, []);
 
   if (!conversation) {
     return (
@@ -166,6 +181,60 @@ function MessagePanel({
       />
     );
   }
+
+  const streamNaturalResponse = (messageID: number, fullText: string) => {
+    const chunks = fullText.match(/\S+\s*/g) ?? [fullText];
+    let index = 0;
+    setStreamedNaturalResponses((current) => ({ ...current, [messageID]: "" }));
+
+    const timer = window.setInterval(() => {
+      index += 1;
+      const visibleText = chunks.slice(0, index).join("");
+      setStreamedNaturalResponses((current) => ({
+        ...current,
+        [messageID]: visibleText,
+      }));
+
+      if (index >= chunks.length) {
+        window.clearInterval(timer);
+        window.setTimeout(() => {
+          setStreamedNaturalResponses((current) => {
+            const next = { ...current };
+            delete next[messageID];
+            return next;
+          });
+        }, 400);
+      }
+    }, 45);
+    streamTimersRef.current.push(timer);
+  };
+
+  const handleSendSuccess = (response: SendMessageResponse) => {
+    const naturalResponse = response.assistant_message.natural_response?.trim();
+    if (!naturalResponse) {
+      return false;
+    }
+
+    queryClient.setQueryData<MessageListItem[]>(
+      ["chat-messages", conversation.id],
+      (current = []) => {
+        const nextItems: MessageListItem[] = [
+          { message: response.user_message, retrieval: response.retrieval },
+          {
+            message: response.assistant_message,
+            execution: response.execution,
+          },
+        ];
+        const nextIDs = new Set(nextItems.map((item) => item.message.id));
+        return [
+          ...current.filter((item) => !nextIDs.has(item.message.id)),
+          ...nextItems,
+        ];
+      },
+    );
+    streamNaturalResponse(response.assistant_message.id, naturalResponse);
+    return true;
+  };
 
   return (
     <Box
@@ -237,7 +306,11 @@ function MessagePanel({
         ) : null}
         <Stack spacing={2}>
           {messages.map((item) => (
-            <MessageItem key={item.message.id} item={item} />
+            <MessageItem
+              key={item.message.id}
+              item={item}
+              streamedNaturalResponse={streamedNaturalResponses[item.message.id]}
+            />
           ))}
           <Box ref={messagesEndRef} />
         </Stack>
@@ -251,15 +324,31 @@ function MessagePanel({
           bgcolor: "background.default",
         }}
       >
-        <SendMessageForm conversationID={conversation.id} models={models} />
+        <SendMessageForm
+          conversationID={conversation.id}
+          models={models}
+          onSendSuccess={handleSendSuccess}
+        />
       </Box>
     </Box>
   );
 }
 
-function MessageItem({ item }: { item: MessageListItem }) {
+function MessageItem({
+  item,
+  streamedNaturalResponse,
+}: {
+  item: MessageListItem;
+  streamedNaturalResponse?: string;
+}) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const isAssistant = item.message.role === "assistant";
   const hasModelInfo = Boolean(item.message.provider || item.message.model);
+  const hasNaturalResponse = isAssistant && Boolean(item.message.natural_response);
+  const hasHiddenDetails = hasNaturalResponse && Boolean(item.message.content || item.execution);
+  const messageText = hasNaturalResponse
+    ? streamedNaturalResponse ?? item.message.natural_response
+    : item.message.content;
 
   return (
     <Stack
@@ -271,6 +360,7 @@ function MessageItem({ item }: { item: MessageListItem }) {
         variant="outlined"
         sx={{
           p: 1.5,
+          borderRadius: 3,
           width: "fit-content",
           maxWidth: { xs: "100%", md: "78%" },
           bgcolor: isAssistant ? "background.paper" : "primary.main",
@@ -289,27 +379,70 @@ function MessageItem({ item }: { item: MessageListItem }) {
         }}
       >
         <Stack spacing={1.5}>
-          {isAssistant && hasModelInfo ? (
-            <Stack className="assistant-message-controls" direction="row" justifyContent="flex-end">
-              <Tooltip
-                title={[
-                  item.message.provider ? `Provider: ${item.message.provider}` : null,
-                  item.message.model ? `Model: ${item.message.model}` : null,
-                ]
-                  .filter(Boolean)
-                  .join(" | ")}
-              >
-                <IconButton aria-label="Message model details" size="small">
-                  <InfoOutlinedIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
+          {isAssistant && (hasModelInfo || hasHiddenDetails) ? (
+            <Stack
+              direction="row"
+              justifyContent="flex-end"
+              spacing={0.5}
+            >
+              {hasModelInfo ? (
+                <Box className="assistant-message-controls">
+                  <Tooltip
+                    title={[
+                      item.message.provider ? `Provider: ${item.message.provider}` : null,
+                      item.message.model ? `Model: ${item.message.model}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" | ")}
+                  >
+                    <IconButton aria-label="Message model details" size="small">
+                      <InfoOutlinedIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              ) : null}
+              {hasHiddenDetails ? (
+                <Tooltip title={detailsOpen ? "Hide SQL and results" : "Show SQL and results"}>
+                  <IconButton
+                    aria-label={detailsOpen ? "Hide SQL and results" : "Show SQL and results"}
+                    color={detailsOpen ? "primary" : "default"}
+                    onClick={() => setDetailsOpen((open) => !open)}
+                    size="small"
+                  >
+                    <KeyboardArrowRightOutlinedIcon
+                      fontSize="small"
+                      sx={{
+                        transform: detailsOpen ? "rotate(90deg)" : "rotate(0deg)",
+                        transition: (theme) =>
+                          theme.transitions.create("transform", {
+                            duration: theme.transitions.duration.shortest,
+                          }),
+                      }}
+                    />
+                  </IconButton>
+                </Tooltip>
+              ) : null}
             </Stack>
           ) : null}
-          <Typography sx={{ whiteSpace: "pre-wrap" }}>{item.message.content}</Typography>
+          <Typography sx={{ whiteSpace: "pre-wrap" }}>{messageText}</Typography>
           {item.message.error_message ? (
             <Alert severity="error">{item.message.error_message}</Alert>
           ) : null}
-          {item.execution ? <ExecutionPanel execution={item.execution} /> : null}
+          {hasNaturalResponse ? (
+            <Collapse in={detailsOpen} unmountOnExit>
+              <Stack spacing={1.5}>
+                <Divider />
+                {item.message.content ? (
+                  <Typography color="text.secondary" sx={{ whiteSpace: "pre-wrap" }} variant="body2">
+                    {item.message.content}
+                  </Typography>
+                ) : null}
+                {item.execution ? <ExecutionPanel execution={item.execution} /> : null}
+              </Stack>
+            </Collapse>
+          ) : item.execution ? (
+            <ExecutionPanel execution={item.execution} />
+          ) : null}
         </Stack>
       </Paper>
     </Stack>
@@ -472,9 +605,11 @@ function ResultTable({ execution }: { execution: MessageExecution }) {
 function SendMessageForm({
   conversationID,
   models,
+  onSendSuccess,
 }: {
   conversationID: number;
   models: ChatModel[];
+  onSendSuccess: (response: SendMessageResponse) => boolean;
 }) {
   const { apiClient } = useAuth();
   const queryClient = useQueryClient();
@@ -490,6 +625,19 @@ function SendMessageForm({
 
     return models[0]?.id ?? "";
   }, [models]);
+  const [requireNaturalResponse, setRequireNaturalResponse] = useState(() => {
+    if (typeof window === "undefined") {
+      return true;
+    }
+    const stored = window.localStorage.getItem(requireNaturalResponseKey);
+    if (stored === "false") {
+      return false;
+    }
+    if (stored === "true") {
+      return true;
+    }
+    return true;
+  });
   const {
     control,
     formState: { errors },
@@ -518,13 +666,18 @@ function SendMessageForm({
           content: values.content.trim(),
           provider: selectedModel?.provider as Provider,
           model: values.model,
+          require_natural_response: requireNaturalResponse,
         },
       );
     },
-    onSuccess(_response, values) {
+    onSuccess(response, values) {
       window.localStorage.setItem(lastChatModelKey, values.model);
+      window.localStorage.setItem(requireNaturalResponseKey, String(requireNaturalResponse));
       reset({ content: "", model: values.model });
-      void queryClient.invalidateQueries({ queryKey: ["chat-messages", conversationID] });
+      const responseHandled = onSendSuccess(response);
+      if (!responseHandled) {
+        void queryClient.invalidateQueries({ queryKey: ["chat-messages", conversationID] });
+      }
       void queryClient.invalidateQueries({ queryKey: ["chat-conversations"] });
       void queryClient.invalidateQueries({ queryKey: ["chat-conversation", conversationID] });
     },
@@ -599,6 +752,22 @@ function SendMessageForm({
             </FormControl>
           )}
         />
+        <Tooltip title={requireNaturalResponse ? "Natural response on" : "Natural response off"}>
+          <IconButton
+            aria-label={
+              requireNaturalResponse ? "Turn natural response off" : "Turn natural response on"
+            }
+            color={requireNaturalResponse ? "primary" : "default"}
+            onClick={() => {
+              const nextValue = !requireNaturalResponse;
+              setRequireNaturalResponse(nextValue);
+              window.localStorage.setItem(requireNaturalResponseKey, String(nextValue));
+            }}
+            size="small"
+          >
+            <PsychologyAltOutlinedIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
         <Box sx={{ flex: 1 }} />
         <Tooltip title="Send">
           <span>
