@@ -185,7 +185,7 @@ func (c *Client) GenerateSQL(ctx context.Context, req llmtypes.GenerateSQLReques
 		Contents: geminiContents(req),
 		GenerationConfig: generationConfig{
 			ResponseMIMEType: "application/json",
-			ResponseSchema:   llmcore.GenerateSQLSchema(),
+			ResponseSchema:   geminiSchema(llmcore.GenerateSQLSchema()),
 		},
 	}
 
@@ -240,6 +240,73 @@ func (c *Client) GenerateSQL(ctx context.Context, req llmtypes.GenerateSQLReques
 	}, finishReason)
 }
 
+func (c *Client) GenerateAnswer(ctx context.Context, req llmtypes.GenerateAnswerRequest) (*llmtypes.GenerateAnswerResponse, error) {
+	if strings.TrimSpace(req.Model) == "" {
+		return nil, xerrors.New("model is required")
+	}
+
+	requestBody := generateRequest{
+		SystemInstruction: content{
+			Parts: []part{{Text: llmcore.GenerateAnswerSystemPrompt(req)}},
+		},
+		Contents: geminiAnswerContents(req),
+		GenerationConfig: generationConfig{
+			ResponseMIMEType: "application/json",
+			ResponseSchema:   geminiSchema(llmcore.GenerateAnswerSchema()),
+		},
+	}
+
+	rawRequest, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, xerrors.Newf("failed to marshal gemini answer request: %w", err)
+	}
+
+	endpoint := c.baseURL + "/v1beta/models/" + url.PathEscape(req.Model) + ":generateContent?key=" + url.QueryEscape(c.apiKey)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(rawRequest))
+	if err != nil {
+		return nil, xerrors.Newf("failed to create gemini answer request: %w", err)
+	}
+	httpReq.Header.Set("content-type", "application/json")
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, xerrors.Newf("failed to call gemini generate api: %w", err)
+	}
+	defer resp.Body.Close()
+
+	rawResponse, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, xerrors.Newf("failed to read gemini answer response: %w", err)
+	}
+	if err := decodeHTTPError("gemini generate api", resp.StatusCode, rawResponse); err != nil {
+		return nil, err
+	}
+
+	var payload generateResponse
+	if err := json.Unmarshal(rawResponse, &payload); err != nil {
+		return nil, xerrors.Newf("failed to decode gemini answer response: %w", err)
+	}
+	if len(payload.Candidates) == 0 || len(payload.Candidates[0].Content.Parts) == 0 {
+		return nil, xerrors.New("gemini answer response did not include candidate text")
+	}
+
+	responseText := strings.TrimSpace(payload.Candidates[0].Content.Parts[0].Text)
+	if responseText == "" {
+		return nil, xerrors.New("gemini answer response did not include candidate text")
+	}
+
+	var finishReason *string
+	if strings.TrimSpace(payload.Candidates[0].FinishReason) != "" {
+		finishReason = &payload.Candidates[0].FinishReason
+	}
+
+	return llmcore.ParseGenerateAnswerResponse(rawRequest, rawResponse, responseText, &llmtypes.Usage{
+		InputTokens:  payload.UsageMetadata.PromptTokenCount,
+		OutputTokens: payload.UsageMetadata.CandidatesTokenCount,
+		TotalTokens:  payload.UsageMetadata.TotalTokenCount,
+	}, finishReason)
+}
+
 func decodeHTTPError(apiName string, statusCode int, body []byte) error {
 	if statusCode < http.StatusBadRequest {
 		return nil
@@ -272,6 +339,96 @@ func geminiContents(req llmtypes.GenerateSQLRequest) []content {
 		})
 	}
 	return contents
+}
+
+func geminiAnswerContents(req llmtypes.GenerateAnswerRequest) []content {
+	promptMessages := llmcore.GenerateAnswerMessages(req)
+	contents := make([]content, 0, len(promptMessages))
+	for _, promptMessage := range promptMessages {
+		contents = append(contents, content{
+			Role:  normalizeGeminiRole(promptMessage.Role),
+			Parts: []part{{Text: promptMessage.Content}},
+		})
+	}
+	return contents
+}
+
+func geminiSchema(schema map[string]any) map[string]any {
+	converted := make(map[string]any, len(schema))
+	for key, value := range schema {
+		switch key {
+		case "type":
+			schemaType, nullable := geminiSchemaType(value)
+			if schemaType != "" {
+				converted[key] = schemaType
+			}
+			if nullable {
+				converted["nullable"] = true
+			}
+		case "properties":
+			properties, ok := value.(map[string]any)
+			if !ok {
+				continue
+			}
+			convertedProperties := make(map[string]any, len(properties))
+			for propertyName, propertySchema := range properties {
+				propertyMap, ok := propertySchema.(map[string]any)
+				if !ok {
+					continue
+				}
+				convertedProperties[propertyName] = geminiSchema(propertyMap)
+			}
+			converted[key] = convertedProperties
+		case "items":
+			items, ok := value.(map[string]any)
+			if !ok {
+				continue
+			}
+			converted[key] = geminiSchema(items)
+		case "additionalProperties":
+			continue
+		default:
+			converted[key] = value
+		}
+	}
+	return converted
+}
+
+func geminiSchemaType(value any) (string, bool) {
+	switch typed := value.(type) {
+	case string:
+		return strings.ToUpper(typed), false
+	case []string:
+		nullable := containsString(typed, "null")
+		for _, item := range typed {
+			if item != "null" {
+				return strings.ToUpper(item), nullable
+			}
+		}
+	case []any:
+		nullable := false
+		for _, item := range typed {
+			itemType, ok := item.(string)
+			if !ok {
+				continue
+			}
+			if itemType == "null" {
+				nullable = true
+				continue
+			}
+			return strings.ToUpper(itemType), nullable
+		}
+	}
+	return "", false
+}
+
+func containsString(values []string, needle string) bool {
+	for _, value := range values {
+		if value == needle {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizeGeminiRole(role string) string {

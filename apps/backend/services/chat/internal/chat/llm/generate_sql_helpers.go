@@ -67,6 +67,14 @@ func GenerateSQLSystemPrompt(req llmtypes.GenerateSQLRequest) string {
 	builder.WriteString("Retrieved schema context:\n")
 	builder.WriteString(formatSchemaChunks(req.Schema.Chunks, req.Options.MaxSchemaChunks))
 	builder.WriteString("\n")
+	if req.Correction != nil && len(req.Correction.Attempts) > 0 {
+		builder.WriteString("\nPrevious SQL attempts failed. Use the database error details to correct the SQL.\n")
+		if req.Correction.AttemptNumber > 0 {
+			builder.WriteString(fmt.Sprintf("Correction attempt: %d\n", req.Correction.AttemptNumber))
+		}
+		builder.WriteString(formatCorrectionAttempts(req.Correction.Attempts))
+		builder.WriteString("\nReturn a corrected query that still follows every SQL safety rule.\n")
+	}
 
 	return builder.String()
 }
@@ -146,6 +154,33 @@ func formatSchemaChunks(chunks []schematypes.RetrievedChunk, maxSchemaChunks int
 		if chunk.Content != "" {
 			lines = append(lines, fmt.Sprintf("  %s", strings.TrimSpace(chunk.Content)))
 		}
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func formatCorrectionAttempts(attempts []llmtypes.SQLCorrectionAttempt) string {
+	if len(attempts) == 0 {
+		return "- No failed SQL attempts were provided."
+	}
+
+	lines := make([]string, 0, len(attempts)*3)
+	for index, attempt := range attempts {
+		sql := strings.TrimSpace(attempt.SQL)
+		errorText := strings.TrimSpace(attempt.Error)
+		if sql == "" && errorText == "" {
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("Failed attempt %d:", index+1))
+		if sql != "" {
+			lines = append(lines, fmt.Sprintf("SQL: %s", sql))
+		}
+		if errorText != "" {
+			lines = append(lines, fmt.Sprintf("Error: %s", errorText))
+		}
+	}
+	if len(lines) == 0 {
+		return "- No failed SQL attempts were provided."
 	}
 
 	return strings.Join(lines, "\n")
