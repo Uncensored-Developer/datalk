@@ -17,11 +17,13 @@ import (
 )
 
 const (
-	defaultHistoryLimit     = 20
-	defaultSchemaChunkLimit = 8
-	defaultMaxPromptBytes   = 64 * 1024
-	defaultResultRowLimit   = 100
-	defaultQueryTimeout     = 30 * time.Second
+	defaultHistoryLimit      = 20
+	defaultSchemaChunkLimit  = 8
+	defaultMaxPromptBytes    = 64 * 1024
+	defaultResultRowLimit    = 100
+	defaultAnswerResultRows  = 20
+	defaultAnswerResultBytes = 32 * 1024
+	defaultQueryTimeout      = 30 * time.Second
 )
 
 //go:generate go tool with-modfile mockery --name ConnectionService --outpkg testing --output ./testing --filename generated__connection_service_mocks.go

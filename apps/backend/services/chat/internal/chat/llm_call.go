@@ -31,6 +31,29 @@ func buildLLMCall(
 	}
 }
 
+func buildAnswerLLMCall(
+	messageID int64,
+	resolved *chatllm.ResolvedClient,
+	req llmtypes.GenerateAnswerRequest,
+	resp *llmtypes.GenerateAnswerResponse,
+	latencyMS int32,
+) *chattype.MessageLLMCall {
+	inputTokens, outputTokens := usageTokenPointers(resp.Usage)
+
+	return &chattype.MessageLLMCall{
+		MessageID:        messageID,
+		ProviderConfigID: resolved.ProviderConfig.ID,
+		Provider:         resolved.ProviderConfig.Provider,
+		Model:            req.Model,
+		RequestJSON:      redactSensitiveJSON(resp.RawRequest),
+		ResponseJSON:     redactSensitiveJSON(resp.RawResponse),
+		InputTokens:      inputTokens,
+		OutputTokens:     outputTokens,
+		LatencyMS:        latencyMS,
+		CreatedAt:        time.Now().UTC(),
+	}
+}
+
 func usageTokenPointers(usage *llmtypes.Usage) (*int32, *int32) {
 	if usage == nil {
 		return nil, nil
