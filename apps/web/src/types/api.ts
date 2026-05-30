@@ -114,6 +114,7 @@ export type ChatMessage = {
   conversation_id: number;
   role: ChatMessageRole;
   content: string;
+  natural_response?: string;
   provider?: Provider;
   model?: string;
   status: ChatMessageStatus;
