@@ -227,6 +227,74 @@ func (c *Client) GenerateSQL(ctx context.Context, req llmtypes.GenerateSQLReques
 	}, finishReason)
 }
 
+func (c *Client) GenerateAnswer(ctx context.Context, req llmtypes.GenerateAnswerRequest) (*llmtypes.GenerateAnswerResponse, error) {
+	if strings.TrimSpace(req.Model) == "" {
+		return nil, xerrors.New("model is required")
+	}
+
+	requestBody := generateRequest{
+		Model: req.Model,
+		Input: openAIAnswerInputMessages(req),
+		Text: textConfig{
+			Format: map[string]any{
+				"type":   "json_schema",
+				"name":   "answer_generation",
+				"strict": true,
+				"schema": llmcore.GenerateAnswerSchema(),
+			},
+		},
+	}
+
+	rawRequest, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, xerrors.Newf("failed to marshal openai answer request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/v1/responses", bytes.NewReader(rawRequest))
+	if err != nil {
+		return nil, xerrors.Newf("failed to create openai answer request: %w", err)
+	}
+	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, xerrors.Newf("failed to call openai responses api: %w", err)
+	}
+	defer resp.Body.Close()
+
+	rawResponse, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, xerrors.Newf("failed to read openai answer response: %w", err)
+	}
+	if err := decodeHTTPError("openai responses api", resp.StatusCode, rawResponse); err != nil {
+		return nil, err
+	}
+
+	var payload generateResponse
+	if err := json.Unmarshal(rawResponse, &payload); err != nil {
+		return nil, xerrors.Newf("failed to decode openai answer response: %w", err)
+	}
+
+	responseText := strings.TrimSpace(extractOutputText(payload.Output, payload.OutputText))
+	if responseText == "" {
+		return nil, xerrors.New("openai answer response did not include structured output text")
+	}
+
+	var finishReason *string
+	if payload.IncompleteDetails != nil && strings.TrimSpace(payload.IncompleteDetails.Reason) != "" {
+		finishReason = &payload.IncompleteDetails.Reason
+	} else if strings.TrimSpace(payload.Status) != "" && payload.Status != "completed" {
+		finishReason = &payload.Status
+	}
+
+	return llmcore.ParseGenerateAnswerResponse(rawRequest, rawResponse, responseText, &llmtypes.Usage{
+		InputTokens:  payload.Usage.InputTokens,
+		OutputTokens: payload.Usage.OutputTokens,
+		TotalTokens:  payload.Usage.TotalTokens,
+	}, finishReason)
+}
+
 func decodeHTTPError(apiName string, statusCode int, body []byte) error {
 	if statusCode < http.StatusBadRequest {
 		return nil
@@ -265,6 +333,34 @@ func openAIInputMessages(req llmtypes.GenerateSQLRequest) []inputMessage {
 			{
 				Type: "input_text",
 				Text: llmcore.GenerateSQLSystemPrompt(req),
+			},
+		},
+	})
+
+	for _, message := range promptMessages {
+		messages = append(messages, inputMessage{
+			Role: normalizeOpenAIRole(message.Role),
+			Content: []contentPart{
+				{
+					Type: "input_text",
+					Text: message.Content,
+				},
+			},
+		})
+	}
+
+	return messages
+}
+
+func openAIAnswerInputMessages(req llmtypes.GenerateAnswerRequest) []inputMessage {
+	promptMessages := llmcore.GenerateAnswerMessages(req)
+	messages := make([]inputMessage, 0, len(promptMessages)+1)
+	messages = append(messages, inputMessage{
+		Role: "developer",
+		Content: []contentPart{
+			{
+				Type: "input_text",
+				Text: llmcore.GenerateAnswerSystemPrompt(req),
 			},
 		},
 	})

@@ -39,6 +39,27 @@ func TestGenerateSQLSystemPrompt(t *testing.T) {
 	assert.NotContains(t, prompt, "count users")
 }
 
+func TestGenerateSQLSystemPromptIncludesCorrectionAttempts(t *testing.T) {
+	t.Parallel()
+
+	prompt := GenerateSQLSystemPrompt(llmtypes.GenerateSQLRequest{
+		Conversation: llmtypes.ConversationContext{
+			DatabaseKind: connectiontypes.DatabasePostgres,
+		},
+		Correction: &llmtypes.SQLCorrectionContext{
+			AttemptNumber: 2,
+			Attempts: []llmtypes.SQLCorrectionAttempt{
+				{SQL: "SELECT username FROM userss", Error: `relation "userss" does not exist`},
+			},
+		},
+	})
+
+	assert.Contains(t, prompt, "Previous SQL attempts failed")
+	assert.Contains(t, prompt, "Correction attempt: 2")
+	assert.Contains(t, prompt, "SQL: SELECT username FROM userss")
+	assert.Contains(t, prompt, `Error: relation "userss" does not exist`)
+}
+
 func TestGenerateSQLSchemaRequiresEveryProperty(t *testing.T) {
 	t.Parallel()
 

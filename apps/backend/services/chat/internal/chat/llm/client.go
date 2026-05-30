@@ -10,6 +10,7 @@ import (
 type Client interface {
 	ListModels(ctx context.Context) ([]llmtypes.Model, error)
 	GenerateSQL(ctx context.Context, req llmtypes.GenerateSQLRequest) (*llmtypes.GenerateSQLResponse, error)
+	GenerateAnswer(ctx context.Context, req llmtypes.GenerateAnswerRequest) (*llmtypes.GenerateAnswerResponse, error)
 }
 
 type ClientFactory func(config *llmtypes.ProviderConfig) (Client, error)

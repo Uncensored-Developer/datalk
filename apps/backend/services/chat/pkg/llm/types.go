@@ -86,6 +86,17 @@ type GenerateSQLRequest struct {
 	UserPrompt   string
 	Schema       schematypes.RetrievedSchemaContext
 	Options      GenerateSQLOptions
+	Correction   *SQLCorrectionContext
+}
+
+type SQLCorrectionContext struct {
+	AttemptNumber int
+	Attempts      []SQLCorrectionAttempt
+}
+
+type SQLCorrectionAttempt struct {
+	SQL   string
+	Error string
 }
 
 type GenerateSQLResponse struct {
@@ -93,6 +104,44 @@ type GenerateSQLResponse struct {
 	Explanation  string
 	Assumptions  []string
 	Confidence   *float32
+	FinishReason *string
+	Usage        *Usage
+	RawRequest   json.RawMessage
+	RawResponse  json.RawMessage
+}
+
+type GenerateAnswerOptions struct {
+	MaxHistoryMessages int
+	MaxResultRows      int
+	MaxResultBytes     int
+}
+
+type GenerateAnswerRequest struct {
+	Model        string
+	Conversation ConversationContext
+	UserPrompt   string
+	GeneratedSQL string
+	DatabaseKind connectiontypes.Database
+	Result       QueryResultPreview
+	Options      GenerateAnswerOptions
+}
+
+type QueryResultPreview struct {
+	Columns   []QueryResultColumn `json:"columns"`
+	Rows      []map[string]any    `json:"rows"`
+	RowCount  int32               `json:"row_count"`
+	Truncated bool                `json:"truncated"`
+	Kind      string              `json:"kind,omitempty"`
+}
+
+type QueryResultColumn struct {
+	Name     string `json:"name"`
+	DataType string `json:"data_type"`
+}
+
+type GenerateAnswerResponse struct {
+	Answer       string
+	Limitations  []string
 	FinishReason *string
 	Usage        *Usage
 	RawRequest   json.RawMessage

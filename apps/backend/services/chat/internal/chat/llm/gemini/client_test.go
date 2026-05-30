@@ -59,6 +59,7 @@ func TestClient_GenerateSQL(t *testing.T) {
 			assert.Equal(t, "user", payload.Contents[2].Role)
 			assert.Equal(t, "list users", payload.Contents[2].Parts[0].Text)
 			require.NotEmpty(t, payload.SystemInstruction.Parts)
+			assertGeminiSQLSchema(t, payload.GenerationConfig.ResponseSchema)
 
 			return testutil.JSONResponse(http.StatusOK, `{
 				"candidates":[{"content":{"parts":[{"text":"{\"sql\":\"SELECT * FROM users\",\"explanation\":\"Lists users\"}"}]},"finishReason":"STOP"}],
@@ -85,6 +86,47 @@ func TestClient_GenerateSQL(t *testing.T) {
 	assert.Equal(t, 23, *resp.Usage.TotalTokens)
 }
 
+func TestClient_GenerateAnswer(t *testing.T) {
+	client, err := NewClient(&llmtypes.ProviderConfig{
+		APIKeyEnc: "test-key",
+	}, &http.Client{
+		Transport: testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			require.Equal(t, "/v1beta/models/gemini-2.5-pro:generateContent", req.URL.Path)
+			require.Equal(t, "key=test-key", req.URL.RawQuery)
+			body, err := io.ReadAll(req.Body)
+			require.NoError(t, err)
+
+			var payload generateRequest
+			require.NoError(t, json.Unmarshal(body, &payload))
+			require.NotEmpty(t, payload.SystemInstruction.Parts)
+			systemPrompt := payload.SystemInstruction.Parts[0].Text
+			assert.Contains(t, systemPrompt, "SELECT email, count(*) AS transactions FROM transactions GROUP BY email")
+			assert.Contains(t, systemPrompt, `"row_count": 1`)
+			assert.Contains(t, systemPrompt, `"kind": "record"`)
+			assert.Contains(t, systemPrompt, `"truncated": false`)
+			require.Len(t, payload.Contents, 1)
+			assert.Equal(t, "user", payload.Contents[0].Role)
+			assert.Equal(t, "Who transacted the most?", payload.Contents[0].Parts[0].Text)
+			assert.Equal(t, "application/json", payload.GenerationConfig.ResponseMIMEType)
+			assertGeminiAnswerSchema(t, payload.GenerationConfig.ResponseSchema)
+
+			return testutil.JSONResponse(http.StatusOK, `{
+				"candidates":[{"content":{"parts":[{"text":"{\"answer\":\"admin@datalk.app has the most transactions with 200 transactions.\",\"limitations\":[]}"}]},"finishReason":"STOP"}],
+				"usageMetadata":{"promptTokenCount":32,"candidatesTokenCount":8,"totalTokenCount":40}
+			}`), nil
+		}),
+	})
+	require.NoError(t, err)
+
+	resp, err := client.GenerateAnswer(context.Background(), answerRequest("gemini-2.5-pro"))
+	require.NoError(t, err)
+	assert.Equal(t, "admin@datalk.app has the most transactions with 200 transactions.", resp.Answer)
+	require.NotNil(t, resp.Usage)
+	assert.Equal(t, 40, *resp.Usage.TotalTokens)
+	assert.NotEmpty(t, resp.RawRequest)
+	assert.NotEmpty(t, resp.RawResponse)
+}
+
 func TestClient_GenerateSQL_MalformedResponse(t *testing.T) {
 	client, err := NewClient(&llmtypes.ProviderConfig{
 		APIKeyEnc: "test-key",
@@ -97,6 +139,58 @@ func TestClient_GenerateSQL_MalformedResponse(t *testing.T) {
 
 	_, err = client.GenerateSQL(context.Background(), llmtypes.GenerateSQLRequest{Model: "gemini-2.5-pro"})
 	require.EqualError(t, err, "gemini generate response did not include candidate text")
+}
+
+func answerRequest(model string) llmtypes.GenerateAnswerRequest {
+	return llmtypes.GenerateAnswerRequest{
+		Model:        model,
+		UserPrompt:   "Who transacted the most?",
+		GeneratedSQL: "SELECT email, count(*) AS transactions FROM transactions GROUP BY email",
+		Result: llmtypes.QueryResultPreview{
+			Columns: []llmtypes.QueryResultColumn{
+				{Name: "email", DataType: "text"},
+				{Name: "transactions", DataType: "int8"},
+			},
+			Rows: []map[string]any{
+				{"email": "admin@datalk.app", "transactions": float64(200)},
+			},
+			RowCount:  1,
+			Truncated: false,
+			Kind:      "record",
+		},
+	}
+}
+
+func assertGeminiSQLSchema(t *testing.T, schema map[string]any) {
+	t.Helper()
+
+	assert.Equal(t, "OBJECT", schema["type"])
+	assert.NotContains(t, schema, "additionalProperties")
+
+	properties := schema["properties"].(map[string]any)
+	assumptions := properties["assumptions"].(map[string]any)
+	assert.Equal(t, "ARRAY", assumptions["type"])
+	assert.True(t, assumptions["nullable"].(bool))
+	assert.NotContains(t, assumptions, "additionalProperties")
+	assert.Equal(t, "STRING", assumptions["items"].(map[string]any)["type"])
+
+	confidence := properties["confidence"].(map[string]any)
+	assert.Equal(t, "NUMBER", confidence["type"])
+	assert.True(t, confidence["nullable"].(bool))
+}
+
+func assertGeminiAnswerSchema(t *testing.T, schema map[string]any) {
+	t.Helper()
+
+	assert.Equal(t, "OBJECT", schema["type"])
+	assert.NotContains(t, schema, "additionalProperties")
+
+	properties := schema["properties"].(map[string]any)
+	limitations := properties["limitations"].(map[string]any)
+	assert.Equal(t, "ARRAY", limitations["type"])
+	assert.True(t, limitations["nullable"].(bool))
+	assert.NotContains(t, limitations, "additionalProperties")
+	assert.Equal(t, "STRING", limitations["items"].(map[string]any)["type"])
 }
 
 func TestClient_ListModels_ProviderError(t *testing.T) {
