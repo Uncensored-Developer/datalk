@@ -252,6 +252,214 @@ func TestService_SendMessage_HappyPath(t *testing.T) {
 	assert.Equal(t, int64(200), turn.AssistantMessage.ID)
 	assert.Equal(t, int64(100), turn.Retrieval.MessageID)
 	assert.Equal(t, int64(200), turn.Execution.MessageID)
+	mockClient.AssertNotCalled(t, "GenerateAnswer", mock.Anything, mock.Anything)
+}
+
+func TestService_SendMessage_GeneratesNaturalResponseWhenRequested(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	userID := int32(7)
+	conversation := &chattype.Conversation{ID: 10, UserID: userID, ConnectionID: 42}
+	connection := &connectiontypes.Connection{ID: 42, Database: connectiontypes.DatabasePostgres, DSN: "postgres://warehouse"}
+	schemaContext := &schematypes.RetrievedSchemaContext{
+		ConnectionID: conversation.ConnectionID,
+		SnapshotID:   55,
+		RetrievedAt:  time.Now().UTC(),
+	}
+	queryResult := &chattype.QueryResult{
+		Columns:  []chattype.ResultColumn{{Name: "email", DataType: "TEXT"}, {Name: "transactions", DataType: "INT8"}},
+		Rows:     []map[string]any{{"email": "admin@datalk.app", "transactions": int64(200)}},
+		RowCount: 1,
+		Kind:     chattype.QueryResultKindRecord,
+	}
+
+	mockStorage := storagetesting.NewStorage(t)
+	mockConnections := chattesting.NewConnectionService(t)
+	mockSchemas := chattesting.NewSchemaRetriever(t)
+	mockModels := llmtesting.NewClientResolver(t)
+	mockSQLRunner := sqlrunnertesting.NewSQLRunner(t)
+	mockClient := llmtesting.NewClient(t)
+
+	mockStorage.On("GetConversation", ctx, conversation.ID).Return(conversation, nil).Once()
+	mockConnections.On("GetConnection", ctx, conversation.ConnectionID).Return(connection, nil).Once()
+	mockConnections.On("GetAccess", ctx, userID, conversation.ConnectionID).Return(&connectiontypes.Access{CanQuery: true}, nil).Once()
+	mockModels.On("ResolveClient", ctx, llmtypes.ProviderOpenAI, "gpt-5.2").Return(&chatllm.ResolvedClient{
+		ResolvedModel: &chatllm.ResolvedModel{
+			ProviderConfig:   &llmtypes.ProviderConfig{ID: 300, Provider: llmtypes.ProviderOpenAI},
+			ProviderModelID:  "gpt-5.2",
+			QualifiedModelID: "openai:gpt-5.2",
+		},
+		Client: mockClient,
+	}, nil).Once()
+	mockStorage.On("ListMessages", ctx, mock.Anything).Return(nil, nil).Once()
+	mockSchemas.On("RetrieveRelevantSchemaContext", ctx, mock.Anything).Return(schemaContext, nil).Once()
+	mockClient.On("GenerateSQL", ctx, mock.Anything).Return(&llmtypes.GenerateSQLResponse{
+		SQL:         "select email, count(*) as transactions from transactions group by email order by transactions desc limit 1",
+		Explanation: "Finds the top transacting user.",
+		RawRequest:  json.RawMessage(`{"sql_request":true}`),
+		RawResponse: json.RawMessage(`{"sql_response":true}`),
+		Usage:       &llmtypes.Usage{InputTokens: ptr.Of(10), OutputTokens: ptr.Of(5)},
+	}, nil).Once()
+	mockSQLRunner.On("Run", ctx, *connection, "select email, count(*) as transactions from transactions group by email order by transactions desc limit 1", sqlrunner.RunOptions{
+		Timeout:  defaultQueryTimeout,
+		RowLimit: defaultResultRowLimit,
+	}).Return(queryResult, nil).Once()
+	mockClient.On("GenerateAnswer", ctx, mock.MatchedBy(func(req llmtypes.GenerateAnswerRequest) bool {
+		return req.Model == "gpt-5.2" &&
+			req.UserPrompt == "Who transacted the most?" &&
+			req.GeneratedSQL == "select email, count(*) as transactions from transactions group by email order by transactions desc limit 1" &&
+			req.Result.RowCount == 1 &&
+			req.Result.Kind == string(chattype.QueryResultKindRecord)
+	})).Return(&llmtypes.GenerateAnswerResponse{
+		Answer:      "admin@datalk.app has the most transactions with 200 transactions.",
+		RawRequest:  json.RawMessage(`{"answer_request":true}`),
+		RawResponse: json.RawMessage(`{"answer_response":true}`),
+		Usage:       &llmtypes.Usage{InputTokens: ptr.Of(12), OutputTokens: ptr.Of(8)},
+	}, nil).Once()
+
+	mockStorage.On("InTransaction", ctx, mock.Anything).Return(func(ctx context.Context, fn func(context.Context) error) error {
+		return fn(ctx)
+	}).Once()
+	mockStorage.On("InsertMessage", ctx, mock.MatchedBy(func(message *chattype.Message) bool {
+		return message.Role == chattype.MessageRoleUser
+	})).Run(func(args mock.Arguments) {
+		args.Get(1).(*chattype.Message).ID = 100
+	}).Return(nil).Once()
+	mockStorage.On("InsertRetrieval", ctx, mock.Anything).Return(nil).Once()
+	mockStorage.On("InsertMessage", ctx, mock.MatchedBy(func(message *chattype.Message) bool {
+		if message.Role != chattype.MessageRoleAssistant {
+			return false
+		}
+		return message.Status == chattype.MessageStatusCompleted &&
+			message.Content == "Finds the top transacting user." &&
+			message.NaturalResponse != nil &&
+			*message.NaturalResponse == "admin@datalk.app has the most transactions with 200 transactions."
+	})).Run(func(args mock.Arguments) {
+		args.Get(1).(*chattype.Message).ID = 200
+	}).Return(nil).Once()
+	mockStorage.On("InsertLLMCall", ctx, mock.MatchedBy(func(call *chattype.MessageLLMCall) bool {
+		return call.MessageID == 200 && call.InputTokens != nil && *call.InputTokens == 10
+	})).Return(nil).Once()
+	mockStorage.On("InsertLLMCall", ctx, mock.MatchedBy(func(call *chattype.MessageLLMCall) bool {
+		return call.MessageID == 200 && call.InputTokens != nil && *call.InputTokens == 12
+	})).Return(nil).Once()
+	mockStorage.On("InsertExecution", ctx, mock.MatchedBy(func(execution *chattype.MessageExecution) bool {
+		return execution.MessageID == 200 && execution.Result.RowCount == 1
+	})).Return(nil).Once()
+
+	service := newTestService(mockStorage, mockConnections, mockSchemas, mockModels, mockSQLRunner)
+
+	turn, err := service.SendMessage(ctx, chattype.SendMessageParams{
+		UserID:                 userID,
+		ConversationID:         conversation.ID,
+		Content:                "Who transacted the most?",
+		Provider:               llmtypes.ProviderOpenAI,
+		Model:                  "gpt-5.2",
+		RequireNaturalResponse: true,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, turn)
+	require.NotNil(t, turn.AssistantMessage.NaturalResponse)
+	assert.Equal(t, "Finds the top transacting user.", turn.AssistantMessage.Content)
+	assert.Equal(t, "admin@datalk.app has the most transactions with 200 transactions.", *turn.AssistantMessage.NaturalResponse)
+}
+
+func TestService_SendMessage_PersistsSQLExecutionWhenNaturalResponseFails(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	userID := int32(7)
+	conversation := &chattype.Conversation{ID: 10, UserID: userID, ConnectionID: 42}
+	connection := &connectiontypes.Connection{ID: 42, Database: connectiontypes.DatabasePostgres, DSN: "postgres://warehouse"}
+	schemaContext := &schematypes.RetrievedSchemaContext{ConnectionID: conversation.ConnectionID, SnapshotID: 55, RetrievedAt: time.Now().UTC()}
+	queryResult := &chattype.QueryResult{
+		Columns:  []chattype.ResultColumn{{Name: "count", DataType: "INT8"}},
+		Rows:     []map[string]any{{"count": int64(3)}},
+		RowCount: 1,
+		Kind:     chattype.QueryResultKindScalar,
+	}
+
+	mockStorage := storagetesting.NewStorage(t)
+	mockConnections := chattesting.NewConnectionService(t)
+	mockSchemas := chattesting.NewSchemaRetriever(t)
+	mockModels := llmtesting.NewClientResolver(t)
+	mockSQLRunner := sqlrunnertesting.NewSQLRunner(t)
+	mockClient := llmtesting.NewClient(t)
+
+	mockStorage.On("GetConversation", ctx, conversation.ID).Return(conversation, nil).Once()
+	mockConnections.On("GetConnection", ctx, conversation.ConnectionID).Return(connection, nil).Once()
+	mockConnections.On("GetAccess", ctx, userID, conversation.ConnectionID).Return(&connectiontypes.Access{CanQuery: true}, nil).Once()
+	mockModels.On("ResolveClient", ctx, llmtypes.ProviderOpenAI, "gpt-5.2").Return(&chatllm.ResolvedClient{
+		ResolvedModel: &chatllm.ResolvedModel{
+			ProviderConfig:   &llmtypes.ProviderConfig{ID: 300, Provider: llmtypes.ProviderOpenAI},
+			ProviderModelID:  "gpt-5.2",
+			QualifiedModelID: "openai:gpt-5.2",
+		},
+		Client: mockClient,
+	}, nil).Once()
+	mockStorage.On("ListMessages", ctx, mock.Anything).Return(nil, nil).Once()
+	mockSchemas.On("RetrieveRelevantSchemaContext", ctx, mock.Anything).Return(schemaContext, nil).Once()
+	mockClient.On("GenerateSQL", ctx, mock.Anything).Return(&llmtypes.GenerateSQLResponse{
+		SQL:         "select count(*) from users",
+		Explanation: "Counts users.",
+		RawRequest:  json.RawMessage(`{"sql_request":true}`),
+		RawResponse: json.RawMessage(`{"sql_response":true}`),
+	}, nil).Once()
+	mockSQLRunner.On("Run", ctx, *connection, "select count(*) from users", sqlrunner.RunOptions{
+		Timeout:  defaultQueryTimeout,
+		RowLimit: defaultResultRowLimit,
+	}).Return(queryResult, nil).Once()
+	answerErr := errors.New("answer model unavailable")
+	mockClient.On("GenerateAnswer", ctx, mock.Anything).Return((*llmtypes.GenerateAnswerResponse)(nil), answerErr).Once()
+
+	mockStorage.On("InTransaction", ctx, mock.Anything).Return(func(ctx context.Context, fn func(context.Context) error) error {
+		return fn(ctx)
+	}).Once()
+	mockStorage.On("InsertMessage", ctx, mock.MatchedBy(func(message *chattype.Message) bool {
+		return message.Role == chattype.MessageRoleUser
+	})).Run(func(args mock.Arguments) {
+		args.Get(1).(*chattype.Message).ID = 100
+	}).Return(nil).Once()
+	mockStorage.On("InsertRetrieval", ctx, mock.Anything).Return(nil).Once()
+	mockStorage.On("InsertMessage", ctx, mock.MatchedBy(func(message *chattype.Message) bool {
+		if message.Role != chattype.MessageRoleAssistant {
+			return false
+		}
+		return message.Status == chattype.MessageStatusCompleted &&
+			message.Content == "Counts users." &&
+			message.NaturalResponse == nil &&
+			message.ErrorMessage != nil &&
+			strings.Contains(*message.ErrorMessage, "answer model unavailable")
+	})).Run(func(args mock.Arguments) {
+		args.Get(1).(*chattype.Message).ID = 200
+	}).Return(nil).Once()
+	mockStorage.On("InsertLLMCall", ctx, mock.MatchedBy(func(call *chattype.MessageLLMCall) bool {
+		return call.MessageID == 200
+	})).Return(nil).Once()
+	mockStorage.On("InsertExecution", ctx, mock.MatchedBy(func(execution *chattype.MessageExecution) bool {
+		return execution.MessageID == 200 && execution.GeneratedSQL == "select count(*) from users"
+	})).Return(nil).Once()
+
+	service := newTestService(mockStorage, mockConnections, mockSchemas, mockModels, mockSQLRunner)
+
+	turn, err := service.SendMessage(ctx, chattype.SendMessageParams{
+		UserID:                 userID,
+		ConversationID:         conversation.ID,
+		Content:                "how many users?",
+		Provider:               llmtypes.ProviderOpenAI,
+		Model:                  "gpt-5.2",
+		RequireNaturalResponse: true,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, turn)
+	assert.Equal(t, chattype.MessageStatusCompleted, turn.AssistantMessage.Status)
+	assert.Nil(t, turn.AssistantMessage.NaturalResponse)
+	require.NotNil(t, turn.AssistantMessage.ErrorMessage)
+	assert.Contains(t, *turn.AssistantMessage.ErrorMessage, "answer model unavailable")
+	require.NotNil(t, turn.Execution)
 }
 
 func TestService_SendMessage_RetriesCorrectionEligibleSQLError(t *testing.T) {

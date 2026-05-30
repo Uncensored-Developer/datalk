@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	chatllm "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/internal/chat/llm"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/chat/internal/chat/sqlrunner"
 	chattype "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/pkg/chat"
 	chaterrors "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/pkg/errors"
@@ -97,6 +98,10 @@ func (s *Service) SendMessage(ctx context.Context, params chattype.SendMessagePa
 		generateResp       *llmtypes.GenerateSQLResponse
 		result             *chattype.QueryResult
 		finalSQLError      error
+		answerReq          *llmtypes.GenerateAnswerRequest
+		answerResp         *llmtypes.GenerateAnswerResponse
+		answerLatencyMS    int32
+		answerErr          error
 		executionLatencyMS int32
 	)
 	for attemptNumber := 1; attemptNumber <= maxSQLAttempts; attemptNumber++ {
@@ -161,6 +166,19 @@ func (s *Service) SendMessage(ctx context.Context, params chattype.SendMessagePa
 			Error: sanitizeSQLCorrectionError(err),
 		})
 	}
+	if finalSQLError == nil && params.RequireNaturalResponse {
+		req := buildGenerateAnswerRequest(conversation, connection.Database, userContent, history, resolved.ProviderModelID, generateResp.SQL, *result)
+		answerReq = &req
+		answerStarted := time.Now()
+		answerResp, answerErr = resolved.Client.GenerateAnswer(ctx, req)
+		answerLatencyMS = elapsedMilliseconds(answerStarted)
+		if answerErr != nil {
+			s.logSendMessageFailure("failed to generate natural language answer", answerErr, params, connection, slog.Int("answer_latency_ms", int(answerLatencyMS)))
+		} else if answerResp == nil {
+			answerErr = xerrors.New("provider returned empty answer response")
+			s.logSendMessageFailure("provider returned empty answer response", answerErr, params, connection, slog.Int("answer_latency_ms", int(answerLatencyMS)))
+		}
+	}
 
 	userMessage := &chattype.Message{
 		ConversationID: conversation.ID,
@@ -189,6 +207,12 @@ func (s *Service) SendMessage(ctx context.Context, params chattype.SendMessagePa
 	}
 	if finalSQLError != nil {
 		assistantMessage.ErrorMessage = ptr.Of(sanitizeSQLCorrectionError(finalSQLError))
+	}
+	if answerResp != nil {
+		assistantMessage.NaturalResponse = ptr.Of(strings.TrimSpace(answerResp.Answer))
+	}
+	if answerErr != nil {
+		assistantMessage.ErrorMessage = ptr.Of(sanitizeSQLCorrectionError(answerErr))
 	}
 
 	var execution *chattype.MessageExecution
@@ -225,6 +249,13 @@ func (s *Service) SendMessage(ctx context.Context, params chattype.SendMessagePa
 			}
 			llmCalls = append(llmCalls, llmCall)
 		}
+		if answerReq != nil && answerResp != nil {
+			llmCall := buildAnswerLLMCall(assistantMessage.ID, resolved, *answerReq, answerResp, answerLatencyMS)
+			if err := s.storage.InsertLLMCall(txCtx, llmCall); err != nil {
+				return xerrors.Newf("failed to persist answer llm call: %w", err)
+			}
+			llmCalls = append(llmCalls, llmCall)
+		}
 
 		if execution != nil {
 			execution.MessageID = assistantMessage.ID
@@ -253,6 +284,8 @@ func (s *Service) SendMessage(ctx context.Context, params chattype.SendMessagePa
 		slog.Int("execution_latency_ms", int(executionLatencyMS)),
 		slog.Int("total_latency_ms", int(elapsedMilliseconds(startedAt))),
 		slog.Bool("sql_failed", finalSQLError != nil),
+		slog.Bool("natural_response_requested", params.RequireNaturalResponse),
+		slog.Bool("natural_response_generated", answerResp != nil),
 		slog.Int("result_rows", resultRowCount(result)),
 		slog.Bool("result_truncated", resultTruncated(result)),
 	)
@@ -354,6 +387,35 @@ func isSupportedChatDatabase(database connectiontypes.Database) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func buildGenerateAnswerRequest(
+	conversation *chattype.Conversation,
+	databaseKind connectiontypes.Database,
+	userPrompt string,
+	history []*chattype.Message,
+	modelID string,
+	generatedSQL string,
+	result chattype.QueryResult,
+) llmtypes.GenerateAnswerRequest {
+	return llmtypes.GenerateAnswerRequest{
+		Model: modelID,
+		Conversation: llmtypes.ConversationContext{
+			ConversationID: conversation.ID,
+			ConnectionID:   conversation.ConnectionID,
+			DatabaseKind:   databaseKind,
+			History:        toConversationMessages(history),
+		},
+		UserPrompt:   userPrompt,
+		GeneratedSQL: generatedSQL,
+		DatabaseKind: databaseKind,
+		Result:       chatllm.BuildQueryResultPreview(result, defaultAnswerResultRows, defaultAnswerResultBytes),
+		Options: llmtypes.GenerateAnswerOptions{
+			MaxHistoryMessages: defaultHistoryLimit,
+			MaxResultRows:      defaultAnswerResultRows,
+			MaxResultBytes:     defaultAnswerResultBytes,
+		},
 	}
 }
 
