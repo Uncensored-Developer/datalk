@@ -3,6 +3,7 @@ package sqlrunner
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/url"
 	"strings"
 	"time"
@@ -44,18 +45,21 @@ func NewRunner() *Runner {
 
 func (r *Runner) Run(ctx context.Context, connection connectiontypes.Connection, query string, options RunOptions) (*chattype.QueryResult, error) {
 	if err := r.validator.Validate(connection.Database, query); err != nil {
-		return nil, err
+		if !errors.Is(err, chaterrors.ErrInvalidSQL) {
+			return nil, runtimeError(err)
+		}
+		return nil, validationError(err)
 	}
 	if connection.DSN == "" {
-		return nil, xerrors.Newf("connection dsn is required: %w", chaterrors.ErrMessageExecutionFailed)
+		return nil, runtimeError(xerrors.Newf("connection dsn is required: %w", chaterrors.ErrMessageExecutionFailed))
 	}
 	driverName, err := driverNameForDatabase(connection.Database)
 	if err != nil {
-		return nil, err
+		return nil, runtimeError(err)
 	}
 	dataSourceName, err := dataSourceNameForDatabase(connection.Database, connection.DSN)
 	if err != nil {
-		return nil, err
+		return nil, runtimeError(err)
 	}
 
 	timeout := options.Timeout
@@ -72,30 +76,36 @@ func (r *Runner) Run(ctx context.Context, connection connectiontypes.Connection,
 
 	db, err := r.openDB(driverName, dataSourceName)
 	if err != nil {
-		return nil, xerrors.Newf("failed to open query connection: %w", err)
+		return nil, runtimeError(xerrors.Newf("failed to open query connection: %w", err))
 	}
 	defer db.Close()
 
 	// Query is done in a read-only transaction as a runtime guard.
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
-		return nil, xerrors.Newf("failed to start read-only query transaction: %w", err)
+		return nil, runtimeError(xerrors.Newf("failed to start read-only query transaction: %w", err))
 	}
 	defer tx.Rollback()
 
 	rows, err := tx.QueryContext(ctx, query)
 	if err != nil {
-		return nil, xerrors.Newf("failed to execute query: %w", err)
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, runtimeError(xerrors.Newf("failed to execute query: %w", ctxErr))
+		}
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, runtimeError(xerrors.Newf("failed to execute query: %w", err))
+		}
+		return nil, queryExecutionError(xerrors.Newf("failed to execute query: %w", err))
 	}
 	defer rows.Close()
 
 	result, err := collectQueryResult(sqlRows{rows: rows}, rowLimit)
 	if err != nil {
-		return nil, err
+		return nil, runtimeError(err)
 	}
 
 	if err := tx.Commit(); err != nil {
-		return nil, xerrors.Newf("failed to commit read-only query transaction: %w", err)
+		return nil, runtimeError(xerrors.Newf("failed to commit read-only query transaction: %w", err))
 	}
 
 	return result, nil
