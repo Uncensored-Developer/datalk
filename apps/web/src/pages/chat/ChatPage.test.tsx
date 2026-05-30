@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "../../providers/AppProviders";
 import { DashboardLayout } from "../../routes/DashboardLayout";
 import { ProtectedRoute } from "../../routes/ProtectedRoute";
+import type { MessageListItem, SendMessageResponse } from "../../types/api";
 import { ChatPage } from "./ChatPage";
 
 const session = {
@@ -73,7 +74,7 @@ const conversation = {
   updated_at: "2026-05-25T12:00:00Z",
 };
 
-const messageItems = [
+const messageItems: MessageListItem[] = [
   {
     message: {
       id: 1000,
@@ -204,10 +205,64 @@ describe("ChatPage", () => {
             content: "How many users?",
             provider: "openai",
             model: "openai:gpt-5.2",
+            require_natural_response: true,
           }),
         }),
       );
     });
+  });
+
+  it("remembers the natural response toggle across conversations", async () => {
+    const fetchMock = mockChatApi({ messages: [] });
+
+    renderChatRoute();
+
+    await userEvent.click((await screen.findAllByText("Revenue questions"))[0]);
+    await userEvent.click(await screen.findByRole("button", { name: "Turn natural response off" }));
+    await userEvent.type(await screen.findByLabelText("Message"), "How many users?");
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/chat/conversations/100/messages",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            content: "How many users?",
+            provider: "openai",
+            model: "openai:gpt-5.2",
+            require_natural_response: false,
+          }),
+        }),
+      );
+    });
+    expect(window.localStorage.getItem("datalk.chat.requireNaturalResponse")).toBe("false");
+  });
+
+  it("displays a natural response from the send response in chunks", async () => {
+    mockChatApi({
+      messages: [],
+      sendResponse: {
+        conversation,
+        user_message: messageItems[0].message,
+        assistant_message: {
+          ...messageItems[1].message,
+          content: "Counts users.",
+          natural_response: "There are 42 users.",
+        },
+        execution: messageItems[1].execution,
+        retrieval: messageItems[1].retrieval,
+      },
+    });
+
+    renderChatRoute();
+
+    await userEvent.click((await screen.findAllByText("Revenue questions"))[0]);
+    await userEvent.type(await screen.findByLabelText("Message"), "How many users?");
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByText("There are 42 users.")).toBeInTheDocument();
+    expect(screen.queryByText("Counts users.")).not.toBeInTheDocument();
   });
 
   it("uses and updates the last successful chat model", async () => {
@@ -229,6 +284,7 @@ describe("ChatPage", () => {
             content: "How many users?",
             provider: "ollama",
             model: "ollama:llama3.2",
+            require_natural_response: true,
           }),
         }),
       );
@@ -236,6 +292,35 @@ describe("ChatPage", () => {
     expect(window.localStorage.getItem("datalk.chat.lastModel")).toBe(
       "ollama:llama3.2",
     );
+  });
+
+  it("shows natural responses first and reveals SQL details on toggle", async () => {
+    mockChatApi({
+      messages: [
+        messageItems[0],
+        {
+          ...messageItems[1],
+          message: {
+            ...messageItems[1].message,
+            content: "Counts users.",
+            natural_response: "There are 42 users.",
+          },
+        },
+      ],
+    });
+
+    renderChatRoute();
+
+    await userEvent.click((await screen.findAllByText("Revenue questions"))[0]);
+
+    expect(await screen.findByText("There are 42 users.")).toBeInTheDocument();
+    expect(screen.queryByText("Counts users.")).not.toBeInTheDocument();
+    expect(screen.queryByText("42")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Show SQL and results" }));
+
+    expect(await screen.findByText("Counts users.")).toBeInTheDocument();
+    expect(screen.getByText("42")).toBeInTheDocument();
   });
 
   it("deletes a conversation", async () => {
@@ -312,10 +397,18 @@ function mockChatApi({
   conversations = [conversation],
   messages = messageItems,
   models = [model],
+  sendResponse = {
+    conversation,
+    user_message: messageItems[0].message,
+    assistant_message: messageItems[1].message,
+    execution: messageItems[1].execution,
+    retrieval: messageItems[1].retrieval,
+  },
 }: {
   conversations?: typeof conversation[];
   messages?: typeof messageItems;
   models?: Array<typeof model>;
+  sendResponse?: SendMessageResponse;
 } = {}) {
   return vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
     const rawPath =
@@ -346,13 +439,7 @@ function mockChatApi({
       return jsonResponse(conversation, { status: 201 });
     }
     if (method === "POST" && path === "/chat/conversations/100/messages") {
-      return jsonResponse({
-        conversation,
-        user_message: messageItems[0].message,
-        assistant_message: messageItems[1].message,
-        execution: messageItems[1].execution,
-        retrieval: messageItems[1].retrieval,
-      });
+      return jsonResponse(sendResponse);
     }
     if (method === "DELETE" && path === "/chat/conversations/100") {
       return new Response(null, { status: 204 });
