@@ -10,11 +10,21 @@ import (
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/chat/internal/chat/sqlrunner"
 	chattype "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/pkg/chat"
 	chaterrors "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/pkg/errors"
+	llmtypes "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/pkg/llm"
 	connectiontypes "github.com/Uncensored-Developer/datalk/apps/backend/services/connections/pkg/connections"
 	connectionerrors "github.com/Uncensored-Developer/datalk/apps/backend/services/connections/pkg/errors"
 	schematypes "github.com/Uncensored-Developer/datalk/apps/backend/services/schemas/pkg/schemas"
+	"github.com/gotidy/ptr"
 	"github.com/mdobak/go-xerrors"
 )
+
+const maxSQLAttempts = 3
+
+type sqlAttemptResult struct {
+	Request   llmtypes.GenerateSQLRequest
+	Response  *llmtypes.GenerateSQLResponse
+	LatencyMS int32
+}
 
 func (s *Service) SendMessage(ctx context.Context, params chattype.SendMessageParams) (*chattype.AssistantTurn, error) {
 	startedAt := time.Now()
@@ -81,42 +91,75 @@ func (s *Service) SendMessage(ctx context.Context, params chattype.SendMessagePa
 		RetrievedAt: schemaContext.RetrievedAt,
 	}
 
-	generateReq := buildGenerateSQLRequest(conversation, connection.Database, userContent, history, schemaContext, resolved.ProviderModelID)
-	if err := enforceGenerateSQLRequestLimits(&generateReq); err != nil {
-		s.logSendMessageFailure("generated sql request exceeded limits", err, params, connection,
-			slog.Int("schema_chunks", len(generateReq.Schema.Chunks)),
-			slog.Int("max_prompt_bytes", generateReq.Options.MaxPromptBytes),
+	var (
+		attempts           []sqlAttemptResult
+		correctionAttempts []llmtypes.SQLCorrectionAttempt
+		generateResp       *llmtypes.GenerateSQLResponse
+		result             *chattype.QueryResult
+		finalSQLError      error
+		executionLatencyMS int32
+	)
+	for attemptNumber := 1; attemptNumber <= maxSQLAttempts; attemptNumber++ {
+		generateReq := buildGenerateSQLRequest(conversation, connection.Database, userContent, history, schemaContext, resolved.ProviderModelID)
+		if len(correctionAttempts) > 0 {
+			generateReq.Correction = &llmtypes.SQLCorrectionContext{
+				AttemptNumber: attemptNumber - 1,
+				Attempts:      correctionAttempts,
+			}
+		}
+		if err := enforceGenerateSQLRequestLimits(&generateReq); err != nil {
+			s.logSendMessageFailure("generated sql request exceeded limits", err, params, connection,
+				slog.Int("schema_chunks", len(generateReq.Schema.Chunks)),
+				slog.Int("max_prompt_bytes", generateReq.Options.MaxPromptBytes),
+			)
+			return nil, err
+		}
+
+		llmStarted := time.Now()
+		resp, err := resolved.Client.GenerateSQL(ctx, generateReq)
+		llmLatencyMS := elapsedMilliseconds(llmStarted)
+		if err != nil {
+			s.logSendMessageFailure("failed to generate sql", err, params, connection, slog.Int("llm_latency_ms", int(llmLatencyMS)))
+			return nil, xerrors.Newf("failed to generate sql: %w", err)
+		}
+		if resp == nil {
+			err := xerrors.New("provider returned empty sql response")
+			s.logSendMessageFailure("provider returned empty sql response", err, params, connection, slog.Int("llm_latency_ms", int(llmLatencyMS)))
+			return nil, err
+		}
+
+		attempts = append(attempts, sqlAttemptResult{
+			Request:   generateReq,
+			Response:  resp,
+			LatencyMS: llmLatencyMS,
+		})
+		generateResp = resp
+
+		execStarted := time.Now()
+		result, err = s.sqlRunner.Run(ctx, *connection, resp.SQL, sqlrunner.RunOptions{
+			Timeout:  defaultQueryTimeout,
+			RowLimit: defaultResultRowLimit,
+		})
+		executionLatencyMS = elapsedMilliseconds(execStarted)
+		if err == nil {
+			finalSQLError = nil
+			break
+		}
+
+		finalSQLError = err
+		s.logSendMessageFailure("failed to execute generated sql", err, params, connection,
+			slog.Int("attempt", attemptNumber),
+			slog.Bool("correction_eligible", sqlrunner.IsCorrectionEligible(err)),
+			slog.Int("execution_latency_ms", int(executionLatencyMS)),
 		)
-		return nil, err
-	}
+		if !sqlrunner.IsCorrectionEligible(err) {
+			return nil, err
+		}
 
-	llmStarted := time.Now()
-	generateResp, err := resolved.Client.GenerateSQL(ctx, generateReq)
-	llmLatencyMS := elapsedMilliseconds(llmStarted)
-	if err != nil {
-		s.logSendMessageFailure("failed to generate sql", err, params, connection, slog.Int("llm_latency_ms", int(llmLatencyMS)))
-		return nil, xerrors.Newf("failed to generate sql: %w", err)
-	}
-	if generateResp == nil {
-		err := xerrors.New("provider returned empty sql response")
-		s.logSendMessageFailure("provider returned empty sql response", err, params, connection, slog.Int("llm_latency_ms", int(llmLatencyMS)))
-		return nil, err
-	}
-
-	if err := sqlrunner.NewValidator().Validate(connection.Database, generateResp.SQL); err != nil {
-		s.logSendMessageFailure("failed to validate generated sql", err, params, connection, slog.Int("llm_latency_ms", int(llmLatencyMS)))
-		return nil, xerrors.Newf("failed to validate sql: %w", err)
-	}
-
-	execStarted := time.Now()
-	result, err := s.sqlRunner.Run(ctx, *connection, generateResp.SQL, sqlrunner.RunOptions{
-		Timeout:  defaultQueryTimeout,
-		RowLimit: defaultResultRowLimit,
-	})
-	executionLatencyMS := elapsedMilliseconds(execStarted)
-	if err != nil {
-		s.logSendMessageFailure("failed to execute generated sql", err, params, connection, slog.Int("execution_latency_ms", int(executionLatencyMS)))
-		return nil, err
+		correctionAttempts = append(correctionAttempts, llmtypes.SQLCorrectionAttempt{
+			SQL:   resp.SQL,
+			Error: sanitizeSQLCorrectionError(err),
+		})
 	}
 
 	userMessage := &chattype.Message{
@@ -125,28 +168,42 @@ func (s *Service) SendMessage(ctx context.Context, params chattype.SendMessagePa
 		Content:        userContent,
 		Status:         chattype.MessageStatusCompleted,
 	}
+	messageStatus := chattype.MessageStatusCompleted
+	if finalSQLError != nil {
+		messageStatus = chattype.MessageStatusFailed
+	}
 	assistantMessage := &chattype.Message{
 		ConversationID: conversation.ID,
 		Role:           chattype.MessageRoleAssistant,
 		Content:        strings.TrimSpace(generateResp.Explanation),
 		Provider:       &params.Provider,
 		Model:          &params.Model,
-		Status:         chattype.MessageStatusCompleted,
+		Status:         messageStatus,
 	}
 	if assistantMessage.Content == "" {
-		assistantMessage.Content = "Query executed successfully."
+		if finalSQLError != nil {
+			assistantMessage.Content = "I couldn't produce a SQL query that executed successfully."
+		} else {
+			assistantMessage.Content = "Query executed successfully."
+		}
+	}
+	if finalSQLError != nil {
+		assistantMessage.ErrorMessage = ptr.Of(sanitizeSQLCorrectionError(finalSQLError))
 	}
 
-	execution := &chattype.MessageExecution{
-		ConnectionID:       connection.ID,
-		DatabaseKind:       connection.Database,
-		GeneratedSQL:       generateResp.SQL,
-		NormalizedSQL:      generateResp.SQL,
-		Result:             *result,
-		ExecutionLatencyMS: executionLatencyMS,
-		ExecutedAt:         time.Now().UTC(),
+	var execution *chattype.MessageExecution
+	if finalSQLError == nil {
+		execution = &chattype.MessageExecution{
+			ConnectionID:       connection.ID,
+			DatabaseKind:       connection.Database,
+			GeneratedSQL:       generateResp.SQL,
+			NormalizedSQL:      generateResp.SQL,
+			Result:             *result,
+			ExecutionLatencyMS: executionLatencyMS,
+			ExecutedAt:         time.Now().UTC(),
+		}
 	}
-	var llmCall *chattype.MessageLLMCall
+	llmCalls := make([]*chattype.MessageLLMCall, 0, len(attempts))
 	if err := s.storage.InTransaction(ctx, func(txCtx context.Context) error {
 		if err := s.storage.InsertMessage(txCtx, userMessage); err != nil {
 			return xerrors.Newf("failed to persist user message: %w", err)
@@ -161,14 +218,19 @@ func (s *Service) SendMessage(ctx context.Context, params chattype.SendMessagePa
 			return xerrors.Newf("failed to persist assistant message: %w", err)
 		}
 
-		llmCall = buildLLMCall(assistantMessage.ID, resolved, generateReq, generateResp, llmLatencyMS)
-		if err := s.storage.InsertLLMCall(txCtx, llmCall); err != nil {
-			return xerrors.Newf("failed to persist llm call: %w", err)
+		for _, attempt := range attempts {
+			llmCall := buildLLMCall(assistantMessage.ID, resolved, attempt.Request, attempt.Response, attempt.LatencyMS)
+			if err := s.storage.InsertLLMCall(txCtx, llmCall); err != nil {
+				return xerrors.Newf("failed to persist llm call: %w", err)
+			}
+			llmCalls = append(llmCalls, llmCall)
 		}
 
-		execution.MessageID = assistantMessage.ID
-		if err := s.storage.InsertExecution(txCtx, execution); err != nil {
-			return xerrors.Newf("failed to persist execution: %w", err)
+		if execution != nil {
+			execution.MessageID = assistantMessage.ID
+			if err := s.storage.InsertExecution(txCtx, execution); err != nil {
+				return xerrors.Newf("failed to persist execution: %w", err)
+			}
 		}
 
 		return nil
@@ -187,11 +249,12 @@ func (s *Service) SendMessage(ctx context.Context, params chattype.SendMessagePa
 		slog.String("model", params.Model),
 		slog.Int("history_messages", len(history)),
 		slog.Int("schema_chunks", len(schemaContext.Chunks)),
-		slog.Int("llm_latency_ms", int(llmLatencyMS)),
+		slog.Int("sql_attempts", len(attempts)),
 		slog.Int("execution_latency_ms", int(executionLatencyMS)),
 		slog.Int("total_latency_ms", int(elapsedMilliseconds(startedAt))),
-		slog.Int("result_rows", int(result.RowCount)),
-		slog.Bool("result_truncated", result.Truncated),
+		slog.Bool("sql_failed", finalSQLError != nil),
+		slog.Int("result_rows", resultRowCount(result)),
+		slog.Bool("result_truncated", resultTruncated(result)),
 	)
 
 	return &chattype.AssistantTurn{
@@ -292,4 +355,45 @@ func isSupportedChatDatabase(database connectiontypes.Database) bool {
 	default:
 		return false
 	}
+}
+
+func sanitizeSQLCorrectionError(err error) string {
+	if err == nil {
+		return ""
+	}
+	message := strings.TrimSpace(err.Error())
+	if message == "" {
+		return ""
+	}
+
+	message = redactConnectionStrings(message)
+	const maxErrorLength = 2000
+	if len(message) > maxErrorLength {
+		return message[:maxErrorLength] + "..."
+	}
+	return message
+}
+
+func redactConnectionStrings(message string) string {
+	fields := strings.Fields(message)
+	for index, field := range fields {
+		normalized := strings.ToLower(field)
+		if strings.Contains(normalized, "postgres://") ||
+			strings.Contains(normalized, "postgresql://") ||
+			strings.Contains(normalized, "mysql://") {
+			fields[index] = redactedValue
+		}
+	}
+	return strings.Join(fields, " ")
+}
+
+func resultRowCount(result *chattype.QueryResult) int {
+	if result == nil {
+		return 0
+	}
+	return int(result.RowCount)
+}
+
+func resultTruncated(result *chattype.QueryResult) bool {
+	return result != nil && result.Truncated
 }
