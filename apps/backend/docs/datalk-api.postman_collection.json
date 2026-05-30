@@ -837,7 +837,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"content\": \"How many users signed up last week?\",\n  \"provider\": \"{{provider}}\",\n  \"model\": \"{{model}}\"\n}"
+              "raw": "{\n  \"content\": \"How many users signed up last week?\",\n  \"provider\": \"{{provider}}\",\n  \"model\": \"{{model}}\",\n  \"require_natural_response\": true\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/chat/conversations/{{conversationId}}/messages",
@@ -851,7 +851,7 @@
                 "messages"
               ]
             },
-            "description": "Sends a prompt, generates SQL using the selected model, executes it, and returns the assistant turn. Retrieval chunks are intentionally omitted from the API response."
+            "description": "Sends a prompt, generates SQL using the selected model, executes it, and returns the assistant turn. Set require_natural_response to true to request an additional natural-language answer stored as assistant_message.natural_response. SQL validation/query execution failures are retried with correction context up to two times, for three total SQL attempts. Retrieval chunks are intentionally omitted from the API response."
           }
         }
       ]

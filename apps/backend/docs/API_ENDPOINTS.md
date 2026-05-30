@@ -800,7 +800,8 @@ Response `200`:
       "id": 1001,
       "conversation_id": 100,
       "role": "assistant",
-      "content": "SELECT count(*) FROM users WHERE created_at >= date_trunc('week', now()) - interval '1 week';",
+      "content": "Counts users who signed up last week.",
+      "natural_response": "42 users signed up last week.",
       "provider": "openai",
       "model": "openai:gpt-5.2",
       "status": "completed",
@@ -852,7 +853,8 @@ Body:
 {
   "content": "How many users signed up last week?",
   "provider": "openai",
-  "model": "openai:gpt-5.2"
+  "model": "openai:gpt-5.2",
+  "require_natural_response": true
 }
 ```
 
@@ -880,7 +882,8 @@ Response `200`:
     "id": 1001,
     "conversation_id": 100,
     "role": "assistant",
-    "content": "SELECT count(*) FROM users WHERE created_at >= date_trunc('week', now()) - interval '1 week';",
+    "content": "Counts users who signed up last week.",
+    "natural_response": "42 users signed up last week.",
     "provider": "openai",
     "model": "openai:gpt-5.2",
     "status": "completed",
@@ -916,6 +919,16 @@ Request rules:
 - `content` is required and cannot be blank.
 - `provider` must be one of the known providers.
 - `model` should be a model ID returned by `GET /chat/models`.
+- `require_natural_response` is optional and defaults to `false`. When `true`, the backend makes an additional LLM call after successful SQL execution and stores the user-facing explanation in `assistant_message.natural_response`.
+
+SQL generation and correction behavior:
+
+- The backend first asks the selected LLM to generate one read-only SQL statement from the prompt and retrieved schema context.
+- If generated SQL fails validation or the database returns a query execution error, the backend sends the failed SQL and sanitized database error back to the LLM and asks for corrected SQL.
+- Correction is attempted at most twice, for three total SQL attempts.
+- Runtime failures are not correction-eligible. These include missing DSN, driver/open errors, read-only transaction begin errors, context timeout/cancellation, row scan/iteration errors, and commit errors.
+- If SQL correction is exhausted, the assistant message is saved with `status: "failed"` and `error_message`, all successful SQL-generation LLM calls are retained, and no execution row is returned.
+- If `require_natural_response` is `true` and answer generation fails after SQL execution succeeds, the assistant message remains `status: "completed"`, the execution row is still returned, `natural_response` is omitted, and `error_message` contains the sanitized answer-generation error.
 
 Important frontend states:
 
