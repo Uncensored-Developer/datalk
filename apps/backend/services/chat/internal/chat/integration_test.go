@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -197,6 +198,10 @@ func (c *integrationSQLClient) GenerateSQL(_ context.Context, req llmtypes.Gener
 		RawRequest:  json.RawMessage(`{"integration":true}`),
 		RawResponse: json.RawMessage(`{"sql":true}`),
 	}, nil
+}
+
+func (c *integrationSQLClient) GenerateAnswer(context.Context, llmtypes.GenerateAnswerRequest) (*llmtypes.GenerateAnswerResponse, error) {
+	return nil, errors.New("not implemented in integration tests")
 }
 
 func integrationPostgresDSN(cfg config.Config, schema string) string {

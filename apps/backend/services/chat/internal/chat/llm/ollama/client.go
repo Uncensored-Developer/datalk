@@ -188,6 +188,68 @@ func (c *Client) GenerateSQL(ctx context.Context, req llmtypes.GenerateSQLReques
 	return llmcore.ParseGenerateSQLResponse(rawRequest, rawResponse, payload.Message.Content, usage, finishReason)
 }
 
+func (c *Client) GenerateAnswer(ctx context.Context, req llmtypes.GenerateAnswerRequest) (*llmtypes.GenerateAnswerResponse, error) {
+	if strings.TrimSpace(req.Model) == "" {
+		return nil, xerrors.New("model is required")
+	}
+
+	requestBody := chatRequest{
+		Model:    req.Model,
+		Messages: ollamaAnswerMessages(req),
+		Format:   llmcore.GenerateAnswerSchema(),
+		Stream:   false,
+	}
+
+	rawRequest, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, xerrors.Newf("failed to marshal ollama answer request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/chat", bytes.NewReader(rawRequest))
+	if err != nil {
+		return nil, xerrors.Newf("failed to create ollama chat request: %w", err)
+	}
+	httpReq.Header.Set("content-type", "application/json")
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, xerrors.Newf("failed to call ollama chat api: %w", err)
+	}
+	defer resp.Body.Close()
+
+	rawResponse, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, xerrors.Newf("failed to read ollama answer response: %w", err)
+	}
+	if err := decodeHTTPError("ollama chat api", resp.StatusCode, rawResponse); err != nil {
+		return nil, err
+	}
+
+	var payload chatResponse
+	if err := json.Unmarshal(rawResponse, &payload); err != nil {
+		return nil, xerrors.Newf("failed to decode ollama answer response: %w", err)
+	}
+	if strings.TrimSpace(payload.Message.Content) == "" {
+		return nil, xerrors.New("ollama answer response did not include structured output")
+	}
+
+	var finishReason *string
+	if strings.TrimSpace(payload.DoneReason) != "" {
+		finishReason = &payload.DoneReason
+	}
+
+	usage := &llmtypes.Usage{
+		InputTokens:  payload.PromptEvalCount,
+		OutputTokens: payload.EvalCount,
+	}
+	if payload.PromptEvalCount != nil && payload.EvalCount != nil {
+		total := *payload.PromptEvalCount + *payload.EvalCount
+		usage.TotalTokens = &total
+	}
+
+	return llmcore.ParseGenerateAnswerResponse(rawRequest, rawResponse, payload.Message.Content, usage, finishReason)
+}
+
 func decodeHTTPError(apiName string, statusCode int, body []byte) error {
 	if statusCode < http.StatusBadRequest {
 		return nil
@@ -207,6 +269,22 @@ func ollamaMessages(req llmtypes.GenerateSQLRequest) []message {
 	messages = append(messages, message{
 		Role:    "system",
 		Content: llmcore.GenerateSQLSystemPrompt(req),
+	})
+	for _, promptMessage := range promptMessages {
+		messages = append(messages, message{
+			Role:    normalizeOllamaRole(promptMessage.Role),
+			Content: promptMessage.Content,
+		})
+	}
+	return messages
+}
+
+func ollamaAnswerMessages(req llmtypes.GenerateAnswerRequest) []message {
+	promptMessages := llmcore.GenerateAnswerMessages(req)
+	messages := make([]message, 0, len(promptMessages)+1)
+	messages = append(messages, message{
+		Role:    "system",
+		Content: llmcore.GenerateAnswerSystemPrompt(req),
 	})
 	for _, promptMessage := range promptMessages {
 		messages = append(messages, message{

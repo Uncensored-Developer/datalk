@@ -46,6 +46,10 @@ func (s stubClient) GenerateSQL(context.Context, llmtypes.GenerateSQLRequest) (*
 	return nil, errors.New("not implemented in step 6 tests")
 }
 
+func (s stubClient) GenerateAnswer(context.Context, llmtypes.GenerateAnswerRequest) (*llmtypes.GenerateAnswerResponse, error) {
+	return nil, errors.New("not implemented in registry tests")
+}
+
 func TestRegistry_ListAvailableModels_FiltersDisabledConfigs(t *testing.T) {
 	t.Parallel()
 

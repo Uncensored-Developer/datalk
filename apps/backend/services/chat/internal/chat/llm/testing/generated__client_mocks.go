@@ -14,6 +14,36 @@ type Client struct {
 	mock.Mock
 }
 
+// GenerateAnswer provides a mock function with given fields: ctx, req
+func (_m *Client) GenerateAnswer(ctx context.Context, req llm.GenerateAnswerRequest) (*llm.GenerateAnswerResponse, error) {
+	ret := _m.Called(ctx, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GenerateAnswer")
+	}
+
+	var r0 *llm.GenerateAnswerResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, llm.GenerateAnswerRequest) (*llm.GenerateAnswerResponse, error)); ok {
+		return rf(ctx, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, llm.GenerateAnswerRequest) *llm.GenerateAnswerResponse); ok {
+		r0 = rf(ctx, req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*llm.GenerateAnswerResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, llm.GenerateAnswerRequest) error); ok {
+		r1 = rf(ctx, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GenerateSQL provides a mock function with given fields: ctx, req
 func (_m *Client) GenerateSQL(ctx context.Context, req llm.GenerateSQLRequest) (*llm.GenerateSQLResponse, error) {
 	ret := _m.Called(ctx, req)
