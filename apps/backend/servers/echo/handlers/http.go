@@ -117,6 +117,7 @@ func Error(c echo.Context, logger *slog.Logger, err error) error {
 	return echo.NewHTTPError(status, ErrorResponse{Error: message})
 }
 
+
 func logInternalError(c echo.Context, logger *slog.Logger, err error) {
 	if logger == nil {
 		logger = slog.Default()

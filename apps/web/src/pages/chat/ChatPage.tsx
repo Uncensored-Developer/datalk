@@ -1,7 +1,6 @@
 import CloseFullscreenOutlinedIcon from "@mui/icons-material/CloseFullscreenOutlined";
 import CodeOutlinedIcon from "@mui/icons-material/CodeOutlined";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
-import KeyboardArrowRightOutlinedIcon from "@mui/icons-material/KeyboardArrowRightOutlined";
 import OpenInFullOutlinedIcon from "@mui/icons-material/OpenInFullOutlined";
 import PsychologyAltOutlinedIcon from "@mui/icons-material/PsychologyAltOutlined";
 import SendOutlinedIcon from "@mui/icons-material/SendOutlined";
@@ -14,13 +13,10 @@ import Collapse from "@mui/material/Collapse";
 import Dialog from "@mui/material/Dialog";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
-import Divider from "@mui/material/Divider";
-import FormControl from "@mui/material/FormControl";
 import IconButton from "@mui/material/IconButton";
-import InputLabel from "@mui/material/InputLabel";
+import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Paper from "@mui/material/Paper";
-import Select from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -32,7 +28,7 @@ import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useParams } from "react-router-dom";
 import { useAuth } from "../../auth/AuthProvider";
@@ -153,48 +149,28 @@ function MessagePanel({
   onRetryModels: () => void;
 }) {
   const queryClient = useQueryClient();
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const streamTimersRef = useRef<number[]>([]);
   const [streamedNaturalResponses, setStreamedNaturalResponses] = useState<Record<number, string>>({});
   const lastMessageID = messages.at(-1)?.message.id;
+  const [isPending, setIsPending] = useState(false);
+  const [optimisticContent, setOptimisticContent] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (lastMessageID && typeof messagesEndRef.current?.scrollIntoView === "function") {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
-    }
-  }, [lastMessageID]);
-
-  useEffect(() => {
-    const timers = streamTimersRef.current;
-    return () => {
-      for (const timer of timers) {
-        window.clearInterval(timer);
-      }
-    };
+  /** Always-instant, direct DOM scroll — most reliable across browsers. */
+  const scrollToBottom = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
   }, []);
 
-  if (!conversation) {
-    return (
-      <EmptyState
-        title="Select a conversation"
-        description="Choose a conversation from the side navigation or create a new one."
-      />
-    );
-  }
-
-  const streamNaturalResponse = (messageID: number, fullText: string) => {
+  const streamNaturalResponse = useCallback((messageID: number, fullText: string) => {
     const chunks = fullText.match(/\S+\s*/g) ?? [fullText];
     let index = 0;
     setStreamedNaturalResponses((current) => ({ ...current, [messageID]: "" }));
-
     const timer = window.setInterval(() => {
       index += 1;
-      const visibleText = chunks.slice(0, index).join("");
-      setStreamedNaturalResponses((current) => ({
-        ...current,
-        [messageID]: visibleText,
-      }));
-
+      const visible = chunks.slice(0, index).join("");
+      setStreamedNaturalResponses((current) => ({ ...current, [messageID]: visible }));
       if (index >= chunks.length) {
         window.clearInterval(timer);
         window.setTimeout(() => {
@@ -207,23 +183,77 @@ function MessagePanel({
       }
     }, 45);
     streamTimersRef.current.push(timer);
-  };
+  }, []);
+
+  // When real messages arrive: clear optimistic state, scroll to bottom.
+  useEffect(() => {
+    if (!lastMessageID) return;
+    setOptimisticContent(null);
+    setIsPending(false);
+    const id = setTimeout(scrollToBottom, 0);
+
+    // Kick off typewriter for any new assistant message with a natural response.
+    const lastMsg = messages.at(-1);
+    if (lastMsg?.message.role === "assistant" && lastMsg.message.natural_response) {
+      streamNaturalResponse(lastMsg.message.id, lastMsg.message.natural_response);
+    }
+
+    return () => clearTimeout(id);
+  }, [lastMessageID, scrollToBottom, streamNaturalResponse]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Scroll instantly the moment the user's optimistic bubble appears.
+  useEffect(() => {
+    if (optimisticContent) scrollToBottom();
+  }, [optimisticContent, scrollToBottom]);
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    const timers = streamTimersRef.current;
+    return () => { for (const t of timers) window.clearInterval(t); };
+  }, []);
+
+  const handleOptimisticMessage = useCallback((content: string) => {
+    setOptimisticContent(content);
+    setIsPending(true);
+  }, []);
+
+  // Merge real messages with the optimistic user message
+  const allMessages: MessageListItem[] = useMemo(() => {
+    if (!optimisticContent || !conversation) return messages;
+    return [
+      ...messages,
+      {
+        message: {
+          id: -1,
+          conversation_id: conversation.id,
+          role: "user" as const,
+          content: optimisticContent,
+          status: "pending" as const,
+          created_at: new Date().toISOString(),
+        },
+      },
+    ];
+  }, [messages, optimisticContent, conversation]);
+
+  if (!conversation) {
+    return (
+      <EmptyState
+        title="Select a conversation"
+        description="Choose a conversation from the side navigation or create a new one."
+      />
+    );
+  }
 
   const handleSendSuccess = (response: SendMessageResponse) => {
     const naturalResponse = response.assistant_message.natural_response?.trim();
-    if (!naturalResponse) {
-      return false;
-    }
+    if (!naturalResponse) return false;
 
     queryClient.setQueryData<MessageListItem[]>(
       ["chat-messages", conversation.id],
       (current = []) => {
         const nextItems: MessageListItem[] = [
           { message: response.user_message, retrieval: response.retrieval },
-          {
-            message: response.assistant_message,
-            execution: response.execution,
-          },
+          { message: response.assistant_message, execution: response.execution },
         ];
         const nextIDs = new Set(nextItems.map((item) => item.message.id));
         return [
@@ -243,15 +273,12 @@ function MessagePanel({
         display: "flex",
         flexDirection: "column",
         minHeight: 0,
+        maxWidth: 800,
+        width: "100%",
+        mx: "auto",
       }}
     >
-      <Stack spacing={0.5} sx={{ pb: 2 }}>
-        <Typography variant="h1">{conversation.title}</Typography>
-        <Typography color="text.secondary" variant="body2">
-          Connection {conversation.connection_id}
-        </Typography>
-      </Stack>
-
+      {/* Models error banner */}
       {modelsError ? (
         <Alert
           severity="warning"
@@ -264,22 +291,28 @@ function MessagePanel({
               Retry
             </Button>
           }
-          sx={{ mb: 2 }}
+          sx={{ mb: 1.5 }}
         >
           {modelsError}
         </Alert>
       ) : null}
 
+      {/* Messages scroll area */}
       <Box
+        ref={scrollContainerRef}
         sx={{
           flex: 1,
           minHeight: 0,
           overflowY: "auto",
-          pr: { xs: 0, sm: 1 },
-          pb: 2,
+          pb: 3,
+          display: "flex",
+          flexDirection: "column",
+          scrollbarWidth: "none",
+          "&::-webkit-scrollbar": { display: "none" },
         }}
       >
         {isLoading ? <LoadingState label="Loading messages" /> : null}
+
         {messagesError ? (
           <Alert
             severity="error"
@@ -298,40 +331,107 @@ function MessagePanel({
             {messagesError}
           </Alert>
         ) : null}
+
+        {/* Conversational welcome — no card, no border */}
         {!isLoading && !messagesError && messages.length === 0 ? (
-          <EmptyState
-            title="No messages yet"
-            description="Send the first question for this conversation."
-          />
+          <Box
+            sx={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              textAlign: "center",
+              py: 8,
+              px: 2,
+            }}
+          >
+            <Typography
+              variant="h2"
+              fontWeight={700}
+              sx={{ mb: 1, fontSize: { xs: "1.4rem", sm: "1.75rem" } }}
+            >
+              {conversation.title}
+            </Typography>
+            <Typography color="text.secondary" sx={{ maxWidth: 380 }}>
+              Ask anything about your data. I'll write the SQL and show you the results.
+            </Typography>
+          </Box>
         ) : null}
-        <Stack spacing={2}>
-          {messages.map((item) => (
-            <MessageItem
-              key={item.message.id}
-              item={item}
-              streamedNaturalResponse={streamedNaturalResponses[item.message.id]}
-            />
-          ))}
-          <Box ref={messagesEndRef} />
-        </Stack>
+
+        {/* Message list (real + optimistic) */}
+        {allMessages.length > 0 ? (
+          <Stack spacing={3} sx={{ pt: 2 }}>
+            {allMessages.map((item) => (
+              <MessageItem
+                key={item.message.id}
+                item={item}
+                streamedNaturalResponse={streamedNaturalResponses[item.message.id]}
+              />
+            ))}
+          </Stack>
+        ) : null}
+
+        {/* Typing indicator — shown while the API is working */}
+        {isPending ? (
+          <Box sx={{ display: "flex", alignItems: "center", px: 2, pt: 3 }}>
+            <Box sx={{ display: "flex", gap: "5px", alignItems: "center" }}>
+              {[0, 1, 2].map((i) => (
+                <Box
+                  key={i}
+                  sx={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    bgcolor: "text.disabled",
+                    animation: "typingPulse 1.2s ease-in-out infinite",
+                    animationDelay: `${i * 0.2}s`,
+                    "@keyframes typingPulse": {
+                      "0%, 60%, 100%": { opacity: 0.25, transform: "scale(1)" },
+                      "30%": { opacity: 1, transform: "scale(1.25)" },
+                    },
+                  }}
+                />
+              ))}
+            </Box>
+          </Box>
+        ) : null}
+
       </Box>
 
-      <Box
-        sx={{
-          pt: 2,
-          borderTop: "1px solid",
-          borderColor: "divider",
-          bgcolor: "background.default",
-        }}
-      >
+      {/* Compose bar — no hard border separator */}
+      <Box sx={{ pt: 1.5, pb: 0.5 }}>
         <SendMessageForm
           conversationID={conversation.id}
           models={models}
+          onOptimisticMessage={handleOptimisticMessage}
           onSendSuccess={handleSendSuccess}
         />
       </Box>
     </Box>
   );
+}
+
+function formatTimestamp(iso: string): string {
+  const date = new Date(iso);
+  const now = new Date();
+  const isToday =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+
+  const time = date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (isToday) return time;
+
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterday =
+    date.getFullYear() === yesterday.getFullYear() &&
+    date.getMonth() === yesterday.getMonth() &&
+    date.getDate() === yesterday.getDate();
+
+  if (isYesterday) return `Yesterday ${time}`;
+  return `${date.toLocaleDateString([], { month: "short", day: "numeric" })} ${time}`;
 }
 
 function MessageItem({
@@ -341,111 +441,66 @@ function MessageItem({
   item: MessageListItem;
   streamedNaturalResponse?: string;
 }) {
-  const [detailsOpen, setDetailsOpen] = useState(false);
   const isAssistant = item.message.role === "assistant";
-  const hasModelInfo = Boolean(item.message.provider || item.message.model);
-  const hasNaturalResponse = isAssistant && Boolean(item.message.natural_response);
-  const hasHiddenDetails = hasNaturalResponse && Boolean(item.message.content || item.execution);
-  const messageText = hasNaturalResponse
-    ? streamedNaturalResponse ?? item.message.natural_response
+  const timestamp = item.message.created_at ? formatTimestamp(item.message.created_at) : null;
+
+  // Prefer natural_response (with optional typewriter effect) over raw content
+  const displayText = isAssistant && item.message.natural_response
+    ? (streamedNaturalResponse ?? item.message.natural_response)
     : item.message.content;
 
   return (
-    <Stack
-      direction="row"
-      justifyContent={isAssistant ? "flex-start" : "flex-end"}
-      sx={{ width: "100%" }}
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: isAssistant ? "flex-start" : "flex-end",
+        gap: 0.5,
+        px: 2,
+        animation: "messageIn 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94) both",
+        "@keyframes messageIn": {
+          from: { opacity: 0, transform: "translateY(10px)" },
+          to: { opacity: 1, transform: "translateY(0)" },
+        },
+      }}
     >
-      <Paper
-        variant="outlined"
-        sx={{
-          p: 1.5,
-          borderRadius: 3,
-          width: "fit-content",
-          maxWidth: { xs: "100%", md: "78%" },
-          bgcolor: isAssistant ? "background.paper" : "primary.main",
-          color: isAssistant ? "text.primary" : "primary.contrastText",
-          borderColor: isAssistant ? "divider" : "primary.main",
-          "& .assistant-message-controls": {
-            opacity: 0,
-            transition: (theme) =>
-              theme.transitions.create("opacity", {
-                duration: theme.transitions.duration.shortest,
-              }),
-          },
-          "&:hover .assistant-message-controls, &:focus-within .assistant-message-controls": {
-            opacity: 1,
-          },
-        }}
+      {/* Bubble */}
+      <Box
+        sx={
+          isAssistant
+            ? { maxWidth: { xs: "100%", md: "85%" }, color: "text.primary" }
+            : {
+                maxWidth: { xs: "88%", md: "72%" },
+                bgcolor: (theme) =>
+                  theme.palette.mode === "dark" ? "#374151" : "#dde4f0",
+                color: (theme) =>
+                  theme.palette.mode === "dark" ? "#f9fafb" : "#111827",
+                borderRadius: "12px 12px 3px 12px",
+                px: 2,
+                py: 1.25,
+              }
+        }
       >
-        <Stack spacing={1.5}>
-          {isAssistant && (hasModelInfo || hasHiddenDetails) ? (
-            <Stack
-              direction="row"
-              justifyContent="flex-end"
-              spacing={0.5}
-            >
-              {hasModelInfo ? (
-                <Box className="assistant-message-controls">
-                  <Tooltip
-                    title={[
-                      item.message.provider ? `Provider: ${item.message.provider}` : null,
-                      item.message.model ? `Model: ${item.message.model}` : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" | ")}
-                  >
-                    <IconButton aria-label="Message model details" size="small">
-                      <InfoOutlinedIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-              ) : null}
-              {hasHiddenDetails ? (
-                <Tooltip title={detailsOpen ? "Hide SQL and results" : "Show SQL and results"}>
-                  <IconButton
-                    aria-label={detailsOpen ? "Hide SQL and results" : "Show SQL and results"}
-                    color={detailsOpen ? "primary" : "default"}
-                    onClick={() => setDetailsOpen((open) => !open)}
-                    size="small"
-                  >
-                    <KeyboardArrowRightOutlinedIcon
-                      fontSize="small"
-                      sx={{
-                        transform: detailsOpen ? "rotate(90deg)" : "rotate(0deg)",
-                        transition: (theme) =>
-                          theme.transitions.create("transform", {
-                            duration: theme.transitions.duration.shortest,
-                          }),
-                      }}
-                    />
-                  </IconButton>
-                </Tooltip>
-              ) : null}
-            </Stack>
-          ) : null}
-          <Typography sx={{ whiteSpace: "pre-wrap" }}>{messageText}</Typography>
-          {item.message.error_message ? (
-            <Alert severity="error">{item.message.error_message}</Alert>
-          ) : null}
-          {hasNaturalResponse ? (
-            <Collapse in={detailsOpen} unmountOnExit>
-              <Stack spacing={1.5}>
-                <Divider />
-                {item.message.content ? (
-                  <Typography color="text.secondary" sx={{ whiteSpace: "pre-wrap" }} variant="body2">
-                    {item.message.content}
-                  </Typography>
-                ) : null}
-                {item.execution ? <ExecutionPanel execution={item.execution} /> : null}
-              </Stack>
-            </Collapse>
-          ) : item.execution ? (
-            <ExecutionPanel execution={item.execution} />
-          ) : null}
-        </Stack>
-      </Paper>
-    </Stack>
+        <Typography sx={{ whiteSpace: "pre-wrap", lineHeight: 1.7, fontSize: "0.9375rem" }}>
+          {displayText}
+        </Typography>
+        {item.message.error_message ? (
+          <Alert severity="error" sx={{ mt: 1 }}>{item.message.error_message}</Alert>
+        ) : null}
+        {item.execution ? <ExecutionPanel execution={item.execution} /> : null}
+      </Box>
+
+      {/* Permanent timestamp */}
+      {timestamp ? (
+        <Typography
+          variant="caption"
+          color="text.disabled"
+          sx={{ px: 0.5, fontSize: "0.7rem", userSelect: "none" }}
+        >
+          {timestamp}
+        </Typography>
+      ) : null}
+    </Box>
   );
 }
 
@@ -462,67 +517,72 @@ function ExecutionPanel({ execution }: { execution: MessageExecution }) {
   ].join(" | ");
 
   return (
-    <Paper variant="outlined" sx={{ p: 1.5, color: "text.primary" }}>
+    <Paper
+      variant="outlined"
+      sx={{
+        mt: 1.5,
+        p: 1.5,
+        color: "text.primary",
+        borderRadius: 2,
+        borderColor: "divider",
+      }}
+    >
       <Stack spacing={1.5}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
-          <Box />
-          <Stack
-            className="assistant-message-controls"
-            direction="row"
-            spacing={0.5}
-            alignItems="center"
-          >
-            <Tooltip title={executionDetails}>
-              <IconButton aria-label="Execution details" size="small">
-                <InfoOutlinedIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title={sqlOpen ? "Hide SQL" : "Show SQL"}>
-              <IconButton
-                aria-label={sqlOpen ? "Hide SQL" : "Show SQL"}
-                color={sqlOpen ? "primary" : "default"}
-                onClick={() => setSqlOpen((open) => !open)}
-                size="small"
-              >
-                <CodeOutlinedIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Open table full screen">
-              <IconButton
-                aria-label="Open table full screen"
-                size="small"
-                onClick={() => setFullscreenOpen(true)}
-              >
-                <OpenInFullOutlinedIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </Stack>
+        {/* Toolbar */}
+        <Stack direction="row" justifyContent="flex-end" alignItems="center" spacing={0.5}>
+          <Tooltip title={executionDetails}>
+            <IconButton aria-label="Execution details" size="small">
+              <InfoOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title={sqlOpen ? "Hide SQL" : "Show SQL"}>
+            <IconButton
+              aria-label={sqlOpen ? "Hide SQL" : "Show SQL"}
+              color={sqlOpen ? "primary" : "default"}
+              onClick={() => setSqlOpen((open) => !open)}
+              size="small"
+            >
+              <CodeOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Open table full screen">
+            <IconButton
+              aria-label="Open table full screen"
+              size="small"
+              onClick={() => setFullscreenOpen(true)}
+            >
+              <OpenInFullOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
         </Stack>
-        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-          {execution.result.truncated ? (
-            <Chip label="truncated" color="warning" size="small" />
-          ) : null}
-        </Stack>
+
+        {execution.result.truncated ? (
+          <Chip label="truncated" color="warning" size="small" sx={{ alignSelf: "flex-start" }} />
+        ) : null}
+
         <Collapse in={sqlOpen} unmountOnExit>
           <Box
             component="pre"
             sx={{
               m: 0,
               p: 1.5,
-              borderRadius: 1,
+              borderRadius: 1.5,
               bgcolor: "action.hover",
               overflowX: "auto",
               fontSize: 13,
+              fontFamily: "monospace",
             }}
           >
             {execution.generated_sql}
           </Box>
         </Collapse>
+
         {isScalarResult ? (
           <ScalarResult execution={execution} />
         ) : (
           <ResultTable execution={execution} />
         )}
+
         <Dialog fullScreen open={fullscreenOpen} onClose={() => setFullscreenOpen(false)}>
           <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <Typography component="span" fontWeight={800} sx={{ flex: 1 }}>
@@ -555,12 +615,18 @@ function ScalarResult({ execution }: { execution: MessageExecution }) {
         py: 1.75,
         bgcolor: "action.hover",
         borderStyle: "dashed",
+        borderRadius: 2,
       }}
     >
       <Typography color="text.secondary" variant="caption">
         {column.name}
       </Typography>
-      <Typography component="div" fontWeight={800} sx={{ mt: 0.5, wordBreak: "break-word" }} variant="h2">
+      <Typography
+        component="div"
+        fontWeight={800}
+        sx={{ mt: 0.5, wordBreak: "break-word" }}
+        variant="h2"
+      >
         {formatCellValue(value)}
       </Typography>
     </Paper>
@@ -577,18 +643,20 @@ function ResultTable({ execution }: { execution: MessageExecution }) {
   }
 
   return (
-    <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: "100%" }}>
-      <Table stickyHeader size="small" sx={{ minWidth: 560 }}>
+    <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: "100%", borderRadius: 2 }}>
+      <Table stickyHeader size="small" sx={{ minWidth: 400 }}>
         <TableHead>
           <TableRow>
             {execution.result.columns.map((column) => (
-              <TableCell key={column.name}>{column.name}</TableCell>
+              <TableCell key={column.name} sx={{ fontWeight: 700 }}>
+                {column.name}
+              </TableCell>
             ))}
           </TableRow>
         </TableHead>
         <TableBody>
           {execution.result.rows.map((row, index) => (
-            <TableRow key={index}>
+            <TableRow key={index} hover>
               {execution.result.columns.map((column) => (
                 <TableCell key={column.name}>
                   {formatCellValue(row[column.name])}
@@ -605,49 +673,51 @@ function ResultTable({ execution }: { execution: MessageExecution }) {
 function SendMessageForm({
   conversationID,
   models,
+  onOptimisticMessage,
   onSendSuccess,
 }: {
   conversationID: number;
   models: ChatModel[];
+  onOptimisticMessage: (content: string) => void;
   onSendSuccess: (response: SendMessageResponse) => boolean;
 }) {
   const { apiClient } = useAuth();
   const queryClient = useQueryClient();
+  const [modelMenuAnchor, setModelMenuAnchor] = useState<HTMLElement | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [shaking, setShaking] = useState(false);
+  const [requireNaturalResponse, setRequireNaturalResponse] = useState(() => {
+    if (typeof window === "undefined") return true;
+    const stored = window.localStorage.getItem(requireNaturalResponseKey);
+    return stored !== "false";
+  });
+
+  const shake = useCallback(() => {
+    setShaking(true);
+    setTimeout(() => setShaking(false), 400);
+  }, []);
+
   const defaultModel = useMemo(() => {
     const storedModel =
       typeof window === "undefined"
         ? null
         : window.localStorage.getItem(lastChatModelKey);
-
     if (storedModel && models.some((model) => model.id === storedModel)) {
       return storedModel;
     }
-
     return models[0]?.id ?? "";
   }, [models]);
-  const [requireNaturalResponse, setRequireNaturalResponse] = useState(() => {
-    if (typeof window === "undefined") {
-      return true;
-    }
-    const stored = window.localStorage.getItem(requireNaturalResponseKey);
-    if (stored === "false") {
-      return false;
-    }
-    if (stored === "true") {
-      return true;
-    }
-    return true;
-  });
+
   const {
     control,
     formState: { errors },
     handleSubmit,
     register,
     reset,
-    setError,
   } = useForm<SendForm>({
     values: { content: "", model: defaultModel },
   });
+
   const contentField = register("content", {
     validate: (value) => value.trim() ? true : "Message is required",
   });
@@ -673,134 +743,212 @@ function SendMessageForm({
     onSuccess(response, values) {
       window.localStorage.setItem(lastChatModelKey, values.model);
       window.localStorage.setItem(requireNaturalResponseKey, String(requireNaturalResponse));
-      reset({ content: "", model: values.model });
-      const responseHandled = onSendSuccess(response);
-      if (!responseHandled) {
+      const handled = onSendSuccess(response);
+      if (!handled) {
         void queryClient.invalidateQueries({ queryKey: ["chat-messages", conversationID] });
       }
       void queryClient.invalidateQueries({ queryKey: ["chat-conversations"] });
       void queryClient.invalidateQueries({ queryKey: ["chat-conversation", conversationID] });
     },
     onError(error) {
-      setError("content", { message: errorMessage(error) });
+      setSendError(errorMessage(error));
+      shake();
     },
   });
 
+  const isPending = mutation.isPending;
+
   return (
-    <Paper
-      component="form"
-      onSubmit={handleSubmit((values) => mutation.mutate(values))}
-      variant="outlined"
-      sx={{
-        p: 1,
-        borderRadius: 3,
-        bgcolor: "background.paper",
-        boxShadow: (theme) => theme.shadows[1],
-      }}
-    >
-      <TextField
-        multiline
-        maxRows={6}
-        minRows={1}
-        error={Boolean(errors.content)}
-        placeholder="Message Datalk"
-        fullWidth
-        variant="standard"
-        slotProps={{
-          htmlInput: {
-            "aria-label": "Message",
+    <Box>
+      {/* Input row: text field + send button only */}
+      <Paper
+        component="form"
+        onSubmit={handleSubmit((values) => {
+          const content = values.content.trim();
+          if (!content) return;
+          setSendError(null);
+          onOptimisticMessage(content);
+          reset({ content: "", model: values.model });
+          mutation.mutate(values);
+        }, () => shake())}
+        elevation={2}
+        sx={{
+          borderRadius: 1.5,
+          bgcolor: "background.paper",
+          border: "1px solid",
+          borderColor: (errors.content || sendError) ? "error.main" : "divider",
+          overflow: "hidden",
+          display: "flex",
+          alignItems: "flex-end",
+          gap: 0,
+          transition: "border-color 0.15s, box-shadow 0.15s",
+          "&:focus-within": {
+            borderColor: (errors.content || sendError) ? "error.main" : "primary.main",
+            boxShadow: (theme) =>
+              `0 0 0 2px ${(errors.content || sendError) ? theme.palette.error.main : theme.palette.primary.main}22`,
           },
-          input: {
-            disableUnderline: true,
-            sx: {
-              px: 1.25,
-              py: 1,
-              fontSize: 16,
-              lineHeight: 1.5,
+          ...(shaking
+            ? {
+                animation: "shake 0.35s cubic-bezier(.36,.07,.19,.97) both",
+                "@keyframes shake": {
+                  "0%, 100%": { transform: "translateX(0)" },
+                  "15%": { transform: "translateX(-6px)" },
+                  "30%": { transform: "translateX(5px)" },
+                  "45%": { transform: "translateX(-4px)" },
+                  "60%": { transform: "translateX(3px)" },
+                  "75%": { transform: "translateX(-2px)" },
+                  "90%": { transform: "translateX(1px)" },
+                },
+              }
+            : {}),
+        }}
+      >
+        <TextField
+          multiline
+          maxRows={8}
+          minRows={1}
+          error={Boolean(errors.content)}
+          placeholder="Message Datalk…"
+          fullWidth
+          variant="standard"
+          slotProps={{
+            htmlInput: { "aria-label": "Message" },
+            input: {
+              disableUnderline: true,
+              sx: {
+                px: 2,
+                py: 1.25,
+                fontSize: "0.9375rem",
+                lineHeight: 1.65,
+              },
             },
-          },
-        }}
-        {...contentField}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && !event.shiftKey && !mutation.isPending) {
-            event.preventDefault();
-            void handleSubmit((values) => mutation.mutate(values))();
-          }
-        }}
-      />
-      <Stack direction="row" alignItems="center" spacing={1} sx={{ px: 0.5, pb: 0.25 }}>
-        <Controller
-          control={control}
-          name="model"
-          rules={{ required: "Model is required" }}
-          render={({ field }) => (
-            <FormControl error={Boolean(errors.model)} size="small" sx={{ minWidth: 220 }}>
-              <InputLabel id="model-label">Model</InputLabel>
-              <Select
-                {...field}
-                label="Model"
-                labelId="model-label"
-                disabled={models.length === 0}
-                sx={{ borderRadius: 999 }}
-              >
-                {models.map((model) => (
-                  <MenuItem key={model.id} value={model.id}>
-                    {model.display_name} ({model.id})
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          )}
+          }}
+          {...contentField}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey && !isPending) {
+              event.preventDefault();
+              void handleSubmit((values) => {
+                const content = values.content.trim();
+                if (!content) return;
+                setSendError(null);
+                onOptimisticMessage(content);
+                reset({ content: "", model: values.model });
+                mutation.mutate(values);
+              }, () => shake())();
+            }
+          }}
         />
+
+        <Box sx={{ pr: 1.5, pb: 1.25, flexShrink: 0 }}>
+          <Tooltip title={isPending ? "Responding…" : "Send  ↵"}>
+            <span>
+              <IconButton
+                aria-label="Send"
+                disabled={isPending || models.length === 0}
+                type="submit"
+                size="small"
+                sx={{
+                  color: "primary.main",
+                  "&:hover": { color: "primary.dark", bgcolor: "transparent" },
+                  "&.Mui-disabled": { color: "action.disabled" },
+                }}
+              >
+                {isPending ? (
+                  <CircularProgress color="inherit" size={18} />
+                ) : (
+                  <SendOutlinedIcon sx={{ fontSize: 20 }} />
+                )}
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Box>
+      </Paper>
+
+      {/* Below-input row: keyboard hint (left) + model selector (right) */}
+      <Stack direction="row" alignItems="center" sx={{ mt: 0.75, px: 0.25 }}>
+        <Typography variant="caption" color="text.disabled">
+          Enter to send · Shift+Enter for new line
+        </Typography>
+
+        <Box sx={{ flex: 1 }} />
+
+        {/* Natural response toggle */}
         <Tooltip title={requireNaturalResponse ? "Natural response on" : "Natural response off"}>
           <IconButton
-            aria-label={
-              requireNaturalResponse ? "Turn natural response off" : "Turn natural response on"
-            }
+            size="small"
             color={requireNaturalResponse ? "primary" : "default"}
             onClick={() => {
-              const nextValue = !requireNaturalResponse;
-              setRequireNaturalResponse(nextValue);
-              window.localStorage.setItem(requireNaturalResponseKey, String(nextValue));
+              const next = !requireNaturalResponse;
+              setRequireNaturalResponse(next);
+              window.localStorage.setItem(requireNaturalResponseKey, String(next));
             }}
-            size="small"
           >
             <PsychologyAltOutlinedIcon fontSize="small" />
           </IconButton>
         </Tooltip>
-        <Box sx={{ flex: 1 }} />
-        <Tooltip title="Send">
-          <span>
-            <IconButton
-              aria-label="Send"
-              color="primary"
-              disabled={mutation.isPending || models.length === 0}
-              type="submit"
-              sx={{
-                bgcolor: "primary.main",
-                color: "primary.contrastText",
-                "&:hover": { bgcolor: "primary.dark" },
-                "&.Mui-disabled": {
-                  bgcolor: "action.disabledBackground",
-                  color: "action.disabled",
-                },
-              }}
-            >
-              {mutation.isPending ? (
-                <CircularProgress color="inherit" size={20} />
-              ) : (
-                <SendOutlinedIcon />
-              )}
-            </IconButton>
-          </span>
-        </Tooltip>
+
+        {/* Model selector — bottom right, outside the input */}
+        <Controller
+          control={control}
+          name="model"
+          rules={{ required: "Model is required" }}
+          render={({ field }) => {
+            const selected = selectedModelByID.get(field.value);
+            return (
+              <>
+                <Chip
+                  label={selected?.display_name ?? "Select model"}
+                  size="small"
+                  variant="outlined"
+                  onClick={(e) => setModelMenuAnchor(e.currentTarget)}
+                  disabled={models.length === 0}
+                  sx={{
+                    borderRadius: 999,
+                    fontSize: "0.72rem",
+                    cursor: "pointer",
+                    maxWidth: 200,
+                    height: 24,
+                  }}
+                />
+                <Menu
+                  anchorEl={modelMenuAnchor}
+                  open={Boolean(modelMenuAnchor)}
+                  onClose={() => setModelMenuAnchor(null)}
+                  anchorOrigin={{ vertical: "top", horizontal: "right" }}
+                  transformOrigin={{ vertical: "bottom", horizontal: "right" }}
+                  slotProps={{
+                    paper: { sx: { minWidth: 220, borderRadius: 2, mb: 0.5 } },
+                  }}
+                >
+                  {models.map((model) => (
+                    <MenuItem
+                      key={model.id}
+                      selected={model.id === field.value}
+                      onClick={() => {
+                        field.onChange(model.id);
+                        setModelMenuAnchor(null);
+                      }}
+                      sx={{ borderRadius: 1, mx: 0.5, my: 0.25 }}
+                    >
+                      <Stack spacing={0.25}>
+                        <Typography variant="body2" fontWeight={600}>
+                          {model.display_name}
+                        </Typography>
+                        {model.description ? (
+                          <Typography variant="caption" color="text.secondary">
+                            {model.description}
+                          </Typography>
+                        ) : null}
+                      </Stack>
+                    </MenuItem>
+                  ))}
+                </Menu>
+              </>
+            );
+          }}
+        />
       </Stack>
-      {errors.content?.message || errors.model?.message ? (
-        <Typography color="error" sx={{ px: 1.25, pt: 0.5 }} variant="caption">
-          {errors.content?.message ?? errors.model?.message}
-        </Typography>
-      ) : null}
-    </Paper>
+    </Box>
   );
 }
 

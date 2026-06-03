@@ -242,7 +242,7 @@ export function AppShell({ title, children }: AppShellProps) {
           </Toolbar>
         </Box>
 
-        <Box component="main" sx={{ p: { xs: 2, sm: 3 }, maxWidth: 1280 }}>
+        <Box component="main" sx={{ p: { xs: 2, sm: 3 }, maxWidth: 1280, mx: "auto", width: "100%" }}>
           {children}
         </Box>
       </Box>
