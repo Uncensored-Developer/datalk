@@ -338,11 +338,18 @@ func openAIInputMessages(req llmtypes.GenerateSQLRequest) []inputMessage {
 	})
 
 	for _, message := range promptMessages {
+		role := normalizeOpenAIRole(message.Role)
+		// OpenAI Responses API requires "output_text" for assistant turns
+		// and "input_text" for user/developer turns.
+		contentType := "input_text"
+		if role == "assistant" {
+			contentType = "output_text"
+		}
 		messages = append(messages, inputMessage{
-			Role: normalizeOpenAIRole(message.Role),
+			Role: role,
 			Content: []contentPart{
 				{
-					Type: "input_text",
+					Type: contentType,
 					Text: message.Content,
 				},
 			},

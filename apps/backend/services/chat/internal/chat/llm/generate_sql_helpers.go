@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	chaterrors "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/pkg/errors"
 	llmtypes "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/pkg/llm"
 	schematypes "github.com/Uncensored-Developer/datalk/apps/backend/services/schemas/pkg/schemas"
 	"github.com/mdobak/go-xerrors"
@@ -114,7 +115,11 @@ func ParseGenerateSQLResponse(rawRequest, rawResponse []byte, payloadText string
 	payload.SQL = strings.TrimSpace(payload.SQL)
 	payload.Explanation = strings.TrimSpace(payload.Explanation)
 	if payload.SQL == "" {
-		return nil, xerrors.New("structured SQL payload did not include sql")
+		explanation := strings.TrimSpace(payload.Explanation)
+		if explanation != "" {
+			return nil, xerrors.Newf("%s: %w", explanation, chaterrors.ErrInvalidSQL)
+		}
+		return nil, xerrors.Newf("the model could not generate SQL for this question: %w", chaterrors.ErrInvalidSQL)
 	}
 
 	return &llmtypes.GenerateSQLResponse{

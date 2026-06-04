@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go version *)",
+      "Bash(npm --version)",
+      "Bash(docker --version)",
+      "Bash(ollama --version)"
+    ]
+  }
+}

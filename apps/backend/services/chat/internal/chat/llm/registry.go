@@ -246,17 +246,22 @@ func normalizeProviderModels(provider llmtypes.Provider, models []llmtypes.Model
 
 		qualifiedModelID := QualifiedModelID(provider, rawModelID)
 		if strings.Contains(rawModelID, ":") {
+			// Only treat the colon as a provider:model separator if the part
+			// before it is actually a known provider. Ollama model IDs use ":"
+			// as a tag separator (e.g. "llama3.2:1b"), which must not be
+			// mistaken for a qualified provider prefix.
 			parsedProvider, parsedModelID, err := ParseQualifiedModelID(rawModelID)
-			if err != nil {
-				return nil, err
+			if err == nil {
+				// Providers are allowed to return already-qualified ids, but the
+				// embedded provider prefix still has to match the provider being queried.
+				if parsedProvider != provider {
+					return nil, xerrors.Newf("provider %s returned model id for different provider %s", provider, parsedProvider)
+				}
+				qualifiedModelID = QualifiedModelID(parsedProvider, parsedModelID)
+				rawModelID = parsedModelID
 			}
-			// Providers are allowed to return already-qualified ids, but the
-			// embedded provider prefix still has to match the provider being queried.
-			if parsedProvider != provider {
-				return nil, xerrors.Newf("provider %s returned model id for different provider %s", provider, parsedProvider)
-			}
-			qualifiedModelID = QualifiedModelID(parsedProvider, parsedModelID)
-			rawModelID = parsedModelID
+			// If parsing failed the colon is part of the model's own id (e.g. an
+			// Ollama tag). Fall through and use the already-computed qualifiedModelID.
 		}
 
 		// Deduplicate after normalization so "gpt-5.2" and "openai:gpt-5.2"
