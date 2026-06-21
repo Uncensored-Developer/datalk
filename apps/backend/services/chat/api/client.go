@@ -17,6 +17,7 @@ type Client interface {
 	DeleteConversation(ctx context.Context, userID int32, conversationID int64) error
 	ListMessages(ctx context.Context, userID int32, filter ListMessagesFilter) ([]*chattype.MessageDetails, error)
 	SendMessage(ctx context.Context, params SendMessageParams) (*chattype.AssistantTurn, error)
+	SendMessageWithProgress(ctx context.Context, params SendMessageParams, progress chattype.SendMessageProgressHandler) (*chattype.AssistantTurn, error)
 	ListProviderConfigs(ctx context.Context) ([]*llmtypes.ProviderConfig, error)
 	SaveProviderConfig(ctx context.Context, params SaveProviderConfigParams) (*llmtypes.ProviderConfig, error)
 	ListAvailableModels(ctx context.Context) ([]llmtypes.Model, error)

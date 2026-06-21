@@ -567,12 +567,16 @@ func TestService_SendMessage_RetriesCorrectionEligibleSQLError(t *testing.T) {
 
 	service := newTestService(mockStorage, mockConnections, mockSchemas, mockModels, mockSQLRunner)
 
-	turn, err := service.SendMessage(ctx, chattype.SendMessageParams{
+	var progress []chattype.SendMessageProgressStage
+	turn, err := service.SendMessageWithProgress(ctx, chattype.SendMessageParams{
 		UserID:         userID,
 		ConversationID: conversation.ID,
 		Content:        "how many users?",
 		Provider:       llmtypes.ProviderOpenAI,
 		Model:          "gpt-5.2",
+	}, func(event chattype.SendMessageProgress) error {
+		progress = append(progress, event.Stage)
+		return nil
 	})
 
 	require.NoError(t, err)
@@ -580,6 +584,14 @@ func TestService_SendMessage_RetriesCorrectionEligibleSQLError(t *testing.T) {
 	require.NotNil(t, turn.Execution)
 	assert.Equal(t, chattype.MessageStatusCompleted, turn.AssistantMessage.Status)
 	assert.Equal(t, "select count(*) from users", turn.Execution.GeneratedSQL)
+	assert.Equal(t, []chattype.SendMessageProgressStage{
+		chattype.SendMessageProgressRetrievingSchema,
+		chattype.SendMessageProgressGeneratingSQL,
+		chattype.SendMessageProgressExecutingSQL,
+		chattype.SendMessageProgressRegeneratingSQL,
+		chattype.SendMessageProgressGeneratingSQL,
+		chattype.SendMessageProgressExecutingSQL,
+	}, progress)
 }
 
 func TestService_SendMessage_PersistsFailedTurnAfterCorrectionExhaustion(t *testing.T) {

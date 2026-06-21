@@ -110,6 +110,23 @@ type AssistantTurn struct {
 	Retrieval        *MessageRetrieval
 }
 
+type SendMessageProgressStage string
+
+const (
+	SendMessageProgressRetrievingSchema   SendMessageProgressStage = "retrieving_schema"
+	SendMessageProgressGeneratingSQL      SendMessageProgressStage = "generating_sql"
+	SendMessageProgressExecutingSQL       SendMessageProgressStage = "executing_sql"
+	SendMessageProgressRegeneratingSQL    SendMessageProgressStage = "regenerating_sql"
+	SendMessageProgressGeneratingResponse SendMessageProgressStage = "generating_response"
+)
+
+type SendMessageProgress struct {
+	Stage   SendMessageProgressStage `json:"stage"`
+	Attempt int                      `json:"attempt,omitempty"`
+}
+
+type SendMessageProgressHandler func(SendMessageProgress) error
+
 type MessageDetails struct {
 	Message   *Message
 	Execution *MessageExecution

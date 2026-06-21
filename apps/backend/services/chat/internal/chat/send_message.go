@@ -28,6 +28,10 @@ type sqlAttemptResult struct {
 }
 
 func (s *Service) SendMessage(ctx context.Context, params chattype.SendMessageParams) (*chattype.AssistantTurn, error) {
+	return s.SendMessageWithProgress(ctx, params, nil)
+}
+
+func (s *Service) SendMessageWithProgress(ctx context.Context, params chattype.SendMessageParams, progress chattype.SendMessageProgressHandler) (*chattype.AssistantTurn, error) {
 	startedAt := time.Now()
 	userContent := strings.TrimSpace(params.Content)
 	if userContent == "" {
@@ -70,6 +74,11 @@ func (s *Service) SendMessage(ctx context.Context, params chattype.SendMessagePa
 	}
 
 	retrievalQuery := buildRetrievalQuery(userContent, toConversationMessages(history), lastAssistantSQL)
+	if err := emitSendMessageProgress(progress, chattype.SendMessageProgress{
+		Stage: chattype.SendMessageProgressRetrievingSchema,
+	}); err != nil {
+		return nil, err
+	}
 	schemaContext, err := s.schemaRetriever.RetrieveRelevantSchemaContext(ctx, schematypes.RetrieveRelevantSchemaContextParams{
 		ConnectionID: conversation.ConnectionID,
 		QueryText:    retrievalQuery,
@@ -120,6 +129,12 @@ func (s *Service) SendMessage(ctx context.Context, params chattype.SendMessagePa
 			return nil, err
 		}
 
+		if err := emitSendMessageProgress(progress, chattype.SendMessageProgress{
+			Stage:   chattype.SendMessageProgressGeneratingSQL,
+			Attempt: attemptNumber,
+		}); err != nil {
+			return nil, err
+		}
 		llmStarted := time.Now()
 		resp, err := resolved.Client.GenerateSQL(ctx, generateReq)
 		llmLatencyMS := elapsedMilliseconds(llmStarted)
@@ -140,6 +155,12 @@ func (s *Service) SendMessage(ctx context.Context, params chattype.SendMessagePa
 		})
 		generateResp = resp
 
+		if err := emitSendMessageProgress(progress, chattype.SendMessageProgress{
+			Stage:   chattype.SendMessageProgressExecutingSQL,
+			Attempt: attemptNumber,
+		}); err != nil {
+			return nil, err
+		}
 		execStarted := time.Now()
 		result, err = s.sqlRunner.Run(ctx, *connection, resp.SQL, sqlrunner.RunOptions{
 			Timeout:  defaultQueryTimeout,
@@ -165,10 +186,23 @@ func (s *Service) SendMessage(ctx context.Context, params chattype.SendMessagePa
 			SQL:   resp.SQL,
 			Error: sanitizeSQLCorrectionError(err),
 		})
+		if attemptNumber < maxSQLAttempts {
+			if err := emitSendMessageProgress(progress, chattype.SendMessageProgress{
+				Stage:   chattype.SendMessageProgressRegeneratingSQL,
+				Attempt: attemptNumber + 1,
+			}); err != nil {
+				return nil, err
+			}
+		}
 	}
 	if finalSQLError == nil && params.RequireNaturalResponse {
 		req := buildGenerateAnswerRequest(conversation, connection.Database, userContent, history, resolved.ProviderModelID, generateResp.SQL, *result)
 		answerReq = &req
+		if err := emitSendMessageProgress(progress, chattype.SendMessageProgress{
+			Stage: chattype.SendMessageProgressGeneratingResponse,
+		}); err != nil {
+			return nil, err
+		}
 		answerStarted := time.Now()
 		answerResp, answerErr = resolved.Client.GenerateAnswer(ctx, req)
 		answerLatencyMS = elapsedMilliseconds(answerStarted)
@@ -297,6 +331,13 @@ func (s *Service) SendMessage(ctx context.Context, params chattype.SendMessagePa
 		Execution:        execution,
 		Retrieval:        retrieval,
 	}, nil
+}
+
+func emitSendMessageProgress(progress chattype.SendMessageProgressHandler, event chattype.SendMessageProgress) error {
+	if progress == nil {
+		return nil
+	}
+	return progress(event)
 }
 
 func (s *Service) logSendMessageFailure(

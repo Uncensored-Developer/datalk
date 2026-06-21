@@ -5,12 +5,9 @@ package testing
 import (
 	context "context"
 
-	chat "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/pkg/chat"
-
 	internalchat "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/internal/chat"
-
+	chat "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/pkg/chat"
 	llm "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/pkg/llm"
-
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -270,6 +267,36 @@ func (_m *API) SendMessage(ctx context.Context, params chat.SendMessageParams) (
 
 	if rf, ok := ret.Get(1).(func(context.Context, chat.SendMessageParams) error); ok {
 		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// SendMessageWithProgress provides a mock function with given fields: ctx, params, progress
+func (_m *API) SendMessageWithProgress(ctx context.Context, params chat.SendMessageParams, progress chat.SendMessageProgressHandler) (*chat.AssistantTurn, error) {
+	ret := _m.Called(ctx, params, progress)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SendMessageWithProgress")
+	}
+
+	var r0 *chat.AssistantTurn
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, chat.SendMessageParams, chat.SendMessageProgressHandler) (*chat.AssistantTurn, error)); ok {
+		return rf(ctx, params, progress)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, chat.SendMessageParams, chat.SendMessageProgressHandler) *chat.AssistantTurn); ok {
+		r0 = rf(ctx, params, progress)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*chat.AssistantTurn)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, chat.SendMessageParams, chat.SendMessageProgressHandler) error); ok {
+		r1 = rf(ctx, params, progress)
 	} else {
 		r1 = ret.Error(1)
 	}
