@@ -104,6 +104,9 @@ describe("ConnectionsPage", () => {
       if (method === "GET" && path === "/connections") {
         return jsonResponse([]);
       }
+      if (method === "POST" && path === "/connections/test") {
+        return jsonResponse({ ok: true });
+      }
       if (method === "POST" && path === "/connections") {
         return jsonResponse(warehouseConnection, { status: 201 });
       }
@@ -124,7 +127,10 @@ describe("ConnectionsPage", () => {
     });
     await userEvent.click(createButtons[0]);
     await userEvent.type(screen.getByLabelText("Name"), "Warehouse");
-    await userEvent.type(screen.getByLabelText("DSN"), "postgres://user:pass@localhost/db");
+    await userEvent.type(
+      screen.getByLabelText("DSN", { selector: "input" }),
+      "postgres://user:pass@localhost/db",
+    );
     await userEvent.type(screen.getByLabelText("Include namespaces"), "public, analytics");
     await userEvent.type(screen.getByLabelText("Exclude namespaces"), "information_schema");
     await userEvent.type(
@@ -132,9 +138,21 @@ describe("ConnectionsPage", () => {
       "public: orders, customers",
     );
     await userEvent.click(screen.getByLabelText("Include views"));
+    await userEvent.click(screen.getByRole("button", { name: "Test connection" }));
+    expect(await screen.findByText("Connection test succeeded.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Create" }));
 
     await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/connections/test",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            database: "postgres",
+            dsn: "postgres://user:pass@localhost/db",
+          }),
+        }),
+      );
       expect(fetchMock).toHaveBeenCalledWith(
         "/api/connections",
         expect.objectContaining({ method: "POST" }),
@@ -165,6 +183,96 @@ describe("ConnectionsPage", () => {
         "/api/connections/10/schema-snapshot/refresh",
         expect.objectContaining({ method: "POST" }),
       );
+    });
+  });
+
+  it("creates a MySQL connection from host fields using a native driver DSN", async () => {
+    window.localStorage.setItem("datalk.session", JSON.stringify(ownerSession));
+    const mysqlConnection = {
+      ...warehouseConnection,
+      id: 11,
+      name: "Analytics MySQL",
+      database: "mysql",
+    };
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
+      const path = requestPath(input);
+      const method = init?.method ?? "GET";
+
+      if (method === "GET" && path === "/connections") {
+        return jsonResponse([]);
+      }
+      if (method === "POST" && path === "/connections/test") {
+        return jsonResponse({ ok: true });
+      }
+      if (method === "POST" && path === "/connections") {
+        return jsonResponse(mysqlConnection, { status: 201 });
+      }
+      if (
+        method === "POST" &&
+        path === "/connections/11/schema-snapshot/refresh"
+      ) {
+        return jsonResponse({ connection_id: 11, status: "accepted" }, { status: 202 });
+      }
+
+      return jsonResponse({ error: `Unhandled ${method} ${path}` }, { status: 500 });
+    });
+
+    renderConnectionsRoute();
+
+    const createButtons = await screen.findAllByRole("button", {
+      name: "Create connection",
+    });
+    await userEvent.click(createButtons[0]);
+    await userEvent.type(screen.getByLabelText("Name"), "Analytics MySQL");
+    await userEvent.click(screen.getByLabelText("Database"));
+    await userEvent.click(await screen.findByRole("option", { name: "mysql" }));
+    await userEvent.click(screen.getByLabelText("Connection details"));
+    await userEvent.click(await screen.findByRole("option", { name: "Host and credentials" }));
+    await userEvent.type(screen.getByLabelText("Host"), "mysql.local");
+    await userEvent.clear(screen.getByLabelText("Port"));
+    await userEvent.type(screen.getByLabelText("Port"), "3307");
+    await userEvent.type(screen.getByLabelText("Database name"), "analytics");
+    await userEvent.type(screen.getByLabelText("Username"), "analyst");
+    await userEvent.type(screen.getByLabelText("Password"), "s3cret");
+    await userEvent.type(screen.getByLabelText("Query params"), "parseTime=true&loc=UTC");
+    await userEvent.click(screen.getByRole("button", { name: "Test connection" }));
+    expect(await screen.findByText("Connection test succeeded.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    const expectedDSN = "analyst:s3cret@tcp(mysql.local:3307)/analytics?parseTime=true&loc=UTC";
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/connections/test",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            database: "mysql",
+            dsn: expectedDSN,
+          }),
+        }),
+      );
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/connections",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+    const createCall = fetchMock.mock.calls.find(
+      ([url, init]) => url === "/api/connections" && init?.method === "POST",
+    );
+    expect(JSON.parse(String(createCall?.[1]?.body))).toEqual({
+      name: "Analytics MySQL",
+      database: "mysql",
+      dsn: expectedDSN,
+      metadata: {
+        include_namespaces: [],
+        exclude_namespaces: [],
+        include_tables_by_namespace: {},
+        exclude_tables_by_namespace: {},
+        include_views: false,
+        include_indexes: false,
+        include_foreign_keys: false,
+        include_comments: false,
+      },
     });
   });
 

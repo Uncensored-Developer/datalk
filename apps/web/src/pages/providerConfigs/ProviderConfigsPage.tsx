@@ -21,14 +21,19 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../auth/AuthProvider";
 import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
 import { SecretTextField } from "../../components/common/SecretTextField";
-import type { ChatModel, Provider, ProviderConfig } from "../../types/api";
+import type {
+  ChatModel,
+  Provider,
+  ProviderConfig,
+  ProviderConfigTestResponse,
+} from "../../types/api";
 import { errorMessage } from "../../utils/errors";
 
 const knownProviders: Array<{
@@ -343,6 +348,7 @@ function ProviderConfigDialog({
   const {
     control,
     formState: { errors },
+    getValues,
     handleSubmit,
     register,
     reset,
@@ -355,6 +361,10 @@ function ProviderConfigDialog({
       metadata: JSON.stringify(config?.metadata ?? {}, null, 2),
     },
   });
+  const [lastTestSignature, setLastTestSignature] = useState<string | null>(null);
+  const [testMessage, setTestMessage] = useState<string | null>(null);
+  const watchedBaseURL = useWatch({ control, name: "base_url" });
+  const watchedAPIKey = useWatch({ control, name: "api_key" });
 
   const mutation = useMutation({
     mutationFn: (values: ProviderConfigForm) => {
@@ -362,24 +372,7 @@ function ProviderConfigDialog({
         throw new Error("provider is required");
       }
 
-      const metadata = parseMetadata(values.metadata);
-      const payload: {
-        display_name: string;
-        api_key?: string;
-        base_url: string;
-        is_enabled: boolean;
-        metadata: Record<string, unknown>;
-      } = {
-        display_name: values.display_name.trim(),
-        base_url: values.base_url.trim(),
-        is_enabled: values.is_enabled,
-        metadata,
-      };
-
-      const apiKey = values.api_key.trim();
-      if (apiKey) {
-        payload.api_key = apiKey;
-      }
+      const payload = providerPayloadFromForm(values, true);
 
       return apiClient.put<ProviderConfig>(
         `/chat/provider-configs/${provider}`,
@@ -399,9 +392,38 @@ function ProviderConfigDialog({
     },
   });
 
-  const close = () => {
-    if (!mutation.isPending) {
+  const testMutation = useMutation({
+    mutationFn: async (values: ProviderConfigForm) => {
+      if (!provider) {
+        throw new Error("provider is required");
+      }
+      const payload = providerPayloadFromForm(values, false);
+      const response = await apiClient.post<ProviderConfigTestResponse>(
+        `/chat/provider-configs/${provider}/test`,
+        payload,
+      );
+      return {
+        modelCount: response.model_count,
+        signature: providerTestSignature(provider, values),
+      };
+    },
+    onSuccess(result) {
       setSubmitError(null);
+      setLastTestSignature(result.signature);
+      setTestMessage(`Provider test succeeded. ${result.modelCount} models found.`);
+    },
+    onError(error) {
+      setLastTestSignature(null);
+      setTestMessage(null);
+      setSubmitError(errorMessage(error));
+    },
+  });
+
+  const close = () => {
+    if (!mutation.isPending && !testMutation.isPending) {
+      setSubmitError(null);
+      setLastTestSignature(null);
+      setTestMessage(null);
       reset();
       onClose();
     }
@@ -409,14 +431,31 @@ function ProviderConfigDialog({
 
   const onSubmit = handleSubmit((values) => {
     setSubmitError(null);
+    setTestMessage(null);
     try {
       parseMetadata(values.metadata);
     } catch (error) {
       setSubmitError(errorMessage(error));
       return;
     }
+    if (provider && requiresProviderConfigTest(config, provider, values)) {
+      const signature = providerTestSignature(provider, values);
+      if (signature !== lastTestSignature) {
+        setSubmitError("Test the current provider credentials before saving.");
+        return;
+      }
+    }
     mutation.mutate(values);
   });
+
+  const currentProviderValues = {
+    ...getValues(),
+    api_key: watchedAPIKey ?? "",
+    base_url: watchedBaseURL ?? "",
+  };
+  const testMatchesCurrentCredentials =
+    provider &&
+    lastTestSignature === providerTestSignature(provider, currentProviderValues);
 
   return (
     <Dialog fullWidth maxWidth="sm" open={open} onClose={close}>
@@ -487,12 +526,27 @@ function ProviderConfigDialog({
               fullWidth
               {...register("metadata")}
             />
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "stretch", sm: "center" }}>
+              <Button
+                disabled={testMutation.isPending || mutation.isPending}
+                onClick={() => testMutation.mutate(getValues())}
+                startIcon={testMutation.isPending ? <CircularProgress color="inherit" size={16} /> : undefined}
+                variant="outlined"
+              >
+                Test provider
+              </Button>
+              {testMessage && testMatchesCurrentCredentials ? (
+                <Alert severity="success" sx={{ py: 0 }}>
+                  {testMessage}
+                </Alert>
+              ) : null}
+            </Stack>
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={close}>Cancel</Button>
           <Button
-            disabled={mutation.isPending}
+            disabled={mutation.isPending || testMutation.isPending}
             startIcon={mutation.isPending ? <CircularProgress color="inherit" size={16} /> : undefined}
             type="submit"
             variant="contained"
@@ -516,4 +570,47 @@ function parseMetadata(value: string) {
   }
 
   return parsed as Record<string, unknown>;
+}
+
+function providerPayloadFromForm(values: ProviderConfigForm, omitBlankAPIKey: boolean) {
+  const metadata = parseMetadata(values.metadata);
+  const payload: {
+    display_name: string;
+    api_key?: string;
+    base_url: string;
+    is_enabled: boolean;
+    metadata: Record<string, unknown>;
+  } = {
+    display_name: values.display_name.trim(),
+    base_url: values.base_url.trim(),
+    is_enabled: values.is_enabled,
+    metadata,
+  };
+
+  const apiKey = values.api_key.trim();
+  if (apiKey || !omitBlankAPIKey) {
+    payload.api_key = apiKey;
+  }
+
+  return payload;
+}
+
+function requiresProviderConfigTest(
+  config: ProviderConfig | undefined,
+  provider: Provider,
+  values: ProviderConfigForm,
+) {
+  if (!config) {
+    return true;
+  }
+
+  return Boolean(values.api_key.trim()) || values.base_url.trim() !== (config.base_url ?? "") || !provider;
+}
+
+function providerTestSignature(provider: Provider, values: ProviderConfigForm) {
+  return JSON.stringify({
+    provider,
+    api_key: values.api_key.trim(),
+    base_url: values.base_url.trim(),
+  });
 }
