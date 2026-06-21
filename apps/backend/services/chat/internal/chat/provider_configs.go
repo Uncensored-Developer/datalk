@@ -20,6 +20,18 @@ type SaveProviderConfigParams struct {
 	Metadata    json.RawMessage
 }
 
+type TestProviderConfigParams struct {
+	Provider    llm.Provider
+	DisplayName string
+	APIKey      *string
+	BaseURL     *string
+	Metadata    json.RawMessage
+}
+
+type TestProviderConfigResult struct {
+	ModelCount int
+}
+
 func (s *Service) ListProviderConfigs(ctx context.Context) ([]*llm.ProviderConfig, error) {
 	configs, err := s.storage.ListProviderConfigs(ctx, chatstorage.ProviderConfigsFilter{})
 	if err != nil {
@@ -27,6 +39,52 @@ func (s *Service) ListProviderConfigs(ctx context.Context) ([]*llm.ProviderConfi
 	}
 
 	return configs, nil
+}
+
+func (s *Service) TestProviderConfig(ctx context.Context, params TestProviderConfigParams) (*TestProviderConfigResult, error) {
+	if s.providerTester == nil {
+		return nil, xerrors.Newf("provider tester is not configured: %w", chaterrors.ErrInvalidProviderConfig)
+	}
+	if err := validateTestProviderConfigParams(params); err != nil {
+		return nil, err
+	}
+
+	existing, err := s.providerConfigByProvider(ctx, params.Provider)
+	if err != nil {
+		return nil, err
+	}
+
+	apiKeyPlain := ""
+	apiKey := optionalAPIKey(params.APIKey)
+	if apiKey != nil {
+		apiKeyPlain = *apiKey
+	} else if existing != nil && existing.APIKeyEnc != "" {
+		apiKeyPlain, err = s.cipher.Decrypt(existing.APIKeyEnc)
+		if err != nil {
+			return nil, xerrors.Newf("provider %s credentials are unavailable: %w", params.Provider, chaterrors.ErrInvalidProviderConfig)
+		}
+	} else if providerRequiresAPIKey(params.Provider) {
+		return nil, xerrors.Newf("api key is required: %w", chaterrors.ErrInvalidProviderConfig)
+	}
+
+	metadata := params.Metadata
+	if len(metadata) == 0 {
+		metadata = json.RawMessage(`{}`)
+	}
+
+	models, err := s.providerTester.TestProviderConfig(ctx, &llm.ProviderConfig{
+		Provider:    params.Provider,
+		DisplayName: strings.TrimSpace(params.DisplayName),
+		APIKeyEnc:   apiKeyPlain,
+		BaseURL:     trimOptionalString(params.BaseURL),
+		IsEnabled:   true,
+		Metadata:    metadata,
+	})
+	if err != nil {
+		return nil, xerrors.Newf("failed to test provider config: %w: %w", err, chaterrors.ErrInvalidProviderConfig)
+	}
+
+	return &TestProviderConfigResult{ModelCount: len(models)}, nil
 }
 
 func (s *Service) SaveProviderConfig(ctx context.Context, params SaveProviderConfigParams) (*llm.ProviderConfig, error) {
@@ -85,6 +143,17 @@ func (s *Service) providerConfigByProvider(ctx context.Context, provider llm.Pro
 	}
 
 	return configs[0], nil
+}
+
+func validateTestProviderConfigParams(params TestProviderConfigParams) error {
+	if !isKnownProvider(params.Provider) {
+		return xerrors.Newf("provider is invalid: %w", chaterrors.ErrInvalidProviderConfig)
+	}
+	if strings.TrimSpace(params.DisplayName) == "" {
+		return xerrors.Newf("display name is required: %w", chaterrors.ErrInvalidProviderConfig)
+	}
+
+	return nil
 }
 
 func validateSaveProviderConfigParams(params SaveProviderConfigParams) error {

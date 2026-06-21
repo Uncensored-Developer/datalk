@@ -22,6 +22,7 @@ type Service interface {
 	SendMessageWithProgress(ctx context.Context, params chattype.SendMessageParams, progress chattype.SendMessageProgressHandler) (*chattype.AssistantTurn, error)
 	ListProviderConfigs(ctx context.Context) ([]*llmtypes.ProviderConfig, error)
 	SaveProviderConfig(ctx context.Context, params chat.SaveProviderConfigParams) (*llmtypes.ProviderConfig, error)
+	TestProviderConfig(ctx context.Context, params chat.TestProviderConfigParams) (*chat.TestProviderConfigResult, error)
 }
 
 //go:generate go tool with-modfile mockery --name ModelCatalog --outpkg testing --output ./testing --filename generated__model_catalog_mocks.go
@@ -77,6 +78,10 @@ func (a *Api) ListProviderConfigs(ctx context.Context) ([]*llmtypes.ProviderConf
 
 func (a *Api) SaveProviderConfig(ctx context.Context, params chat.SaveProviderConfigParams) (*llmtypes.ProviderConfig, error) {
 	return a.service.SaveProviderConfig(ctx, params)
+}
+
+func (a *Api) TestProviderConfig(ctx context.Context, params chat.TestProviderConfigParams) (*chat.TestProviderConfigResult, error) {
+	return a.service.TestProviderConfig(ctx, params)
 }
 
 func (a *Api) ListAvailableModels(ctx context.Context) ([]llmtypes.Model, error) {

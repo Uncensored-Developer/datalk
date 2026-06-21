@@ -20,5 +20,6 @@ type Client interface {
 	SendMessageWithProgress(ctx context.Context, params SendMessageParams, progress chattype.SendMessageProgressHandler) (*chattype.AssistantTurn, error)
 	ListProviderConfigs(ctx context.Context) ([]*llmtypes.ProviderConfig, error)
 	SaveProviderConfig(ctx context.Context, params SaveProviderConfigParams) (*llmtypes.ProviderConfig, error)
+	TestProviderConfig(ctx context.Context, params TestProviderConfigParams) (*TestProviderConfigResult, error)
 	ListAvailableModels(ctx context.Context) ([]llmtypes.Model, error)
 }

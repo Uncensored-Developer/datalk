@@ -6,9 +6,7 @@ import (
 	context "context"
 
 	chatllm "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/internal/chat/llm"
-
 	llm "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/pkg/llm"
-
 	mock "github.com/stretchr/testify/mock"
 )
 
