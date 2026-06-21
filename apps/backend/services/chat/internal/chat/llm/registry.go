@@ -39,6 +39,10 @@ type ClientResolver interface {
 	ResolveClient(ctx context.Context, provider llmtypes.Provider, modelID string) (*ResolvedClient, error)
 }
 
+type ProviderTester interface {
+	TestProviderConfig(ctx context.Context, config *llmtypes.ProviderConfig) ([]llmtypes.Model, error)
+}
+
 func NewRegistry(storage chatstorage.Storage, factories map[llmtypes.Provider]ClientFactory, ciphers ...secrets.Cipher) *Registry {
 	cipher := secrets.Cipher(secrets.PlaintextCipher{})
 	if len(ciphers) > 0 && ciphers[0] != nil {
@@ -74,6 +78,24 @@ func (r *Registry) ListAvailableModels(ctx context.Context) ([]llmtypes.Model, e
 	})
 
 	return models, nil
+}
+
+func (r *Registry) TestProviderConfig(ctx context.Context, config *llmtypes.ProviderConfig) ([]llmtypes.Model, error) {
+	if config == nil {
+		return nil, xerrors.New("provider config cannot be nil")
+	}
+
+	client, err := r.clientForPlainConfig(config)
+	if err != nil {
+		return nil, err
+	}
+
+	providerModels, err := client.ListModels(ctx)
+	if err != nil {
+		return nil, xerrors.Newf("failed to list models for provider %s: %w", config.Provider, err)
+	}
+
+	return normalizeProviderModels(config.Provider, providerModels)
 }
 
 func (r *Registry) ResolveQualifiedModel(ctx context.Context, qualifiedModelID string) (*ResolvedModel, error) {
@@ -219,6 +241,20 @@ func (r *Registry) clientForConfig(config *llmtypes.ProviderConfig) (Client, err
 	return client, nil
 }
 
+func (r *Registry) clientForPlainConfig(config *llmtypes.ProviderConfig) (Client, error) {
+	factory, ok := r.factories[config.Provider]
+	if !ok {
+		return nil, xerrors.Newf("provider %s is not configured in registry: %w", config.Provider, chaterrors.ErrProviderNotAvailable)
+	}
+
+	client, err := factory(config)
+	if err != nil {
+		return nil, xerrors.Newf("failed to create provider client for %s: %w", config.Provider, err)
+	}
+
+	return client, nil
+}
+
 func (r *Registry) listProviderModels(ctx context.Context, config *llmtypes.ProviderConfig) ([]llmtypes.Model, error) {
 	client, err := r.clientForConfig(config)
 	if err != nil {
@@ -232,6 +268,8 @@ func (r *Registry) listProviderModels(ctx context.Context, config *llmtypes.Prov
 
 	return normalizeProviderModels(config.Provider, providerModels)
 }
+
+var _ ProviderTester = (*Registry)(nil)
 
 // normalizeProviderModels normalizes and deduplicates a list of models for a provider, ensuring consistent ID formatting.
 func normalizeProviderModels(provider llmtypes.Provider, models []llmtypes.Model) ([]llmtypes.Model, error) {

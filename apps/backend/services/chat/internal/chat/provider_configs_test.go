@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -27,6 +28,20 @@ func (testCipher) Decrypt(ciphertext string) (string, error) {
 
 func newProviderConfigTestService(storage chatstorage.Storage) *Service {
 	return NewService(config.Config{}, nil, storage, nil, nil, nil, nil, nil, testCipher{})
+}
+
+type providerTesterStub struct {
+	testFn func(ctx context.Context, config *llm.ProviderConfig) ([]llm.Model, error)
+}
+
+func (s providerTesterStub) TestProviderConfig(ctx context.Context, config *llm.ProviderConfig) ([]llm.Model, error) {
+	return s.testFn(ctx, config)
+}
+
+func newProviderConfigTestServiceWithTester(storage chatstorage.Storage, tester providerTesterStub) *Service {
+	service := newProviderConfigTestService(storage)
+	service.providerTester = tester
+	return service
 }
 
 func TestService_ListProviderConfigs(t *testing.T) {
@@ -114,6 +129,94 @@ func TestService_SaveProviderConfig_UpdatesWithoutAPIKeyPreservesExistingKey(t *
 
 	require.NoError(t, err)
 	assert.Equal(t, "enc:existing", got.APIKeyEnc)
+}
+
+func TestService_TestProviderConfig_UsesProvidedAPIKey(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	apiKey := "secret-key"
+	baseURL := "https://api.openai.test"
+	mockStorage := storagetesting.NewStorage(t)
+	mockStorage.
+		On("ListProviderConfigs", ctx, mock.MatchedBy(func(filter chatstorage.ProviderConfigsFilter) bool {
+			return assert.Equal(t, []llm.Provider{llm.ProviderOpenAI}, filter.Provider)
+		})).
+		Return(nil, nil).
+		Once()
+
+	service := newProviderConfigTestServiceWithTester(mockStorage, providerTesterStub{
+		testFn: func(_ context.Context, config *llm.ProviderConfig) ([]llm.Model, error) {
+			assert.Equal(t, llm.ProviderOpenAI, config.Provider)
+			assert.Equal(t, "OpenAI", config.DisplayName)
+			assert.Equal(t, apiKey, config.APIKeyEnc)
+			require.NotNil(t, config.BaseURL)
+			assert.Equal(t, baseURL, *config.BaseURL)
+			return []llm.Model{{ID: "gpt-5.2"}, {ID: "gpt-5-mini"}}, nil
+		},
+	})
+
+	got, err := service.TestProviderConfig(ctx, TestProviderConfigParams{
+		Provider:    llm.ProviderOpenAI,
+		DisplayName: " OpenAI ",
+		APIKey:      &apiKey,
+		BaseURL:     &baseURL,
+		Metadata:    json.RawMessage(`{"tier":"prod"}`),
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, got.ModelCount)
+}
+
+func TestService_TestProviderConfig_UsesExistingAPIKeyOnUpdate(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	mockStorage := storagetesting.NewStorage(t)
+	mockStorage.
+		On("ListProviderConfigs", ctx, mock.Anything).
+		Return([]*llm.ProviderConfig{{Provider: llm.ProviderOpenAI, APIKeyEnc: "enc:existing"}}, nil).
+		Once()
+
+	service := newProviderConfigTestServiceWithTester(mockStorage, providerTesterStub{
+		testFn: func(_ context.Context, config *llm.ProviderConfig) ([]llm.Model, error) {
+			assert.Equal(t, "enc:existing", config.APIKeyEnc)
+			return []llm.Model{{ID: "gpt-5.2"}}, nil
+		},
+	})
+
+	got, err := service.TestProviderConfig(ctx, TestProviderConfigParams{
+		Provider:    llm.ProviderOpenAI,
+		DisplayName: "OpenAI",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, got.ModelCount)
+}
+
+func TestService_TestProviderConfig_RejectsCreateWithoutAPIKey(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	mockStorage := storagetesting.NewStorage(t)
+	mockStorage.
+		On("ListProviderConfigs", ctx, mock.Anything).
+		Return(nil, nil).
+		Once()
+
+	service := newProviderConfigTestServiceWithTester(mockStorage, providerTesterStub{
+		testFn: func(context.Context, *llm.ProviderConfig) ([]llm.Model, error) {
+			require.Fail(t, "provider tester should not be called")
+			return nil, nil
+		},
+	})
+
+	_, err := service.TestProviderConfig(ctx, TestProviderConfigParams{
+		Provider:    llm.ProviderOpenAI,
+		DisplayName: "OpenAI",
+	})
+
+	require.ErrorIs(t, err, chaterrors.ErrInvalidProviderConfig)
 }
 
 func TestService_SaveProviderConfig_RejectsCreateWithoutAPIKey(t *testing.T) {

@@ -49,6 +49,7 @@ type Service struct {
 	users           UserService
 	schemaRetriever SchemaRetriever
 	clientResolver  chatllm.ClientResolver
+	providerTester  chatllm.ProviderTester
 	sqlRunner       sqlrunner.SQLRunner
 	cipher          secrets.Cipher
 }
@@ -68,6 +69,10 @@ func NewService(
 	if len(ciphers) > 0 && ciphers[0] != nil {
 		cipher = ciphers[0]
 	}
+	var providerTester chatllm.ProviderTester
+	if tester, ok := clientResolver.(chatllm.ProviderTester); ok {
+		providerTester = tester
+	}
 
 	return &Service{
 		Base:            base.NewBase("chat-core", logger, cfg),
@@ -76,6 +81,7 @@ func NewService(
 		users:           users,
 		schemaRetriever: schemaRetriever,
 		clientResolver:  clientResolver,
+		providerTester:  providerTester,
 		sqlRunner:       sqlRunner,
 		cipher:          cipher,
 	}

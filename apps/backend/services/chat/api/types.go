@@ -11,4 +11,6 @@ type (
 	ListMessagesFilter       = chattype.ListMessagesFilter
 	SendMessageParams        = chattype.SendMessageParams
 	SaveProviderConfigParams = chat.SaveProviderConfigParams
+	TestProviderConfigParams = chat.TestProviderConfigParams
+	TestProviderConfigResult = chat.TestProviderConfigResult
 )
