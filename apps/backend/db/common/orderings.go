@@ -29,7 +29,7 @@ func OrderingToBobMods[T comparable](
 		case ordering.DirectionDesc:
 			mods = append(mods, sm.OrderBy(expr).Desc())
 		default:
-			return nil, fmt.Errorf("unsupported ordering direction: %q", ord.Direction)
+			return nil, fmt.Errorf("unsupported ordering direction: %v", ord.Direction)
 		}
 	}
 
