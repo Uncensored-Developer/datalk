@@ -72,3 +72,8 @@ type assistantTurnResponse struct {
 	Execution        *executionResponse   `json:"execution,omitempty"`
 	Retrieval        *retrievalResponse   `json:"retrieval,omitempty"`
 }
+
+type streamErrorResponse struct {
+	Error  string `json:"error"`
+	Status int    `json:"status,omitempty"`
+}

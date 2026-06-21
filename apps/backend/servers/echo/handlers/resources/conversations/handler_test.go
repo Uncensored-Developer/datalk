@@ -2,9 +2,11 @@ package conversations
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	echohandlers "github.com/Uncensored-Developer/datalk/apps/backend/servers/echo/handlers"
@@ -170,6 +172,72 @@ func TestHandler_SendMessage_PassesRequireNaturalResponse(t *testing.T) {
 	assert.Equal(t, naturalResponse, assistantMessage["natural_response"])
 }
 
+func TestHandler_SendMessageStream_WritesProgressAndFinalEvents(t *testing.T) {
+	t.Parallel()
+
+	mockService := &streamingTestAPI{
+		API: chatapitesting.NewAPI(t),
+		turn: &chattype.AssistantTurn{
+			Conversation: &chattype.Conversation{ID: 10, UserID: 7, ConnectionID: 42},
+			UserMessage: &chattype.Message{
+				ID:             100,
+				ConversationID: 10,
+				Role:           chattype.MessageRoleUser,
+				Content:        "how many users?",
+				Status:         chattype.MessageStatusCompleted,
+			},
+			AssistantMessage: &chattype.Message{
+				ID:             101,
+				ConversationID: 10,
+				Role:           chattype.MessageRoleAssistant,
+				Content:        "Counts users.",
+				Provider:       ptr(llmtypes.ProviderOpenAI),
+				Model:          ptr("gpt-5.2"),
+				Status:         chattype.MessageStatusCompleted,
+			},
+		},
+	}
+
+	e := newTestEcho(mockService)
+	req := httptest.NewRequest(http.MethodPost, "/api/chat/conversations/10/messages/stream", bytes.NewBufferString(`{"content":"how many users?","provider":"openai","model":"gpt-5.2"}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "text/event-stream", rec.Header().Get(echo.HeaderContentType))
+	body := rec.Body.String()
+	assert.Contains(t, body, "event: progress")
+	assert.Contains(t, body, `"stage":"generating_sql"`)
+	assert.Contains(t, body, "event: final")
+	assert.Contains(t, body, `"assistant_message"`)
+	assert.True(t, strings.Contains(body, `"content":"Counts users."`))
+}
+
+func TestHandler_SendMessageStream_MapsPreProgressDomainError(t *testing.T) {
+	t.Parallel()
+
+	mockService := &streamingTestAPI{
+		API: chatapitesting.NewAPI(t),
+		err: chaterrors.ErrModelNotAvailable,
+	}
+
+	e := newTestEcho(mockService)
+	req := httptest.NewRequest(http.MethodPost, "/api/chat/conversations/10/messages/stream", bytes.NewBufferString(`{"content":"how many users?","provider":"openai","model":"missing-model"}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	assert.Contains(t, rec.Header().Get(echo.HeaderContentType), echo.MIMEApplicationJSON)
+	assert.NotContains(t, rec.Body.String(), "event: error")
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	assert.Contains(t, body["error"], chaterrors.ErrModelNotAvailable.Error())
+}
+
 func TestHandler_SendMessage_RejectsEmptyContent(t *testing.T) {
 	t.Parallel()
 
@@ -183,6 +251,25 @@ func TestHandler_SendMessage_RejectsEmptyContent(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 	mockService.AssertNotCalled(t, "SendMessage", mock.Anything, mock.Anything)
+}
+
+type streamingTestAPI struct {
+	*chatapitesting.API
+	turn *chattype.AssistantTurn
+	err  error
+}
+
+func (s *streamingTestAPI) SendMessageWithProgress(_ context.Context, _ chattype.SendMessageParams, progress chattype.SendMessageProgressHandler) (*chattype.AssistantTurn, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	if err := progress(chattype.SendMessageProgress{
+		Stage:   chattype.SendMessageProgressGeneratingSQL,
+		Attempt: 1,
+	}); err != nil {
+		return nil, err
+	}
+	return s.turn, nil
 }
 
 func newTestEcho(service chatapi.Client) *echo.Echo {
