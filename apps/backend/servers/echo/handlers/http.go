@@ -81,6 +81,16 @@ func Error(c echo.Context, logger *slog.Logger, err error) error {
 		return nil
 	}
 
+	status := StatusForError(err)
+	message := MessageForError(err)
+	if status >= http.StatusInternalServerError {
+		logInternalError(c, logger, err)
+	}
+
+	return echo.NewHTTPError(status, ErrorResponse{Error: message})
+}
+
+func StatusForError(err error) int {
 	status := http.StatusInternalServerError
 	switch {
 	case errors.Is(err, usererrors.ErrUnauthorized), errors.Is(err, usererrors.ErrRefreshTokenInvalid):
@@ -108,13 +118,14 @@ func Error(c echo.Context, logger *slog.Logger, err error) error {
 		status = http.StatusBadRequest
 	}
 
-	message := err.Error()
-	if status >= http.StatusInternalServerError {
-		logInternalError(c, logger, err)
-		message = "internal server error"
-	}
+	return status
+}
 
-	return echo.NewHTTPError(status, ErrorResponse{Error: message})
+func MessageForError(err error) string {
+	if StatusForError(err) >= http.StatusInternalServerError {
+		return "internal server error"
+	}
+	return err.Error()
 }
 
 func logInternalError(c echo.Context, logger *slog.Logger, err error) {
