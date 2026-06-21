@@ -10,6 +10,11 @@ type NewConnectionParams struct {
 	Metadata connections.Metadata
 }
 
+type TestConnectionParams struct {
+	Database connections.Database
+	DSN      string
+}
+
 type UpdateConnectionParams struct {
 	ID        int32
 	Name      *string
