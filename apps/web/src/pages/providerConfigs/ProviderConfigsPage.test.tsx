@@ -157,6 +157,9 @@ describe("ProviderConfigsPage", () => {
       if (url === "/api/chat/provider-configs" && method === "GET") {
         return Promise.resolve(jsonResponse([]));
       }
+      if (url === "/api/chat/provider-configs/openai/test" && method === "POST") {
+        return Promise.resolve(jsonResponse({ ok: true, model_count: 1 }));
+      }
       if (url === "/api/chat/provider-configs/openai" && method === "PUT") {
         return Promise.resolve(jsonResponse({
           id: 1,
@@ -180,9 +183,15 @@ describe("ProviderConfigsPage", () => {
     fireEvent.change(screen.getByLabelText("Metadata JSON"), {
       target: { value: '{"project":"analytics"}' },
     });
+    await userEvent.click(screen.getByRole("button", { name: "Test provider" }));
+    expect(await screen.findByText("Provider test succeeded. 1 models found.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/chat/provider-configs/openai/test",
+        expect.objectContaining({ method: "POST" }),
+      );
       expect(fetchMock).toHaveBeenCalledWith(
         "/api/chat/provider-configs/openai",
         expect.objectContaining({ method: "PUT" }),

@@ -39,18 +39,27 @@ import type {
   Connection,
   ConnectionAccessGrant,
   ConnectionMetadata,
+  ConnectionTestResponse,
   DatabaseKind,
   SchemaRefreshResponse,
   User,
 } from "../../types/api";
 import { errorMessage } from "../../utils/errors";
 
-const databaseKinds: DatabaseKind[] = ["postgres", "mysql", "cql"];
+const databaseKinds: DatabaseKind[] = ["postgres", "mysql"];
 
 type ConnectionFormValues = {
   name: string;
   database: DatabaseKind;
+  dsn_mode: "dsn" | "fields";
   dsn: string;
+  host: string;
+  port: string;
+  database_name: string;
+  username: string;
+  password: string;
+  ssl_mode: string;
+  query_params: string;
   is_enabled: boolean;
   include_namespaces: string;
   exclude_namespaces: string;
@@ -406,12 +415,16 @@ function ConnectionDialog({
   const {
     control,
     formState: { errors },
+    getValues,
     handleSubmit,
     register,
     reset,
   } = useForm<ConnectionFormValues>({
     values: formValuesFromConnection(connection),
   });
+  const [lastTestSignature, setLastTestSignature] = useState<string | null>(null);
+  const [testMessage, setTestMessage] = useState<string | null>(null);
+  const dsnMode = useWatch({ control, name: "dsn_mode" });
 
   const mutation = useMutation({
     mutationFn: (values: ConnectionFormValues) => {
@@ -444,17 +457,62 @@ function ConnectionDialog({
     },
   });
 
-  const close = () => {
-    if (!mutation.isPending) {
+  const testMutation = useMutation({
+    mutationFn: async (values: ConnectionFormValues) => {
+      const dsn = effectiveDSNFromConnectionForm(values);
+      await apiClient.post<ConnectionTestResponse>("/connections/test", {
+        database: values.database,
+        dsn,
+      });
+      return connectionTestSignature(values.database, dsn);
+    },
+    onSuccess(signature) {
       setSubmitError(null);
+      setLastTestSignature(signature);
+      setTestMessage("Connection test succeeded.");
+    },
+    onError(error) {
+      setLastTestSignature(null);
+      setTestMessage(null);
+      setSubmitError(errorMessage(error));
+    },
+  });
+
+  const close = () => {
+    if (!mutation.isPending && !testMutation.isPending) {
+      setSubmitError(null);
+      setLastTestSignature(null);
+      setTestMessage(null);
       reset();
       onClose();
     }
   };
 
+  const onSubmit = handleSubmit((values) => {
+    setSubmitError(null);
+    setTestMessage(null);
+    if (requiresConnectionTest(connection, values, isEdit)) {
+      let signature: string;
+      try {
+        signature = connectionTestSignature(
+          values.database,
+          effectiveDSNFromConnectionForm(values),
+        );
+      } catch (error) {
+        setSubmitError(errorMessage(error));
+        return;
+      }
+      if (signature !== lastTestSignature) {
+        setSubmitError("Test the current connection details before saving.");
+        return;
+      }
+    }
+    mutation.mutate(values);
+  });
+
   return (
     <Dialog fullWidth maxWidth="md" open={open} onClose={close}>
-      <Box component="form" onSubmit={handleSubmit((values) => mutation.mutate(values))}>
+      <Box component="form" onSubmit={onSubmit}>
         <DialogTitle>{isEdit ? "Edit connection" : "Create connection"}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
@@ -489,21 +547,80 @@ function ConnectionDialog({
                 />
               </Grid>
               <Grid size={{ xs: 12 }}>
-                <SecretTextField
-                  label="DSN"
-                  fullWidth
-                  error={Boolean(errors.dsn)}
-                  helperText={
-                    errors.dsn?.message ??
-                    (isEdit
-                      ? "Leave blank to preserve the stored DSN."
-                      : "DSNs are encrypted server-side and never returned.")
-                  }
-                  {...register("dsn", {
-                    validate: (value) =>
-                      isEdit || value.trim() ? true : "DSN is required",
-                  })}
+                <Controller
+                  control={control}
+                  name="dsn_mode"
+                  render={({ field }) => (
+                    <FormControl fullWidth>
+                      <InputLabel id="dsn-mode-label">Connection details</InputLabel>
+                      <Select {...field} label="Connection details" labelId="dsn-mode-label">
+                        <MenuItem value="dsn">DSN</MenuItem>
+                        <MenuItem value="fields">Host and credentials</MenuItem>
+                      </Select>
+                    </FormControl>
+                  )}
                 />
+              </Grid>
+              {dsnMode === "fields" ? (
+                <>
+                  <Grid size={{ xs: 12, sm: 7 }}>
+                    <TextField label="Host" fullWidth {...register("host")} />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 5 }}>
+                    <TextField label="Port" fullWidth {...register("port")} />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <TextField label="Database name" fullWidth {...register("database_name")} />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <TextField label="Username" fullWidth {...register("username")} />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <SecretTextField label="Password" fullWidth {...register("password")} />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <TextField label="SSL mode" fullWidth {...register("ssl_mode")} />
+                  </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    <TextField
+                      label="Query params"
+                      fullWidth
+                      helperText="Example: connect_timeout=10&application_name=datalk"
+                      {...register("query_params")}
+                    />
+                  </Grid>
+                </>
+              ) : (
+                <Grid size={{ xs: 12 }}>
+                  <SecretTextField
+                    label="DSN"
+                    fullWidth
+                    error={Boolean(errors.dsn)}
+                    helperText={
+                      errors.dsn?.message ??
+                      (isEdit
+                        ? "Leave blank to preserve the stored DSN."
+                        : "DSNs are encrypted server-side and never returned.")
+                    }
+                    {...register("dsn", {
+                      validate: (value) =>
+                        isEdit || value.trim() ? true : "DSN is required",
+                    })}
+                  />
+                </Grid>
+              )}
+              <Grid size={{ xs: 12 }}>
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "stretch", sm: "center" }}>
+                  <Button
+                    disabled={testMutation.isPending || mutation.isPending}
+                    onClick={() => testMutation.mutate(getValues())}
+                    startIcon={testMutation.isPending ? <CircularProgress color="inherit" size={16} /> : undefined}
+                    variant="outlined"
+                  >
+                    Test connection
+                  </Button>
+                  {testMessage ? <Alert severity="success" sx={{ py: 0 }}>{testMessage}</Alert> : null}
+                </Stack>
               </Grid>
               {isEdit ? (
                 <Grid size={{ xs: 12 }}>
@@ -532,7 +649,7 @@ function ConnectionDialog({
         <DialogActions>
           <Button onClick={close}>Cancel</Button>
           <Button
-            disabled={mutation.isPending}
+            disabled={mutation.isPending || testMutation.isPending}
             startIcon={mutation.isPending ? <CircularProgress color="inherit" size={16} /> : undefined}
             type="submit"
             variant="contained"
@@ -844,7 +961,15 @@ function formValuesFromConnection(
   return {
     name: connection?.name ?? "",
     database: connection?.database ?? "postgres",
+    dsn_mode: "dsn",
     dsn: "",
+    host: "",
+    port: connection?.database === "mysql" ? "3306" : "5432",
+    database_name: "",
+    username: "",
+    password: "",
+    ssl_mode: connection?.database === "mysql" ? "" : "require",
+    query_params: "",
     is_enabled: connection?.is_enabled ?? true,
     include_namespaces: formatList(metadata?.include_namespaces),
     exclude_namespaces: formatList(metadata?.exclude_namespaces),
@@ -879,7 +1004,7 @@ function payloadFromConnectionForm(values: ConnectionFormValues, isEdit: boolean
     },
   };
 
-  const dsn = values.dsn.trim();
+  const dsn = maybeEffectiveDSNFromConnectionForm(values);
   if (dsn) {
     payload.dsn = dsn;
   }
@@ -888,6 +1013,83 @@ function payloadFromConnectionForm(values: ConnectionFormValues, isEdit: boolean
   }
 
   return payload;
+}
+
+function requiresConnectionTest(
+  connection: Connection | null | undefined,
+  values: ConnectionFormValues,
+  isEdit: boolean,
+) {
+  if (!isEdit || !connection) {
+    return true;
+  }
+
+  return values.database !== connection.database || Boolean(maybeEffectiveDSNFromConnectionForm(values));
+}
+
+function connectionTestSignature(database: DatabaseKind, dsn: string) {
+  return JSON.stringify({ database, dsn });
+}
+
+function maybeEffectiveDSNFromConnectionForm(values: ConnectionFormValues) {
+  if (values.dsn_mode === "dsn") {
+    return values.dsn.trim();
+  }
+
+  if (
+    !values.host.trim() &&
+    !values.database_name.trim() &&
+    !values.username.trim() &&
+    !values.password.trim()
+  ) {
+    return "";
+  }
+
+  return effectiveDSNFromConnectionForm(values);
+}
+
+function effectiveDSNFromConnectionForm(values: ConnectionFormValues) {
+  if (values.dsn_mode === "dsn") {
+    const dsn = values.dsn.trim();
+    if (!dsn) {
+      throw new Error("DSN is required");
+    }
+    return dsn;
+  }
+
+  const host = values.host.trim();
+  const databaseName = values.database_name.trim();
+  if (!host) {
+    throw new Error("Host is required");
+  }
+  if (!databaseName) {
+    throw new Error("Database name is required");
+  }
+
+  const port = values.port.trim() || (values.database === "mysql" ? "3306" : "5432");
+  const username = values.username.trim();
+  const password = values.password;
+  const auth = username
+    ? `${encodeURIComponent(username)}${password ? `:${encodeURIComponent(password)}` : ""}@`
+    : "";
+  const query = new URLSearchParams(values.query_params.trim());
+  if (values.database === "postgres" && values.ssl_mode.trim()) {
+    query.set("sslmode", values.ssl_mode.trim());
+  }
+  const queryString = query.toString();
+
+  if (values.database === "mysql") {
+    const mysqlAuth = username
+      ? `${username}${password ? `:${password}` : ""}@`
+      : "";
+    return `${mysqlAuth}tcp(${host}:${port})/${databaseName}${
+      queryString ? `?${queryString}` : ""
+    }`;
+  }
+
+  return `${values.database}://${auth}${host}:${port}/${encodeURIComponent(databaseName)}${
+    queryString ? `?${queryString}` : ""
+  }`;
 }
 
 function shouldRefreshSchemaAfterSave(
@@ -902,7 +1104,7 @@ function shouldRefreshSchemaAfterSave(
   if (values.database !== connection.database) {
     return true;
   }
-  if (values.dsn.trim()) {
+  if (maybeEffectiveDSNFromConnectionForm(values)) {
     return true;
   }
   if (values.is_enabled !== connection.is_enabled) {

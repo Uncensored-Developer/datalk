@@ -51,6 +51,10 @@ export type Connection = {
   metadata?: ConnectionMetadata | null;
 };
 
+export type ConnectionTestResponse = {
+  ok: boolean;
+};
+
 export type ConnectionAccessGrant = {
   user_id: number;
   connection_id: number;
@@ -76,6 +80,11 @@ export type ProviderConfig = {
   metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+};
+
+export type ProviderConfigTestResponse = {
+  ok: boolean;
+  model_count: number;
 };
 
 export type ModelCapabilities = {
