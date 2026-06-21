@@ -125,6 +125,48 @@ func TestHandler_CreateConnection_RejectsNonAdmin(t *testing.T) {
 	mockService.AssertNotCalled(t, "CreateConnection", mock.Anything, mock.Anything)
 }
 
+func TestHandler_TestConnection(t *testing.T) {
+	t.Parallel()
+
+	mockService := connectionsapitesting.NewService(t)
+	mockService.
+		On("TestConnection", mock.Anything, mock.MatchedBy(func(params any) bool {
+			value := reflect.ValueOf(params)
+			assert.Equal(t, string(connectiontypes.DatabasePostgres), value.FieldByName("Database").String())
+			assert.Equal(t, "postgres://example", value.FieldByName("DSN").String())
+			return true
+		})).
+		Return(nil).
+		Once()
+
+	e := newConnectionsTestEcho(mockService, &usertypes.User{ID: 7, Role: usertypes.RoleAdmin})
+	req := httptest.NewRequest(http.MethodPost, "/api/connections/test", bytes.NewBufferString(`{"database":"postgres","dsn":"postgres://example"}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	assert.Equal(t, true, body["ok"])
+}
+
+func TestHandler_TestConnection_RejectsNonAdmin(t *testing.T) {
+	t.Parallel()
+
+	mockService := connectionsapitesting.NewService(t)
+	e := newConnectionsTestEcho(mockService, &usertypes.User{ID: 7, Role: usertypes.RoleMember})
+	req := httptest.NewRequest(http.MethodPost, "/api/connections/test", bytes.NewBufferString(`{"database":"postgres","dsn":"postgres://example"}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+	mockService.AssertNotCalled(t, "TestConnection", mock.Anything, mock.Anything)
+}
+
 func TestHandler_CreateAccess(t *testing.T) {
 	t.Parallel()
 

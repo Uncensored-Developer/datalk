@@ -138,6 +138,53 @@ func TestHandler_SaveProviderConfig_NonAdminForbidden(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, rec.Code)
 }
 
+func TestHandler_TestProviderConfig_Admin(t *testing.T) {
+	t.Parallel()
+
+	apiKey := "secret-key"
+	baseURL := "https://api.openai.test"
+	mockService := chatapitesting.NewAPI(t)
+	mockService.
+		On("TestProviderConfig", mock.Anything, mock.MatchedBy(func(params chatapi.TestProviderConfigParams) bool {
+			assert.Equal(t, llmtypes.ProviderOpenAI, params.Provider)
+			assert.Equal(t, "OpenAI", params.DisplayName)
+			require.NotNil(t, params.APIKey)
+			assert.Equal(t, apiKey, *params.APIKey)
+			require.NotNil(t, params.BaseURL)
+			assert.Equal(t, baseURL, *params.BaseURL)
+			assert.JSONEq(t, `{"tier":"prod"}`, string(params.Metadata))
+			return true
+		})).
+		Return(&chatapi.TestProviderConfigResult{ModelCount: 2}, nil).
+		Once()
+
+	e := newTestEcho(mockService, users.RoleAdmin)
+	req := httptest.NewRequest(http.MethodPost, "/api/chat/provider-configs/openai/test", bytes.NewBufferString(`{"display_name":"OpenAI","api_key":"secret-key","base_url":"https://api.openai.test","metadata":{"tier":"prod"}}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	assert.Equal(t, true, body["ok"])
+	assert.Equal(t, float64(2), body["model_count"])
+}
+
+func TestHandler_TestProviderConfig_NonAdminForbidden(t *testing.T) {
+	t.Parallel()
+
+	e := newTestEcho(chatapitesting.NewAPI(t), users.RoleMember)
+	req := httptest.NewRequest(http.MethodPost, "/api/chat/provider-configs/openai/test", bytes.NewBufferString(`{"display_name":"OpenAI"}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusForbidden, rec.Code)
+}
+
 func TestHandler_SaveProviderConfig_InvalidProvider(t *testing.T) {
 	t.Parallel()
 

@@ -25,5 +25,6 @@ func New(service chatapi.Client, logger *slog.Logger) *Handler {
 
 func (h *Handler) Register(group *echo.Group) {
 	group.GET("/provider-configs", h.ListProviderConfigs)
+	group.POST("/provider-configs/:provider/test", h.TestProviderConfig)
 	group.PUT("/provider-configs/:provider", h.SaveProviderConfig)
 }

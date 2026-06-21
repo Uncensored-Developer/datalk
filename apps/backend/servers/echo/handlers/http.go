@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	chaterrors "github.com/Uncensored-Developer/datalk/apps/backend/services/chat/pkg/errors"
+	connectionerrors "github.com/Uncensored-Developer/datalk/apps/backend/services/connections/pkg/errors"
 	usererrors "github.com/Uncensored-Developer/datalk/apps/backend/services/users/pkg/errors"
 	"github.com/Uncensored-Developer/datalk/apps/backend/services/users/pkg/users"
 	"github.com/labstack/echo/v4"
@@ -114,7 +115,10 @@ func StatusForError(err error) int {
 		errors.Is(err, chaterrors.ErrInvalidSQL),
 		errors.Is(err, chaterrors.ErrPromptTooLarge),
 		errors.Is(err, chaterrors.ErrUnsupportedDatabaseKind),
-		errors.Is(err, chaterrors.ErrMessageExecutionFailed):
+		errors.Is(err, chaterrors.ErrMessageExecutionFailed),
+		errors.Is(err, connectionerrors.ErrConnectionTestFailed),
+		errors.Is(err, connectionerrors.ErrUnsupportedConnection),
+		errors.Is(err, connectionerrors.ErrInvalidConnectionInput):
 		status = http.StatusBadRequest
 	}
 
