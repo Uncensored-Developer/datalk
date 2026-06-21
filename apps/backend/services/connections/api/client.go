@@ -11,6 +11,7 @@ import (
 //go:generate go tool with-modfile mockery --name Client --structname API --outpkg testing --output ./testing --filename generated__connections_api_mocks.go
 type Client interface {
 	CreateConnection(ctx context.Context, params NewConnectionParams) (*connections.Connection, error)
+	TestConnection(ctx context.Context, params TestConnectionParams) error
 	GetConnection(ctx context.Context, ID int32) (*connections.Connection, error)
 	ListConnections(ctx context.Context, params ListConnectionsParams) ([]*connections.Connection, error)
 	UpdateConnection(ctx context.Context, params UpdateConnectionParams) (*connections.Connection, error)

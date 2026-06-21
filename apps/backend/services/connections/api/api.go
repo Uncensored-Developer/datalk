@@ -13,6 +13,7 @@ import (
 //go:generate go tool with-modfile mockery --name Service --outpkg testing --output ./testing --filename generated__connections_service_mocks.go
 type Service interface {
 	CreateConnection(ctx context.Context, params connectionsservice.NewConnection) (*connections.Connection, error)
+	TestConnection(ctx context.Context, params connectionsservice.TestConnection) error
 	GetConnection(ctx context.Context, ID int32) (*connections.Connection, error)
 	ListConnections(ctx context.Context, params connectionsservice.ListConnections) ([]*connections.Connection, error)
 	UpdateConnection(ctx context.Context, params connectionsservice.UpdateConnection) (*connections.Connection, error)
@@ -41,6 +42,13 @@ func (a *Api) CreateConnection(ctx context.Context, params NewConnectionParams) 
 		DSN:      params.DSN,
 		UserID:   params.UserID,
 		Metadata: params.Metadata,
+	})
+}
+
+func (a *Api) TestConnection(ctx context.Context, params TestConnectionParams) error {
+	return a.service.TestConnection(ctx, connectionsservice.TestConnection{
+		Database: params.Database,
+		DSN:      params.DSN,
 	})
 }
 
