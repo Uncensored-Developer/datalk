@@ -45,6 +45,7 @@ import type {
   MessageExecution,
   MessageListItem,
   Provider,
+  SendMessageProgress,
   SendMessageResponse,
 } from "../../types/api";
 import { errorMessage } from "../../utils/errors";
@@ -156,13 +157,14 @@ function MessagePanel({
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const streamTimersRef = useRef<number[]>([]);
   const [streamedNaturalResponses, setStreamedNaturalResponses] = useState<Record<number, string>>({});
+  const [pendingProgress, setPendingProgress] = useState<SendMessageProgress | null>(null);
   const lastMessageID = messages.at(-1)?.message.id;
 
   useEffect(() => {
-    if (lastMessageID && typeof messagesEndRef.current?.scrollIntoView === "function") {
+    if ((lastMessageID || pendingProgress) && typeof messagesEndRef.current?.scrollIntoView === "function") {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
     }
-  }, [lastMessageID]);
+  }, [lastMessageID, pendingProgress]);
 
   useEffect(() => {
     const timers = streamTimersRef.current;
@@ -312,6 +314,7 @@ function MessagePanel({
               streamedNaturalResponse={streamedNaturalResponses[item.message.id]}
             />
           ))}
+          {pendingProgress ? <PendingAssistantMessage progress={pendingProgress} /> : null}
           <Box ref={messagesEndRef} />
         </Stack>
       </Box>
@@ -327,11 +330,54 @@ function MessagePanel({
         <SendMessageForm
           conversationID={conversation.id}
           models={models}
+          onProgress={setPendingProgress}
           onSendSuccess={handleSendSuccess}
+          onSendSettled={() => setPendingProgress(null)}
         />
       </Box>
     </Box>
   );
+}
+
+function PendingAssistantMessage({ progress }: { progress: SendMessageProgress }) {
+  return (
+    <Stack direction="row" justifyContent="flex-start" sx={{ width: "100%" }}>
+      <Paper
+        variant="outlined"
+        sx={{
+          maxWidth: { xs: "100%", md: "78%" },
+          p: 1.5,
+          borderRadius: 2,
+          bgcolor: "background.paper",
+          borderColor: "divider",
+        }}
+      >
+        <Stack alignItems="center" direction="row" spacing={1.25}>
+          <CircularProgress size={16} />
+          <Typography color="text.secondary" variant="body2">
+            {progressMessage(progress)}
+          </Typography>
+        </Stack>
+      </Paper>
+    </Stack>
+  );
+}
+
+function progressMessage(progress: SendMessageProgress) {
+  switch (progress.stage) {
+    case "retrieving_schema":
+      return "Retrieving schema context";
+    case "generating_sql":
+      return "Generating SQL";
+    case "executing_sql":
+      return "Executing SQL";
+    case "regenerating_sql":
+      return "Execution failed, regenerating SQL";
+    case "generating_response":
+      return "Generating response";
+    default:
+      return "Working";
+  }
 }
 
 function MessageItem({
@@ -605,11 +651,15 @@ function ResultTable({ execution }: { execution: MessageExecution }) {
 function SendMessageForm({
   conversationID,
   models,
+  onProgress,
   onSendSuccess,
+  onSendSettled,
 }: {
   conversationID: number;
   models: ChatModel[];
+  onProgress: (progress: SendMessageProgress | null) => void;
   onSendSuccess: (response: SendMessageResponse) => boolean;
+  onSendSettled: () => void;
 }) {
   const { apiClient } = useAuth();
   const queryClient = useQueryClient();
@@ -660,14 +710,25 @@ function SendMessageForm({
   const mutation = useMutation({
     mutationFn: (values: SendForm) => {
       const selectedModel = selectedModelByID.get(values.model);
-      return apiClient.post<SendMessageResponse>(
-        `/chat/conversations/${conversationID}/messages`,
-        {
-          content: values.content.trim(),
-          provider: selectedModel?.provider as Provider,
-          model: values.model,
-          require_natural_response: requireNaturalResponse,
-        },
+      const body = {
+        content: values.content.trim(),
+        provider: selectedModel?.provider as Provider,
+        model: values.model,
+        require_natural_response: requireNaturalResponse,
+      };
+
+      if (typeof ReadableStream === "undefined") {
+        return apiClient.post<SendMessageResponse>(
+          `/chat/conversations/${conversationID}/messages`,
+          body,
+        );
+      }
+
+      onProgress({ stage: "retrieving_schema" });
+      return apiClient.postEventStream<SendMessageProgress, SendMessageResponse>(
+        `/chat/conversations/${conversationID}/messages/stream`,
+        body,
+        { onProgress },
       );
     },
     onSuccess(response, values) {
@@ -683,6 +744,9 @@ function SendMessageForm({
     },
     onError(error) {
       setError("content", { message: errorMessage(error) });
+    },
+    onSettled() {
+      onSendSettled();
     },
   });
 

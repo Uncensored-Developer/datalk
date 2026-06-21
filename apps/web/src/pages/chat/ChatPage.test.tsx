@@ -198,7 +198,7 @@ describe("ChatPage", () => {
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        "/api/chat/conversations/100/messages",
+        "/api/chat/conversations/100/messages/stream",
         expect.objectContaining({
           method: "POST",
           body: JSON.stringify({
@@ -224,7 +224,7 @@ describe("ChatPage", () => {
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        "/api/chat/conversations/100/messages",
+        "/api/chat/conversations/100/messages/stream",
         expect.objectContaining({
           method: "POST",
           body: JSON.stringify({
@@ -236,7 +236,9 @@ describe("ChatPage", () => {
         }),
       );
     });
-    expect(window.localStorage.getItem("datalk.chat.requireNaturalResponse")).toBe("false");
+    await waitFor(() => {
+      expect(window.localStorage.getItem("datalk.chat.requireNaturalResponse")).toBe("false");
+    });
   });
 
   it("displays a natural response from the send response in chunks", async () => {
@@ -265,6 +267,82 @@ describe("ChatPage", () => {
     expect(screen.queryByText("Counts users.")).not.toBeInTheDocument();
   });
 
+  it("displays progress while a message is processing", async () => {
+    mockChatApi({
+      messages: [],
+      sendResponse: {
+        conversation,
+        user_message: messageItems[0].message,
+        assistant_message: {
+          ...messageItems[1].message,
+          content: "Counts users.",
+          natural_response: "There are 42 users.",
+        },
+        execution: messageItems[1].execution,
+        retrieval: messageItems[1].retrieval,
+      },
+    });
+
+    renderChatRoute();
+
+    await userEvent.click((await screen.findAllByText("Revenue questions"))[0]);
+    await userEvent.type(await screen.findByLabelText("Message"), "How many users?");
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByText("Generating SQL")).toBeInTheDocument();
+    expect(await screen.findByText("There are 42 users.")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText("Generating SQL")).not.toBeInTheDocument();
+    });
+  });
+
+  it("uses the non-stream endpoint when ReadableStream is unavailable before sending", async () => {
+    const originalReadableStream = ReadableStream;
+    try {
+      const fetchMock = mockChatApi({ messages: [] });
+
+      renderChatRoute();
+
+      await userEvent.click((await screen.findAllByText("Revenue questions"))[0]);
+      await userEvent.type(await screen.findByLabelText("Message"), "How many users?");
+      vi.stubGlobal("ReadableStream", undefined);
+      await userEvent.click(screen.getByRole("button", { name: "Send" }));
+
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledWith(
+          "/api/chat/conversations/100/messages",
+          expect.objectContaining({ method: "POST" }),
+        );
+      });
+      expect(fetchMock).not.toHaveBeenCalledWith(
+        "/api/chat/conversations/100/messages/stream",
+        expect.anything(),
+      );
+    } finally {
+      vi.stubGlobal("ReadableStream", originalReadableStream);
+    }
+  });
+
+  it("does not submit a duplicate message when a stream response has no readable body", async () => {
+    const fetchMock = mockChatApi({ messages: [], streamResponseWithoutBody: true });
+
+    renderChatRoute();
+
+    await userEvent.click((await screen.findAllByText("Revenue questions"))[0]);
+    await userEvent.type(await screen.findByLabelText("Message"), "How many users?");
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByText("streaming responses are not supported")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/chat/conversations/100/messages/stream",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      "/api/chat/conversations/100/messages",
+      expect.anything(),
+    );
+  });
+
   it("uses and updates the last successful chat model", async () => {
     window.localStorage.setItem("datalk.chat.lastModel", "ollama:llama3.2");
     const fetchMock = mockChatApi({ messages: [], models: [model, localModel] });
@@ -277,7 +355,7 @@ describe("ChatPage", () => {
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        "/api/chat/conversations/100/messages",
+        "/api/chat/conversations/100/messages/stream",
         expect.objectContaining({
           method: "POST",
           body: JSON.stringify({
@@ -404,11 +482,13 @@ function mockChatApi({
     execution: messageItems[1].execution,
     retrieval: messageItems[1].retrieval,
   },
+  streamResponseWithoutBody = false,
 }: {
   conversations?: typeof conversation[];
   messages?: typeof messageItems;
   models?: Array<typeof model>;
   sendResponse?: SendMessageResponse;
+  streamResponseWithoutBody?: boolean;
 } = {}) {
   return vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
     const rawPath =
@@ -438,6 +518,19 @@ function mockChatApi({
     if (method === "POST" && path === "/chat/conversations") {
       return jsonResponse(conversation, { status: 201 });
     }
+    if (method === "POST" && path === "/chat/conversations/100/messages/stream") {
+      if (streamResponseWithoutBody) {
+        return new Response(null, {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        });
+      }
+      return eventStreamResponse([
+        { event: "progress", data: { stage: "generating_sql", attempt: 1 } },
+        { event: "progress", data: { stage: "executing_sql", attempt: 1 } },
+        { event: "final", data: sendResponse },
+      ]);
+    }
     if (method === "POST" && path === "/chat/conversations/100/messages") {
       return jsonResponse(sendResponse);
     }
@@ -465,5 +558,29 @@ function jsonResponse(body: unknown, init: ResponseInit = {}) {
     status: 200,
     headers: { "Content-Type": "application/json" },
     ...init,
+  });
+}
+
+function eventStreamResponse(events: Array<{ event: string; data: unknown }>) {
+  const encoder = new TextEncoder();
+  const chunks = events.map(({ event, data }) =>
+    encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
+  );
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      chunks.forEach((chunk, index) => {
+        window.setTimeout(() => {
+          controller.enqueue(chunk);
+          if (index === chunks.length - 1) {
+            controller.close();
+          }
+        }, index * 250);
+      });
+    },
+  });
+
+  return new Response(body, {
+    status: 200,
+    headers: { "Content-Type": "text/event-stream" },
   });
 }
