@@ -166,3 +166,15 @@ export type SendMessageResponse = {
   execution?: MessageExecution;
   retrieval?: MessageRetrieval;
 };
+
+export type SendMessageProgressStage =
+  | "retrieving_schema"
+  | "generating_sql"
+  | "executing_sql"
+  | "regenerating_sql"
+  | "generating_response";
+
+export type SendMessageProgress = {
+  stage: SendMessageProgressStage;
+  attempt?: number;
+};

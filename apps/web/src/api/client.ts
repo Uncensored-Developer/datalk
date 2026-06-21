@@ -13,6 +13,10 @@ type RequestOptions = Omit<RequestInit, "body"> & {
   refreshOnUnauthorized?: boolean;
 };
 
+type EventStreamHandlers<TProgress> = {
+  onProgress?: (event: TProgress) => void;
+};
+
 export class ApiError extends Error {
   readonly status: number;
   readonly payload: unknown;
@@ -55,6 +59,19 @@ export class ApiClient {
     return this.fetchJson<T>(path, options, true);
   }
 
+  async postEventStream<TProgress, TFinal>(
+    path: string,
+    body: unknown,
+    handlers: EventStreamHandlers<TProgress> = {},
+  ): Promise<TFinal> {
+    return this.fetchEventStream<TProgress, TFinal>(
+      path,
+      { method: "POST", body },
+      handlers,
+      true,
+    );
+  }
+
   private async fetchJson<T>(
     path: string,
     options: RequestOptions,
@@ -87,6 +104,41 @@ export class ApiClient {
     }
 
     return (await response.json()) as T;
+  }
+
+  private async fetchEventStream<TProgress, TFinal>(
+    path: string,
+    options: RequestOptions,
+    handlers: EventStreamHandlers<TProgress>,
+    allowRefresh: boolean,
+  ): Promise<TFinal> {
+    const response = await fetch(this.urlFor(path), {
+      ...options,
+      headers: this.headersFor(options),
+      body: serializeBody(options.body),
+    });
+
+    if (
+      response.status === 401 &&
+      allowRefresh &&
+      options.auth !== false &&
+      options.refreshOnUnauthorized !== false
+    ) {
+      const refreshed = await this.refreshSession();
+      if (refreshed) {
+        return this.fetchEventStream<TProgress, TFinal>(path, options, handlers, false);
+      }
+    }
+
+    if (!response.ok) {
+      throw await parseApiError(response);
+    }
+
+    if (!response.body) {
+      throw new ApiError(0, "streaming responses are not supported", null);
+    }
+
+    return readEventStream<TProgress, TFinal>(response.body, handlers);
   }
 
   private async refreshSession() {
@@ -175,4 +227,89 @@ async function parseResponsePayload(response: Response) {
   } catch {
     return null;
   }
+}
+
+async function readEventStream<TProgress, TFinal>(
+  body: ReadableStream<Uint8Array>,
+  handlers: EventStreamHandlers<TProgress>,
+) {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+    let separatorIndex = buffer.indexOf("\n\n");
+    while (separatorIndex >= 0) {
+      const rawEvent = buffer.slice(0, separatorIndex);
+      buffer = buffer.slice(separatorIndex + 2);
+      const final = handleEventStreamBlock<TProgress, TFinal>(rawEvent, handlers);
+      if (final !== undefined) {
+        return final;
+      }
+      separatorIndex = buffer.indexOf("\n\n");
+    }
+  }
+
+  buffer += decoder.decode();
+  if (buffer.trim()) {
+    const final = handleEventStreamBlock<TProgress, TFinal>(buffer, handlers);
+    if (final !== undefined) {
+      return final;
+    }
+  }
+
+  throw new ApiError(500, "stream ended before final response", null);
+}
+
+function handleEventStreamBlock<TProgress, TFinal>(
+  rawEvent: string,
+  handlers: EventStreamHandlers<TProgress>,
+) {
+  const lines = rawEvent.split(/\r?\n/);
+  const event = lines
+    .find((line) => line.startsWith("event:"))
+    ?.slice("event:".length)
+    .trim();
+  const data = lines
+    .filter((line) => line.startsWith("data:"))
+    .map((line) => line.slice("data:".length).trimStart())
+    .join("\n");
+
+  if (!event || !data) {
+    return undefined;
+  }
+
+  const payload = JSON.parse(data) as unknown;
+  if (event === "progress") {
+    handlers.onProgress?.(payload as TProgress);
+    return undefined;
+  }
+  if (event === "final") {
+    return payload as TFinal;
+  }
+  if (event === "error") {
+    const message =
+      typeof payload === "object" &&
+      payload !== null &&
+      "error" in payload &&
+      typeof (payload as ApiErrorShape).error === "string"
+        ? (payload as ApiErrorShape).error
+        : "request failed";
+    const status =
+      typeof payload === "object" &&
+      payload !== null &&
+      "status" in payload &&
+      typeof (payload as { status?: unknown }).status === "number"
+        ? (payload as { status: number }).status
+        : 500;
+    throw new ApiError(status, message, payload);
+  }
+
+  return undefined;
 }
