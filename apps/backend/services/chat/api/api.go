@@ -19,6 +19,7 @@ type Service interface {
 	DeleteConversation(ctx context.Context, userID int32, conversationID int64) error
 	ListMessages(ctx context.Context, userID int32, filter chattype.ListMessagesFilter) ([]*chattype.MessageDetails, error)
 	SendMessage(ctx context.Context, params chattype.SendMessageParams) (*chattype.AssistantTurn, error)
+	SendMessageWithProgress(ctx context.Context, params chattype.SendMessageParams, progress chattype.SendMessageProgressHandler) (*chattype.AssistantTurn, error)
 	ListProviderConfigs(ctx context.Context) ([]*llmtypes.ProviderConfig, error)
 	SaveProviderConfig(ctx context.Context, params chat.SaveProviderConfigParams) (*llmtypes.ProviderConfig, error)
 }
@@ -64,6 +65,10 @@ func (a *Api) ListMessages(ctx context.Context, userID int32, filter ListMessage
 
 func (a *Api) SendMessage(ctx context.Context, params SendMessageParams) (*chattype.AssistantTurn, error) {
 	return a.service.SendMessage(ctx, params)
+}
+
+func (a *Api) SendMessageWithProgress(ctx context.Context, params SendMessageParams, progress chattype.SendMessageProgressHandler) (*chattype.AssistantTurn, error) {
+	return a.service.SendMessageWithProgress(ctx, params, progress)
 }
 
 func (a *Api) ListProviderConfigs(ctx context.Context) ([]*llmtypes.ProviderConfig, error) {
