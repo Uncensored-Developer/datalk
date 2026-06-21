@@ -6,9 +6,7 @@ import (
 	context "context"
 
 	connections "github.com/Uncensored-Developer/datalk/apps/backend/services/connections/pkg/connections"
-
 	introspector "github.com/Uncensored-Developer/datalk/apps/backend/services/schemas/internal/schemas/introspector"
-
 	mock "github.com/stretchr/testify/mock"
 )
 

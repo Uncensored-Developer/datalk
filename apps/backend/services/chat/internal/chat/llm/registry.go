@@ -39,6 +39,7 @@ type ClientResolver interface {
 	ResolveClient(ctx context.Context, provider llmtypes.Provider, modelID string) (*ResolvedClient, error)
 }
 
+//go:generate go tool with-modfile mockery --name ProviderTester --outpkg testing --output ./testing --filename generated__provider_tester_mocks.go
 type ProviderTester interface {
 	TestProviderConfig(ctx context.Context, config *llmtypes.ProviderConfig) ([]llmtypes.Model, error)
 }

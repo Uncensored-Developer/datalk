@@ -49,11 +49,13 @@ Admin-only endpoints:
 - `GET /users`
 - `POST /users`
 - `PUT /users/{user_id}`
+- `POST /connections/test`
 - `POST /connections`
 - `PUT /connections/{connection_id}`
 - `DELETE /connections/{connection_id}`
 - `POST /connections/{connection_id}/access`
 - `GET /chat/provider-configs`
+- `POST /chat/provider-configs/{provider}/test`
 - `PUT /chat/provider-configs/{provider}`
 
 Any authenticated user can call the schema snapshot refresh endpoint in the current implementation.
@@ -432,6 +434,40 @@ Notes:
 - Connection responses do not include timestamps.
 - Admin users can use every connection without a per-connection access grant.
 
+### Test Connection
+
+Admin-only. Tests an unsaved DSN without creating or updating a connection.
+
+```http
+POST /api/connections/test
+Authorization: Bearer <access_token>
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "database": "postgres",
+  "dsn": "postgres://user:pass@host:5432/db?sslmode=require"
+}
+```
+
+Response `200`:
+
+```json
+{
+  "ok": true
+}
+```
+
+Rules:
+
+- Testable `database` values are `postgres` and `mysql`.
+- MySQL accepts either native driver DSNs like `user:pass@tcp(host:3306)/db?parseTime=true` or URL DSNs like `mysql://user:pass@host:3306/db?parseTime=true`.
+- `cql` remains a stored connection kind, but this test endpoint returns `400` because there is no CQL driver-backed test implementation.
+- Failed connection attempts return `400` with the common error shape.
+
 ### Edit Connection
 
 Admin-only. This is a partial update; include only fields that should change.
@@ -650,6 +686,44 @@ Request rules:
 - `ollama` can be created without `api_key`; use `base_url` for the Ollama server, such as `http://localhost:11434`.
 - If `is_enabled` is omitted, it defaults to `true`.
 - If `metadata` is omitted, it defaults to `{}`.
+
+### Test Provider Config
+
+Admin-only. Tests an unsaved provider config without creating or updating it. The backend creates a transient provider client and lists models.
+
+```http
+POST /api/chat/provider-configs/{provider}/test
+Authorization: Bearer <access_token>
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "display_name": "OpenAI",
+  "api_key": "sk-...",
+  "base_url": "https://api.openai.com",
+  "metadata": {}
+}
+```
+
+Response `200`:
+
+```json
+{
+  "ok": true,
+  "model_count": 2
+}
+```
+
+Rules:
+
+- `provider` must be one of the known providers.
+- `display_name` is required.
+- For `openai`, `anthropic`, and `gemini`, `api_key` is required when testing a new provider config.
+- When testing an existing provider config, omit `api_key` to reuse the stored encrypted key.
+- Provider auth, base URL, or model-listing failures return `400` with the common error shape.
 
 ## Models
 
