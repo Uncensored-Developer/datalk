@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -27,6 +27,15 @@ const session = {
 const connection = {
   id: 10,
   name: "Warehouse",
+  database: "postgres",
+  user_id: 1,
+  is_enabled: true,
+  metadata: {},
+};
+
+const analyticsConnection = {
+  id: 20,
+  name: "Analytics",
   database: "postgres",
   user_id: 1,
   is_enabled: true,
@@ -172,16 +181,57 @@ describe("ChatPage", () => {
 
     renderChatRoute();
 
-    await userEvent.click(await screen.findByRole("button", { name: "New conversation" }));
-    await userEvent.type(screen.getByLabelText("Title"), "Revenue questions");
-    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Create" }));
+    await userEvent.type(await screen.findByPlaceholderText("Message Datalk"), "How many users?");
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         "/api/chat/conversations",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ connection_id: 10, title: "Revenue questions" }),
+          body: JSON.stringify({ connection_id: 10, title: null }),
+        }),
+      );
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/chat/conversations/100/messages",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            content: "How many users?",
+            provider: "openai",
+            model: "openai:gpt-5.2",
+            require_natural_response: true,
+          }),
+        }),
+      );
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/chat/conversations/100/title/infer",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+  });
+
+  it("uses the selected sidebar connection when starting a new conversation", async () => {
+    const fetchMock = mockChatApi({
+      conversations: [],
+      connections: [connection, analyticsConnection],
+    });
+
+    renderChatRoute();
+
+    const sidebarConnectionFilter = (await screen.findAllByRole("combobox"))[0];
+    await userEvent.click(sidebarConnectionFilter);
+    await userEvent.click(await screen.findByRole("option", { name: "Analytics" }));
+    await userEvent.click(screen.getByRole("button", { name: "New conversation" }));
+    await userEvent.type(await screen.findByPlaceholderText("Message Datalk"), "Show revenue");
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/chat/conversations",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ connection_id: 20, title: null }),
         }),
       );
     });
@@ -473,6 +523,7 @@ describe("ChatPage", () => {
 
 function mockChatApi({
   conversations = [conversation],
+  connections = [connection],
   messages = messageItems,
   models = [model],
   sendResponse = {
@@ -485,6 +536,7 @@ function mockChatApi({
   streamResponseWithoutBody = false,
 }: {
   conversations?: typeof conversation[];
+  connections?: Array<typeof connection>;
   messages?: typeof messageItems;
   models?: Array<typeof model>;
   sendResponse?: SendMessageResponse;
@@ -501,7 +553,7 @@ function mockChatApi({
     const method = init?.method ?? "GET";
 
     if (method === "GET" && path === "/connections") {
-      return jsonResponse([connection]);
+      return jsonResponse(connections);
     }
     if (method === "GET" && path === "/chat/models") {
       return jsonResponse(models);
@@ -533,6 +585,9 @@ function mockChatApi({
     }
     if (method === "POST" && path === "/chat/conversations/100/messages") {
       return jsonResponse(sendResponse);
+    }
+    if (method === "POST" && path === "/chat/conversations/100/title/infer") {
+      return jsonResponse({ ...conversation, title: "User Count" });
     }
     if (method === "DELETE" && path === "/chat/conversations/100") {
       return new Response(null, { status: 204 });

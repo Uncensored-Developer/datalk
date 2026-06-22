@@ -110,7 +110,7 @@ export type Conversation = {
   id: number;
   user_id: number;
   connection_id: number;
-  title: string;
+  title: string | null;
   created_at: string;
   updated_at: string;
 };

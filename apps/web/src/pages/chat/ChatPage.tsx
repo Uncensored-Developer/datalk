@@ -34,13 +34,14 @@ import Typography from "@mui/material/Typography";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../auth/AuthProvider";
 import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
 import type {
   ChatModel,
+  Connection,
   Conversation,
   MessageExecution,
   MessageListItem,
@@ -55,12 +56,18 @@ type SendForm = {
   model: string;
 };
 
+type StartConversationForm = SendForm & {
+  connection_id: string;
+};
+
 const lastChatModelKey = "datalk.chat.lastModel";
 const requireNaturalResponseKey = "datalk.chat.requireNaturalResponse";
 
 export function ChatPage() {
   const { apiClient } = useAuth();
+  const navigate = useNavigate();
   const { conversationID } = useParams();
+  const [searchParams] = useSearchParams();
   const parsedConversationID = conversationID ? Number(conversationID) : null;
   const hasValidConversationID =
     parsedConversationID !== null && Number.isInteger(parsedConversationID);
@@ -87,9 +94,12 @@ export function ChatPage() {
 
   if (!conversationID) {
     return (
-      <EmptyState
-        title="Select a conversation"
-        description="Choose a conversation from the side navigation or create a new one."
+      <StartConversationPanel
+        models={modelsQuery.data ?? []}
+        modelsError={modelsQuery.isError ? errorMessage(modelsQuery.error) : null}
+        modelsIsLoading={modelsQuery.isLoading}
+        defaultConnectionID={searchParams.get("connection_id") ?? ""}
+        onCreated={(conversation) => navigate(`/chat/${conversation.id}`)}
       />
     );
   }
@@ -248,7 +258,7 @@ function MessagePanel({
       }}
     >
       <Stack spacing={0.5} sx={{ pb: 2 }}>
-        <Typography variant="h1">{conversation.title}</Typography>
+        <Typography variant="h1">{conversationTitle(conversation)}</Typography>
         <Typography color="text.secondary" variant="body2">
           Connection {conversation.connection_id}
         </Typography>
@@ -335,6 +345,226 @@ function MessagePanel({
           onSendSettled={() => setPendingProgress(null)}
         />
       </Box>
+    </Box>
+  );
+}
+
+function StartConversationPanel({
+  models,
+  modelsError,
+  modelsIsLoading,
+  defaultConnectionID,
+  onCreated,
+}: {
+  models: ChatModel[];
+  modelsError: string | null;
+  modelsIsLoading: boolean;
+  defaultConnectionID: string;
+  onCreated: (conversation: Conversation) => void;
+}) {
+  const { apiClient } = useAuth();
+  const queryClient = useQueryClient();
+  const connectionsQuery = useQuery({
+    queryKey: ["connections"],
+    queryFn: () => apiClient.get<Connection[]>("/connections"),
+  });
+  const connections = Array.isArray(connectionsQuery.data) ? connectionsQuery.data : [];
+  const initialConnectionID = connections.some((connection) => String(connection.id) === defaultConnectionID)
+    ? defaultConnectionID
+    : String(connections[0]?.id ?? "");
+  const defaultModel = useDefaultChatModel(models);
+  const [requireNaturalResponse, setRequireNaturalResponse] = useNaturalResponsePreference();
+  const selectedModelByID = useMemo(
+    () => new Map(models.map((model) => [model.id, model])),
+    [models],
+  );
+  const {
+    control,
+    formState: { errors },
+    handleSubmit,
+    register,
+    reset,
+    setError,
+  } = useForm<StartConversationForm>({
+    values: {
+      connection_id: initialConnectionID,
+      content: "",
+      model: defaultModel,
+    },
+  });
+  const contentField = register("content", {
+    validate: (value) => value.trim() ? true : "Message is required",
+  });
+
+  const mutation = useMutation({
+    mutationFn: async (values: StartConversationForm) => {
+      const selectedModel = selectedModelByID.get(values.model);
+      if (!selectedModel) {
+        throw new Error("Model is required");
+      }
+
+      const conversation = await apiClient.post<Conversation>("/chat/conversations", {
+        connection_id: Number(values.connection_id),
+        title: null,
+      });
+      queryClient.setQueryData(["chat-conversation", conversation.id], conversation);
+
+      const response = await apiClient.post<SendMessageResponse>(
+        `/chat/conversations/${conversation.id}/messages`,
+        {
+          content: values.content.trim(),
+          provider: selectedModel.provider as Provider,
+          model: values.model,
+          require_natural_response: requireNaturalResponse,
+        },
+      );
+
+      queryClient.setQueryData<MessageListItem[]>(["chat-messages", conversation.id], [
+        { message: response.user_message, retrieval: response.retrieval },
+        {
+          message: response.assistant_message,
+          execution: response.execution,
+        },
+      ]);
+      queryClient.setQueryData(["chat-conversation", conversation.id], response.conversation);
+
+      try {
+        const titledConversation = await apiClient.post<Conversation>(
+          `/chat/conversations/${conversation.id}/title/infer`,
+          {},
+        );
+        queryClient.setQueryData(["chat-conversation", conversation.id], titledConversation);
+      } catch {
+        // Title inference is best-effort after the first successful message.
+      }
+
+      return conversation;
+    },
+    onSuccess(conversation, values) {
+      window.localStorage.setItem(lastChatModelKey, values.model);
+      window.localStorage.setItem(requireNaturalResponseKey, String(requireNaturalResponse));
+      reset({ connection_id: values.connection_id, content: "", model: values.model });
+      void queryClient.invalidateQueries({ queryKey: ["chat-conversations"] });
+      onCreated(conversation);
+    },
+    onError(error) {
+      setError("content", { message: errorMessage(error) });
+    },
+  });
+
+  if (modelsIsLoading || connectionsQuery.isLoading) {
+    return <LoadingState label="Loading chat" />;
+  }
+
+  return (
+    <Box
+      sx={{
+        minHeight: "calc(100vh - 160px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Paper
+        component="form"
+        onSubmit={handleSubmit((values) => mutation.mutate(values))}
+        variant="outlined"
+        sx={{ width: "min(760px, 100%)", p: { xs: 2, sm: 3 }, borderRadius: 2 }}
+      >
+        <Stack spacing={2}>
+          <Stack spacing={0.5}>
+            <Typography variant="h1">New Chat</Typography>
+            <Typography color="text.secondary">
+              Ask a question against an available database connection.
+            </Typography>
+          </Stack>
+          {modelsError ? <Alert severity="warning">{modelsError}</Alert> : null}
+          {connectionsQuery.isError ? (
+            <Alert severity="error">{errorMessage(connectionsQuery.error)}</Alert>
+          ) : null}
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+            <Controller
+              control={control}
+              name="connection_id"
+              rules={{ required: "Connection is required" }}
+              render={({ field }) => (
+                <FormControl error={Boolean(errors.connection_id)} fullWidth>
+                  <InputLabel id="start-connection-label">Connection</InputLabel>
+                  <Select
+                    {...field}
+                    disabled={connections.length === 0}
+                    label="Connection"
+                    labelId="start-connection-label"
+                  >
+                    {connections.map((connection) => (
+                      <MenuItem key={connection.id} value={String(connection.id)}>
+                        {connection.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+            />
+            <Controller
+              control={control}
+              name="model"
+              rules={{ required: "Model is required" }}
+              render={({ field }) => (
+                <FormControl error={Boolean(errors.model)} fullWidth>
+                  <InputLabel id="start-model-label">Model</InputLabel>
+                  <Select
+                    {...field}
+                    disabled={models.length === 0}
+                    label="Model"
+                    labelId="start-model-label"
+                  >
+                    {models.map((model) => (
+                      <MenuItem key={model.id} value={model.id}>
+                        {model.display_name} ({model.id})
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+            />
+          </Stack>
+          <TextField
+            multiline
+            minRows={4}
+            error={Boolean(errors.content)}
+            helperText={errors.content?.message ?? errors.connection_id?.message ?? errors.model?.message}
+            placeholder="Message Datalk"
+            fullWidth
+            {...contentField}
+          />
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <Tooltip title={requireNaturalResponse ? "Natural response on" : "Natural response off"}>
+              <IconButton
+                aria-label={
+                  requireNaturalResponse ? "Turn natural response off" : "Turn natural response on"
+                }
+                color={requireNaturalResponse ? "primary" : "default"}
+                onClick={() => {
+                  const nextValue = !requireNaturalResponse;
+                  setRequireNaturalResponse(nextValue);
+                  window.localStorage.setItem(requireNaturalResponseKey, String(nextValue));
+                }}
+              >
+                <PsychologyAltOutlinedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Box sx={{ flex: 1 }} />
+            <Button
+              disabled={mutation.isPending || models.length === 0 || connections.length === 0}
+              startIcon={mutation.isPending ? <CircularProgress color="inherit" size={16} /> : <SendOutlinedIcon />}
+              type="submit"
+              variant="contained"
+            >
+              Send
+            </Button>
+          </Stack>
+        </Stack>
+      </Paper>
     </Box>
   );
 }
@@ -663,31 +893,8 @@ function SendMessageForm({
 }) {
   const { apiClient } = useAuth();
   const queryClient = useQueryClient();
-  const defaultModel = useMemo(() => {
-    const storedModel =
-      typeof window === "undefined"
-        ? null
-        : window.localStorage.getItem(lastChatModelKey);
-
-    if (storedModel && models.some((model) => model.id === storedModel)) {
-      return storedModel;
-    }
-
-    return models[0]?.id ?? "";
-  }, [models]);
-  const [requireNaturalResponse, setRequireNaturalResponse] = useState(() => {
-    if (typeof window === "undefined") {
-      return true;
-    }
-    const stored = window.localStorage.getItem(requireNaturalResponseKey);
-    if (stored === "false") {
-      return false;
-    }
-    if (stored === "true") {
-      return true;
-    }
-    return true;
-  });
+  const defaultModel = useDefaultChatModel(models);
+  const [requireNaturalResponse, setRequireNaturalResponse] = useNaturalResponsePreference();
   const {
     control,
     formState: { errors },
@@ -866,6 +1073,41 @@ function SendMessageForm({
       ) : null}
     </Paper>
   );
+}
+
+function useDefaultChatModel(models: ChatModel[]) {
+  return useMemo(() => {
+    const storedModel =
+      typeof window === "undefined"
+        ? null
+        : window.localStorage.getItem(lastChatModelKey);
+
+    if (storedModel && models.some((model) => model.id === storedModel)) {
+      return storedModel;
+    }
+
+    return models[0]?.id ?? "";
+  }, [models]);
+}
+
+function useNaturalResponsePreference() {
+  return useState(() => {
+    if (typeof window === "undefined") {
+      return true;
+    }
+    const stored = window.localStorage.getItem(requireNaturalResponseKey);
+    if (stored === "false") {
+      return false;
+    }
+    if (stored === "true") {
+      return true;
+    }
+    return true;
+  });
+}
+
+function conversationTitle(conversation: Conversation) {
+  return conversation.title?.trim() || "New Chat";
 }
 
 function formatCellValue(value: unknown) {
