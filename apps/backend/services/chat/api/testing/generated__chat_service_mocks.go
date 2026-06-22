@@ -94,6 +94,36 @@ func (_m *Service) GetConversation(ctx context.Context, userID int32, conversati
 	return r0, r1
 }
 
+// InferConversationTitle provides a mock function with given fields: ctx, userID, conversationID
+func (_m *Service) InferConversationTitle(ctx context.Context, userID int32, conversationID int64) (*chat.Conversation, error) {
+	ret := _m.Called(ctx, userID, conversationID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for InferConversationTitle")
+	}
+
+	var r0 *chat.Conversation
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32, int64) (*chat.Conversation, error)); ok {
+		return rf(ctx, userID, conversationID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int32, int64) *chat.Conversation); ok {
+		r0 = rf(ctx, userID, conversationID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*chat.Conversation)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int32, int64) error); ok {
+		r1 = rf(ctx, userID, conversationID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // ListConversations provides a mock function with given fields: ctx, userID, filter
 func (_m *Service) ListConversations(ctx context.Context, userID int32, filter chat.ListConversationsFilter) ([]*chat.Conversation, error) {
 	ret := _m.Called(ctx, userID, filter)

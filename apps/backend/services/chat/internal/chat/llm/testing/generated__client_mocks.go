@@ -44,6 +44,36 @@ func (_m *Client) GenerateAnswer(ctx context.Context, req llm.GenerateAnswerRequ
 	return r0, r1
 }
 
+// GenerateConversationTitle provides a mock function with given fields: ctx, req
+func (_m *Client) GenerateConversationTitle(ctx context.Context, req llm.GenerateConversationTitleRequest) (*llm.GenerateConversationTitleResponse, error) {
+	ret := _m.Called(ctx, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GenerateConversationTitle")
+	}
+
+	var r0 *llm.GenerateConversationTitleResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, llm.GenerateConversationTitleRequest) (*llm.GenerateConversationTitleResponse, error)); ok {
+		return rf(ctx, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, llm.GenerateConversationTitleRequest) *llm.GenerateConversationTitleResponse); ok {
+		r0 = rf(ctx, req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*llm.GenerateConversationTitleResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, llm.GenerateConversationTitleRequest) error); ok {
+		r1 = rf(ctx, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GenerateSQL provides a mock function with given fields: ctx, req
 func (_m *Client) GenerateSQL(ctx context.Context, req llm.GenerateSQLRequest) (*llm.GenerateSQLResponse, error) {
 	ret := _m.Called(ctx, req)

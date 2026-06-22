@@ -94,6 +94,36 @@ func (_m *API) GetConversation(ctx context.Context, userID int32, conversationID
 	return r0, r1
 }
 
+// InferConversationTitle provides a mock function with given fields: ctx, userID, conversationID
+func (_m *API) InferConversationTitle(ctx context.Context, userID int32, conversationID int64) (*chat.Conversation, error) {
+	ret := _m.Called(ctx, userID, conversationID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for InferConversationTitle")
+	}
+
+	var r0 *chat.Conversation
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32, int64) (*chat.Conversation, error)); ok {
+		return rf(ctx, userID, conversationID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int32, int64) *chat.Conversation); ok {
+		r0 = rf(ctx, userID, conversationID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*chat.Conversation)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int32, int64) error); ok {
+		r1 = rf(ctx, userID, conversationID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // ListAvailableModels provides a mock function with given fields: ctx
 func (_m *API) ListAvailableModels(ctx context.Context) ([]llm.Model, error) {
 	ret := _m.Called(ctx)

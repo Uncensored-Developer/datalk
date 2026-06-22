@@ -50,9 +50,9 @@ func TestStorage_InsertGetAndListConversations(t *testing.T) {
 		Title:        &title3,
 	}
 
-	require.NoError(t, s.InsertConversation(t.Context(), conversation1))
-	require.NoError(t, s.InsertConversation(t.Context(), conversation2))
-	require.NoError(t, s.InsertConversation(t.Context(), conversation3))
+	require.NoError(t, s.UpsertConversation(t.Context(), conversation1))
+	require.NoError(t, s.UpsertConversation(t.Context(), conversation2))
+	require.NoError(t, s.UpsertConversation(t.Context(), conversation3))
 
 	require.False(t, conversation1.CreatedAt.IsZero())
 	require.False(t, conversation1.UpdatedAt.IsZero())
@@ -65,6 +65,19 @@ func TestStorage_InsertGetAndListConversations(t *testing.T) {
 	assert.Equal(t, conversation1.ConnectionID, got.ConnectionID)
 	require.NotNil(t, got.Title)
 	assert.Equal(t, title1, *got.Title)
+
+	updatedTitle := "Revenue Growth"
+	conversation1.Title = &updatedTitle
+	conversation1.UserID = secondaryConn.UserID
+	conversation1.ConnectionID = secondaryConn.ID
+	require.NoError(t, s.UpsertConversation(t.Context(), conversation1))
+	updated, err := s.GetConversation(t.Context(), conversation1.ID)
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+	require.NotNil(t, updated.Title)
+	assert.Equal(t, updatedTitle, *updated.Title)
+	assert.Equal(t, primaryConn.UserID, updated.UserID)
+	assert.Equal(t, primaryConn.ID, updated.ConnectionID)
 
 	listed, err := s.ListConversations(t.Context(), chatstorage.ConversationsFilter{
 		UserID: []int32{primaryConn.UserID},
@@ -547,7 +560,7 @@ func insertConversation(t *testing.T, userID, connectionID int32, title string) 
 		Title:        ptr.Of(title),
 	}
 
-	require.NoError(t, s.InsertConversation(t.Context(), conversation))
+	require.NoError(t, s.UpsertConversation(t.Context(), conversation))
 	return conversation
 }
 

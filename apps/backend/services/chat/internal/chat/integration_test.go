@@ -38,7 +38,7 @@ func TestService_SendMessageIntegration_PostgresFollowUpAndModelSwitching(t *tes
 		UserID:       userID,
 		ConnectionID: connectionID,
 	}
-	require.NoError(t, storage.InsertConversation(ctx, conversation))
+	require.NoError(t, storage.UpsertConversation(ctx, conversation))
 
 	connectionService := &integrationConnectionService{
 		connection: &connectiontypes.Connection{
@@ -201,6 +201,10 @@ func (c *integrationSQLClient) GenerateSQL(_ context.Context, req llmtypes.Gener
 }
 
 func (c *integrationSQLClient) GenerateAnswer(context.Context, llmtypes.GenerateAnswerRequest) (*llmtypes.GenerateAnswerResponse, error) {
+	return nil, errors.New("not implemented in integration tests")
+}
+
+func (c *integrationSQLClient) GenerateConversationTitle(context.Context, llmtypes.GenerateConversationTitleRequest) (*llmtypes.GenerateConversationTitleResponse, error) {
 	return nil, errors.New("not implemented in integration tests")
 }
 

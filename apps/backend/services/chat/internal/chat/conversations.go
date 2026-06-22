@@ -21,7 +21,7 @@ func (s *Service) CreateConversation(ctx context.Context, userID int32, params c
 		ConnectionID: params.ConnectionID,
 		Title:        params.Title,
 	}
-	if err := s.storage.InsertConversation(ctx, conversation); err != nil {
+	if err := s.storage.UpsertConversation(ctx, conversation); err != nil {
 		return nil, xerrors.Newf("failed to create conversation: %w", err)
 	}
 

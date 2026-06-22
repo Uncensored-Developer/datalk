@@ -28,13 +28,18 @@ func conversationToDB(conversation *chattype.Conversation) *models.ChatConversat
 		updatedAt = omit.From(conversation.UpdatedAt)
 	}
 
-	return &models.ChatConversationSetter{
+	setter := &models.ChatConversationSetter{
 		UserID:       omit.From(conversation.UserID),
 		ConnectionID: omit.From(conversation.ConnectionID),
 		Title:        omitnull.FromPtr(conversation.Title),
 		CreatedAt:    createdAt,
 		UpdatedAt:    updatedAt,
 	}
+	if conversation.ID != 0 {
+		setter.ID = omit.From(conversation.ID)
+	}
+
+	return setter
 }
 
 func conversationFromDB(dbConversation *models.ChatConversation) (*chattype.Conversation, error) {

@@ -28,7 +28,7 @@ func TestService_CreateConversation(t *testing.T) {
 	mockConnections.On("GetConnection", ctx, connectionID).Return(&connectiontypes.Connection{ID: connectionID, Database: connectiontypes.DatabasePostgres}, nil).Once()
 	mockConnections.On("GetAccess", ctx, userID, connectionID).Return(&connectiontypes.Access{CanQuery: true}, nil).Once()
 	mockStorage.
-		On("InsertConversation", ctx, mock.MatchedBy(func(conversation *chattype.Conversation) bool {
+		On("UpsertConversation", ctx, mock.MatchedBy(func(conversation *chattype.Conversation) bool {
 			return conversation.UserID == userID &&
 				conversation.ConnectionID == connectionID &&
 				conversation.Title != nil &&
