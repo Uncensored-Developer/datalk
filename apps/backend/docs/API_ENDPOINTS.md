@@ -782,6 +782,8 @@ Body:
 }
 ```
 
+`title` may be `null` when the client will infer the title after the first successful message.
+
 Response `201`:
 
 ```json
@@ -831,6 +833,19 @@ Authorization: Bearer <access_token>
 ```
 
 Response `200`: single conversation response.
+
+### Infer Conversation Title
+
+Generates a short title for a null-title conversation from the first successful user/assistant turn. Existing non-empty titles are returned unchanged.
+
+```http
+POST /api/chat/conversations/{conversation_id}/title/infer
+Authorization: Bearer <access_token>
+```
+
+Response `200`: updated conversation response.
+
+Returns `400` when the conversation does not yet have a completed assistant turn that can be used for title inference.
 
 ### Delete Conversation
 

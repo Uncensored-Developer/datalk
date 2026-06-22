@@ -30,6 +30,7 @@ func (h *Handler) Register(group *echo.Group) {
 	group.GET("/conversations", h.ListConversations)
 	group.GET("/conversations/:"+conversationIDParam, h.GetConversation)
 	group.DELETE("/conversations/:"+conversationIDParam, h.DeleteConversation)
+	group.POST("/conversations/:"+conversationIDParam+"/title/infer", h.InferConversationTitle)
 	group.GET("/conversations/:"+conversationIDParam+"/messages", h.ListMessages)
 	group.POST("/conversations/:"+conversationIDParam+"/messages", h.SendMessage)
 	group.POST("/conversations/:"+conversationIDParam+"/messages/stream", h.SendMessageStream)

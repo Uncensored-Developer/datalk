@@ -116,6 +116,7 @@ func StatusForError(err error) int {
 		errors.Is(err, chaterrors.ErrPromptTooLarge),
 		errors.Is(err, chaterrors.ErrUnsupportedDatabaseKind),
 		errors.Is(err, chaterrors.ErrMessageExecutionFailed),
+		errors.Is(err, chaterrors.ErrConversationTitleNotReady),
 		errors.Is(err, connectionerrors.ErrConnectionTestFailed),
 		errors.Is(err, connectionerrors.ErrUnsupportedConnection),
 		errors.Is(err, connectionerrors.ErrInvalidConnectionInput):
