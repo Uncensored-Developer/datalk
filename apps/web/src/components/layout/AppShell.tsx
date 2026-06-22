@@ -20,7 +20,6 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
 import Divider from "@mui/material/Divider";
-import Dialog from "@mui/material/Dialog";
 import Drawer from "@mui/material/Drawer";
 import FormControl from "@mui/material/FormControl";
 import IconButton from "@mui/material/IconButton";
@@ -36,10 +35,8 @@ import Stack from "@mui/material/Stack";
 import Toolbar from "@mui/material/Toolbar";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import TextField from "@mui/material/TextField";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
-import { Controller, useForm } from "react-hook-form";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/AuthProvider";
 import { ConfirmDialog } from "../common/ConfirmDialog";
@@ -57,11 +54,6 @@ const drawerWidth = 304;
 type AppShellProps = {
   title: string;
   children: ReactNode;
-};
-
-type ConversationForm = {
-  connection_id: string;
-  title: string;
 };
 
 const pageItems: Array<{
@@ -256,7 +248,6 @@ function ConversationNavigation({ onSelect }: { onSelect: () => void }) {
   const location = useLocation();
   const queryClient = useQueryClient();
   const [selectedConnectionID, setSelectedConnectionID] = useState("");
-  const [createOpen, setCreateOpen] = useState(false);
   const [deletingConversation, setDeletingConversation] = useState<Conversation | null>(null);
   const activeConversationID = conversationIDFromPath(location.pathname);
 
@@ -302,7 +293,10 @@ function ConversationNavigation({ onSelect }: { onSelect: () => void }) {
               aria-label="New conversation"
               color="primary"
               disabled={connectionsQuery.isLoading || connections.length === 0}
-              onClick={() => setCreateOpen(true)}
+              onClick={() => {
+                navigate(selectedConnectionID ? `/chat?connection_id=${selectedConnectionID}` : "/chat");
+                onSelect();
+              }}
             >
               <AddOutlinedIcon />
             </IconButton>
@@ -382,13 +376,13 @@ function ConversationNavigation({ onSelect }: { onSelect: () => void }) {
               }}
             >
               <ListItemText
-                primary={conversation.title}
+                primary={conversationTitle(conversation)}
                 primaryTypographyProps={{ fontWeight: 800, noWrap: true }}
                 secondary={`Connection ${conversation.connection_id}`}
               />
               <Tooltip title="Delete conversation">
                 <IconButton
-                  aria-label={`Delete ${conversation.title}`}
+                  aria-label={`Delete ${conversationTitle(conversation)}`}
                   color="error"
                   edge="end"
                   disabled={deleteMutation.isPending}
@@ -419,21 +413,10 @@ function ConversationNavigation({ onSelect }: { onSelect: () => void }) {
           {user?.name ?? "Unknown user"}
         </Typography>
       </Stack>
-      <CreateConversationDialog
-        connections={connections}
-        defaultConnectionID={selectedConnectionID}
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        onCreated={(conversation) => {
-          setSelectedConnectionID(String(conversation.connection_id));
-          navigate(`/chat/${conversation.id}`);
-          onSelect();
-        }}
-      />
       <ConfirmDialog
         open={Boolean(deletingConversation)}
         title="Delete conversation"
-        description={`Delete ${deletingConversation?.title ?? "this conversation"}?`}
+        description={`Delete ${deletingConversation ? conversationTitle(deletingConversation) : "this chat"}?`}
         confirmLabel="Delete"
         destructive
         onCancel={() => setDeletingConversation(null)}
@@ -448,115 +431,13 @@ function ConversationNavigation({ onSelect }: { onSelect: () => void }) {
   );
 }
 
-function CreateConversationDialog({
-  connections,
-  defaultConnectionID,
-  open,
-  onClose,
-  onCreated,
-}: {
-  connections: Connection[];
-  defaultConnectionID: string;
-  open: boolean;
-  onClose: () => void;
-  onCreated: (conversation: Conversation) => void;
-}) {
-  const { apiClient } = useAuth();
-  const queryClient = useQueryClient();
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const {
-    control,
-    formState: { errors },
-    handleSubmit,
-    register,
-    reset,
-  } = useForm<ConversationForm>({
-    values: {
-      connection_id: defaultConnectionID || String(connections[0]?.id ?? ""),
-      title: "",
-    },
-  });
-
-  const mutation = useMutation({
-    mutationFn: (values: ConversationForm) =>
-      apiClient.post<Conversation>("/chat/conversations", {
-        connection_id: Number(values.connection_id),
-        title: values.title.trim(),
-      }),
-    onSuccess(conversation) {
-      setSubmitError(null);
-      reset();
-      onClose();
-      onCreated(conversation);
-      void queryClient.invalidateQueries({ queryKey: ["chat-conversations"] });
-    },
-    onError(error) {
-      setSubmitError(errorMessage(error));
-    },
-  });
-
-  const close = () => {
-    if (!mutation.isPending) {
-      setSubmitError(null);
-      reset();
-      onClose();
-    }
-  };
-
-  return (
-    <Dialog fullWidth maxWidth="sm" open={open} onClose={close}>
-      <Box component="form" onSubmit={handleSubmit((values) => mutation.mutate(values))}>
-        <Typography component="h2" variant="h2" sx={{ px: 3, pt: 3, pb: 1 }}>
-          Create conversation
-        </Typography>
-        <Stack spacing={2} sx={{ px: 3, py: 2 }}>
-          {submitError ? <Alert severity="error">{submitError}</Alert> : null}
-          <Controller
-            control={control}
-            name="connection_id"
-            rules={{ required: "Connection is required" }}
-            render={({ field }) => (
-              <FormControl fullWidth error={Boolean(errors.connection_id)}>
-                <InputLabel id="conversation-connection-label">Connection</InputLabel>
-                <Select {...field} label="Connection" labelId="conversation-connection-label">
-                  {connections.map((connection) => (
-                    <MenuItem key={connection.id} value={String(connection.id)}>
-                      {connection.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            )}
-          />
-          <TextField
-            label="Title"
-            error={Boolean(errors.title)}
-            helperText={errors.title?.message}
-            fullWidth
-            {...register("title", {
-              validate: (value) => value.trim() ? true : "Title is required",
-            })}
-          />
-        </Stack>
-        <Stack direction="row" justifyContent="flex-end" spacing={1} sx={{ px: 3, pb: 3 }}>
-          <Button onClick={close}>Cancel</Button>
-          <Button
-            disabled={mutation.isPending}
-            startIcon={mutation.isPending ? <CircularProgress color="inherit" size={16} /> : undefined}
-            type="submit"
-            variant="contained"
-          >
-            Create
-          </Button>
-        </Stack>
-      </Box>
-    </Dialog>
-  );
-}
-
 function conversationIDFromPath(pathname: string) {
   const match = pathname.match(/^\/chat\/(\d+)$/);
   return match ? Number(match[1]) : null;
+}
+
+function conversationTitle(conversation: Conversation) {
+  return conversation.title?.trim() || "New Chat";
 }
 
 type ThemeModeControlProps = {

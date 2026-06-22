@@ -304,11 +304,11 @@ Keep `EMBEDDING_ENABLED=true` for normal application use. Provider configs can s
 
 ## TODO
 
-- Natural-language assistant responses, so chat answers can include a plain-English explanation in addition to SQL results.
+- ~~Natural-language assistant responses, so chat answers can include a plain-English explanation in addition to SQL results.~~
 - Admin password reset flow for users, including forced password change on next login.
-- Streaming chat responses for better perceived latency during SQL generation and result explanation.
+- ~~Streaming chat responses for better perceived latency during SQL generation and result explanation.~~
 - Conversation rename/delete/archive actions.
-- Connection health checks from the UI before saving or after editing a connection.
+- ~~Connection health checks from the UI before saving or after editing a connection.~~
 - Schema refresh progress and status indicators in the frontend.
 - Production Docker Compose example covering the app container, Postgres, pgvector, and Ollama.
 - CI pipeline for frontend checks, backend tests, single-binary build, and Docker image build.
