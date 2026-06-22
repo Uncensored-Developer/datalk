@@ -15,6 +15,7 @@ import (
 type Service interface {
 	CreateConversation(ctx context.Context, userID int32, params chattype.CreateConversationParams) (*chattype.Conversation, error)
 	GetConversation(ctx context.Context, userID int32, conversationID int64) (*chattype.Conversation, error)
+	InferConversationTitle(ctx context.Context, userID int32, conversationID int64) (*chattype.Conversation, error)
 	ListConversations(ctx context.Context, userID int32, filter chattype.ListConversationsFilter) ([]*chattype.Conversation, error)
 	DeleteConversation(ctx context.Context, userID int32, conversationID int64) error
 	ListMessages(ctx context.Context, userID int32, filter chattype.ListMessagesFilter) ([]*chattype.MessageDetails, error)
@@ -50,6 +51,10 @@ func (a *Api) CreateConversation(ctx context.Context, userID int32, params Creat
 
 func (a *Api) GetConversation(ctx context.Context, userID int32, conversationID int64) (*chattype.Conversation, error) {
 	return a.service.GetConversation(ctx, userID, conversationID)
+}
+
+func (a *Api) InferConversationTitle(ctx context.Context, userID int32, conversationID int64) (*chattype.Conversation, error) {
+	return a.service.InferConversationTitle(ctx, userID, conversationID)
 }
 
 func (a *Api) ListConversations(ctx context.Context, userID int32, filter ListConversationsFilter) ([]*chattype.Conversation, error) {

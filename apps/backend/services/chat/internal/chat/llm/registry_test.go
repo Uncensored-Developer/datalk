@@ -50,6 +50,10 @@ func (s stubClient) GenerateAnswer(context.Context, llmtypes.GenerateAnswerReque
 	return nil, errors.New("not implemented in registry tests")
 }
 
+func (s stubClient) GenerateConversationTitle(context.Context, llmtypes.GenerateConversationTitleRequest) (*llmtypes.GenerateConversationTitleResponse, error) {
+	return nil, errors.New("not implemented in registry tests")
+}
+
 func TestRegistry_ListAvailableModels_FiltersDisabledConfigs(t *testing.T) {
 	t.Parallel()
 

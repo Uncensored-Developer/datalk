@@ -307,6 +307,73 @@ func (c *Client) GenerateAnswer(ctx context.Context, req llmtypes.GenerateAnswer
 	}, finishReason)
 }
 
+func (c *Client) GenerateConversationTitle(ctx context.Context, req llmtypes.GenerateConversationTitleRequest) (*llmtypes.GenerateConversationTitleResponse, error) {
+	if strings.TrimSpace(req.Model) == "" {
+		return nil, xerrors.New("model is required")
+	}
+
+	requestBody := generateRequest{
+		SystemInstruction: content{
+			Parts: []part{{Text: llmcore.GenerateConversationTitleSystemPrompt(req)}},
+		},
+		Contents: geminiConversationTitleContents(req),
+		GenerationConfig: generationConfig{
+			ResponseMIMEType: "application/json",
+			ResponseSchema:   geminiSchema(llmcore.GenerateConversationTitleSchema()),
+		},
+	}
+
+	rawRequest, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, xerrors.Newf("failed to marshal gemini title request: %w", err)
+	}
+
+	endpoint := c.baseURL + "/v1beta/models/" + url.PathEscape(req.Model) + ":generateContent?key=" + url.QueryEscape(c.apiKey)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(rawRequest))
+	if err != nil {
+		return nil, xerrors.Newf("failed to create gemini title request: %w", err)
+	}
+	httpReq.Header.Set("content-type", "application/json")
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, xerrors.Newf("failed to call gemini generate api: %w", err)
+	}
+	defer resp.Body.Close()
+
+	rawResponse, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, xerrors.Newf("failed to read gemini title response: %w", err)
+	}
+	if err := decodeHTTPError("gemini generate api", resp.StatusCode, rawResponse); err != nil {
+		return nil, err
+	}
+
+	var payload generateResponse
+	if err := json.Unmarshal(rawResponse, &payload); err != nil {
+		return nil, xerrors.Newf("failed to decode gemini title response: %w", err)
+	}
+	if len(payload.Candidates) == 0 || len(payload.Candidates[0].Content.Parts) == 0 {
+		return nil, xerrors.New("gemini title response did not include candidate text")
+	}
+
+	responseText := strings.TrimSpace(payload.Candidates[0].Content.Parts[0].Text)
+	if responseText == "" {
+		return nil, xerrors.New("gemini title response did not include candidate text")
+	}
+
+	var finishReason *string
+	if strings.TrimSpace(payload.Candidates[0].FinishReason) != "" {
+		finishReason = &payload.Candidates[0].FinishReason
+	}
+
+	return llmcore.ParseGenerateConversationTitleResponse(rawRequest, rawResponse, responseText, &llmtypes.Usage{
+		InputTokens:  payload.UsageMetadata.PromptTokenCount,
+		OutputTokens: payload.UsageMetadata.CandidatesTokenCount,
+		TotalTokens:  payload.UsageMetadata.TotalTokenCount,
+	}, finishReason)
+}
+
 func decodeHTTPError(apiName string, statusCode int, body []byte) error {
 	if statusCode < http.StatusBadRequest {
 		return nil
@@ -343,6 +410,18 @@ func geminiContents(req llmtypes.GenerateSQLRequest) []content {
 
 func geminiAnswerContents(req llmtypes.GenerateAnswerRequest) []content {
 	promptMessages := llmcore.GenerateAnswerMessages(req)
+	contents := make([]content, 0, len(promptMessages))
+	for _, promptMessage := range promptMessages {
+		contents = append(contents, content{
+			Role:  normalizeGeminiRole(promptMessage.Role),
+			Parts: []part{{Text: promptMessage.Content}},
+		})
+	}
+	return contents
+}
+
+func geminiConversationTitleContents(req llmtypes.GenerateConversationTitleRequest) []content {
+	promptMessages := llmcore.GenerateConversationTitleMessages(req)
 	contents := make([]content, 0, len(promptMessages))
 	for _, promptMessage := range promptMessages {
 		contents = append(contents, content{

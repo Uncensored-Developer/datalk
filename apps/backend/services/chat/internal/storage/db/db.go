@@ -27,8 +27,16 @@ func NewStorage(conn *sql.DB) *Storage {
 	}
 }
 
-func (s *Storage) InsertConversation(ctx context.Context, conversation *chattype.Conversation) error {
-	dbConversation, err := models.ChatConversations.Insert(conversationToDB(conversation)).One(ctx, s.Executor(ctx))
+func (s *Storage) UpsertConversation(ctx context.Context, conversation *chattype.Conversation) error {
+	dbConversation, err := models.ChatConversations.Insert(
+		conversationToDB(conversation),
+		im.OnConflict(info.ChatConversations.Columns.ID.Name).DoUpdate(
+			im.SetExcluded(
+				info.ChatConversations.Columns.Title.Name,
+			),
+			im.SetCol(info.ChatConversations.Columns.UpdatedAt.Name).To(psql.Raw("CURRENT_TIMESTAMP")),
+		),
+	).One(ctx, s.Executor(ctx))
 	if err != nil {
 		return err
 	}

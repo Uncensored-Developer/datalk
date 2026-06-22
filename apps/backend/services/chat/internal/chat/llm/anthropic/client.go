@@ -18,6 +18,7 @@ const (
 	anthropicVersion = "2023-06-01"
 	toolName         = "propose_sql_query"
 	answerToolName   = "answer_query_result"
+	titleToolName    = "generate_conversation_title"
 )
 
 var (
@@ -331,6 +332,89 @@ func (c *Client) GenerateAnswer(ctx context.Context, req llmtypes.GenerateAnswer
 	return llmcore.ParseGenerateAnswerResponse(rawRequest, rawResponse, string(toolInput), usage, finishReason)
 }
 
+func (c *Client) GenerateConversationTitle(ctx context.Context, req llmtypes.GenerateConversationTitleRequest) (*llmtypes.GenerateConversationTitleResponse, error) {
+	if strings.TrimSpace(req.Model) == "" {
+		return nil, xerrors.New("model is required")
+	}
+
+	requestBody := generateRequest{
+		Model:     req.Model,
+		MaxTokens: 120,
+		System:    llmcore.GenerateConversationTitleSystemPrompt(req),
+		Messages:  anthropicConversationTitleMessages(req),
+		Tools: []tool{
+			{
+				Name:        titleToolName,
+				Description: "Return a short conversation title.",
+				InputSchema: llmcore.GenerateConversationTitleSchema(),
+			},
+		},
+		ToolChoice: toolChoice{
+			Type: "tool",
+			Name: titleToolName,
+		},
+	}
+
+	rawRequest, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, xerrors.Newf("failed to marshal anthropic title request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/v1/messages", bytes.NewReader(rawRequest))
+	if err != nil {
+		return nil, xerrors.Newf("failed to create anthropic title request: %w", err)
+	}
+	httpReq.Header.Set("x-api-key", c.apiKey)
+	httpReq.Header.Set("anthropic-version", anthropicVersion)
+	httpReq.Header.Set("content-type", "application/json")
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, xerrors.Newf("failed to call anthropic messages api: %w", err)
+	}
+	defer resp.Body.Close()
+
+	rawResponse, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, xerrors.Newf("failed to read anthropic title response: %w", err)
+	}
+	if err := decodeHTTPError("anthropic messages api", resp.StatusCode, rawResponse); err != nil {
+		return nil, err
+	}
+
+	var payload generateResponse
+	if err := json.Unmarshal(rawResponse, &payload); err != nil {
+		return nil, xerrors.Newf("failed to decode anthropic title response: %w", err)
+	}
+
+	var toolInput json.RawMessage
+	for _, block := range payload.Content {
+		if block.Type == "tool_use" && block.Name == titleToolName {
+			toolInput = block.Input
+			break
+		}
+	}
+	if len(toolInput) == 0 {
+		return nil, xerrors.New("anthropic title response did not include tool output")
+	}
+
+	var finishReason *string
+	if strings.TrimSpace(payload.StopReason) != "" {
+		finishReason = &payload.StopReason
+	}
+
+	usage := &llmtypes.Usage{
+		InputTokens:  payload.Usage.InputTokens,
+		OutputTokens: payload.Usage.OutputTokens,
+	}
+	if payload.Usage.InputTokens != nil && payload.Usage.OutputTokens != nil {
+		total := *payload.Usage.InputTokens + *payload.Usage.OutputTokens
+		usage.TotalTokens = &total
+	}
+
+	return llmcore.ParseGenerateConversationTitleResponse(rawRequest, rawResponse, string(toolInput), usage, finishReason)
+}
+
 func decodeHTTPError(apiName string, statusCode int, body []byte) error {
 	if statusCode < http.StatusBadRequest {
 		return nil
@@ -358,6 +442,18 @@ func anthropicMessages(req llmtypes.GenerateSQLRequest) []message {
 
 func anthropicAnswerMessages(req llmtypes.GenerateAnswerRequest) []message {
 	promptMessages := llmcore.GenerateAnswerMessages(req)
+	messages := make([]message, 0, len(promptMessages))
+	for _, promptMessage := range promptMessages {
+		messages = append(messages, message{
+			Role:    normalizeAnthropicRole(promptMessage.Role),
+			Content: promptMessage.Content,
+		})
+	}
+	return messages
+}
+
+func anthropicConversationTitleMessages(req llmtypes.GenerateConversationTitleRequest) []message {
+	promptMessages := llmcore.GenerateConversationTitleMessages(req)
 	messages := make([]message, 0, len(promptMessages))
 	for _, promptMessage := range promptMessages {
 		messages = append(messages, message{

@@ -202,24 +202,6 @@ func (_m *Storage) InTransaction(ctx context.Context, fn func(context.Context) e
 	return r0
 }
 
-// InsertConversation provides a mock function with given fields: ctx, conversation
-func (_m *Storage) InsertConversation(ctx context.Context, conversation *chat.Conversation) error {
-	ret := _m.Called(ctx, conversation)
-
-	if len(ret) == 0 {
-		panic("no return value specified for InsertConversation")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *chat.Conversation) error); ok {
-		r0 = rf(ctx, conversation)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
 // InsertExecution provides a mock function with given fields: ctx, execution
 func (_m *Storage) InsertExecution(ctx context.Context, execution *chat.MessageExecution) error {
 	ret := _m.Called(ctx, execution)
@@ -440,6 +422,24 @@ func (_m *Storage) ListProviderModels(ctx context.Context, filter storage.Provid
 	}
 
 	return r0, r1
+}
+
+// UpsertConversation provides a mock function with given fields: ctx, conversation
+func (_m *Storage) UpsertConversation(ctx context.Context, conversation *chat.Conversation) error {
+	ret := _m.Called(ctx, conversation)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpsertConversation")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *chat.Conversation) error); ok {
+		r0 = rf(ctx, conversation)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
 }
 
 // UpsertProviderConfig provides a mock function with given fields: ctx, config

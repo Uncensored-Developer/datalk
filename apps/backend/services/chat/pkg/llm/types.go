@@ -148,6 +148,22 @@ type GenerateAnswerResponse struct {
 	RawResponse  json.RawMessage
 }
 
+type GenerateConversationTitleRequest struct {
+	Model      string
+	UserPrompt string
+	Assistant  string
+	MaxWords   int
+	MaxChars   int
+}
+
+type GenerateConversationTitleResponse struct {
+	Title        string
+	FinishReason *string
+	Usage        *Usage
+	RawRequest   json.RawMessage
+	RawResponse  json.RawMessage
+}
+
 type Usage struct {
 	InputTokens  *int
 	OutputTokens *int

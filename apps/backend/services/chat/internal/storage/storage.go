@@ -74,7 +74,7 @@ type ProviderModelsFilter struct {
 type Storage interface {
 	InTransaction(ctx context.Context, fn func(ctx context.Context) error) error
 
-	InsertConversation(ctx context.Context, conversation *chattype.Conversation) error
+	UpsertConversation(ctx context.Context, conversation *chattype.Conversation) error
 	GetConversation(ctx context.Context, id int64) (*chattype.Conversation, error)
 	ListConversations(ctx context.Context, filter ConversationsFilter) ([]*chattype.Conversation, error)
 	DeleteConversation(ctx context.Context, id int64) error
