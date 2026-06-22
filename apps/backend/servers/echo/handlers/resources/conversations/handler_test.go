@@ -53,6 +53,29 @@ func TestHandler_CreateConversation(t *testing.T) {
 	assert.Equal(t, title, body["title"])
 }
 
+func TestHandler_InferConversationTitle(t *testing.T) {
+	t.Parallel()
+
+	title := "Revenue Growth"
+	mockService := chatapitesting.NewAPI(t)
+	mockService.
+		On("InferConversationTitle", mock.Anything, int32(7), int64(10)).
+		Return(&chattype.Conversation{ID: 10, UserID: 7, ConnectionID: 42, Title: &title}, nil).
+		Once()
+
+	e := newTestEcho(mockService)
+	req := httptest.NewRequest(http.MethodPost, "/api/chat/conversations/10/title/infer", nil)
+	rec := httptest.NewRecorder()
+
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	assert.Equal(t, float64(10), body["id"])
+	assert.Equal(t, title, body["title"])
+}
+
 func TestHandler_ListMessages(t *testing.T) {
 	t.Parallel()
 
